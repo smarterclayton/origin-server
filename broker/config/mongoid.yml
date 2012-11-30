@@ -1,0 +1,24 @@
+development:
+  sessions:
+    default:
+      database: openshift_broker_dev
+      hosts:
+        - localhost:27017
+      user: openshift
+      password: mooo
+production:
+  sessions:
+    default:
+      database: openshift_broker_dev
+      hosts:
+        - localhost:27017
+      user: openshift
+      password: mooo
+test:
+  sessions:
+    default:
+      database: openshift_broker_test
+      hosts:
+        - localhost:27017
+      user: openshift
+      password: mooo
