@@ -1184,6 +1184,7 @@ module OpenShift
       # Returns whether this server has already reserved the specified uid as a uid or gid
       #
       def has_uid_or_gid?(uid)
+        return false if uid.nil?
         MCollectiveApplicationContainerProxy.rpc_exec('openshift', @id) do |client|
           client.has_uid_or_gid(:uid => uid.to_s) do |response|
             output = response[:body][:data][:output]
