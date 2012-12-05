@@ -62,3 +62,7 @@ Subscribes:
 Scaling:
   Min: 1
   Max: -1
+Group-Overrides:
+  - components:
+    - ruby-1.8
+    - web_proxy

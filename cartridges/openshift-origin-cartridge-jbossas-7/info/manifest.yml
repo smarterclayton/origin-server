@@ -79,3 +79,7 @@ Subscribes:
     Type: "NET_TCP:jboss-cluster-info"
   set_jboss_remoting:
     Type: "NET_TCP:jboss-remoting-info"
+Group-Overrides:
+  - components:
+    - "jboss-as7"
+    - web_proxy
