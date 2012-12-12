@@ -420,8 +420,8 @@ module OpenShift
  
       def tidy(app, gear, cart)
         args = Hash.new
-        args['--with-app-uuid'] = app.uuid
-        args['--with-container-uuid'] = gear.uuid
+        args['--with-app-uuid'] = app._id.to_s
+        args['--with-container-uuid'] = gear._id.to_s
         result = execute_direct(@@C_CONTROLLER, 'tidy', args)
         parse_result(result)
       end
@@ -1134,6 +1134,7 @@ module OpenShift
             raise OpenShift::NodeException.new("Node execution failure (invalid exit code from node).  If the problem persists please contact Red Hat support.", 143, result)
           end
         end
+        
         result
       end
       
@@ -1202,32 +1203,34 @@ module OpenShift
         result = execute_direct(framework, command, arguments)
 
         begin
-          resultIO = parse_result(result, app, gear, command)
-        rescue OpenShift::InvalidNodeException => e
-          if command != 'configure' && allow_move
-            @id = e.server_identity
-            Rails.logger.debug "DEBUG: Changing server identity of '#{gear.name}' from '#{gear.server_identity}' to '#{@id}'"
-            dns_service = OpenShift::DnsService.instance
-            dns_service.modify_application(gear.name, app.domain.namespace, get_public_hostname)
-            dns_service.publish
-            gear.server_identity = @id
-            app.save
-            #retry
-            result = execute_direct(framework, command, arguments)
+          begin
             resultIO = parse_result(result, app, gear, command)
-          else
-            raise
+          rescue OpenShift::InvalidNodeException => e
+            if command != 'configure' && allow_move
+              @id = e.server_identity
+              Rails.logger.debug "DEBUG: Changing server identity of '#{gear.name}' from '#{gear.server_identity}' to '#{@id}'"
+              dns_service = OpenShift::DnsService.instance
+              dns_service.modify_application(gear.name, app.domain.namespace, get_public_hostname)
+              dns_service.publish
+              gear.server_identity = @id
+              app.save
+              #retry
+              result = execute_direct(framework, command, arguments)
+              resultIO = parse_result(result, app, gear, command)
+            else
+              raise
+            end
           end
 	rescue OpenShift::NodeException => e
           if command == 'deconfigure'
             if framework.start_with?('embedded/')
-              if has_embedded_app?(app.uuid, framework[9..-1])
+              if has_embedded_app?(app._id.to_s, framework[9..-1])
                 raise
               else
                 Rails.logger.debug "DEBUG: Component '#{framework}' in application '#{app.name}' not found on node '#{@id}'.  Continuing with deconfigure."
               end
             else
-              if has_app?(app.uuid, app.name)
+              if has_app?(app._id.to_s, app.name)
                 raise
               else
                 Rails.logger.debug "DEBUG: Application '#{app.name}' not found on node '#{@id}'.  Continuing with deconfigure."
@@ -1237,7 +1240,11 @@ module OpenShift
             raise
           end
         end
+<<<<<<< HEAD
         
+=======
+
+>>>>>>> b838e57... porting bug fix for 883607 to model refactor branch
         resultIO
       end
       
