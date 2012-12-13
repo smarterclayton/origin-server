@@ -80,8 +80,7 @@ Broker::Application.configure do
     :password => conf.get("MONGO_PASSWORD", "mooo"),
     :db => conf.get("MONGO_DB", "openshift_broker_dev"),
     :collections => {:user => "user",
-                     :district => "district",
-                     :application_template => "template"}
+                     :district => "district"}
   }
 
   config.usage_tracking = {

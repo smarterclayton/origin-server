@@ -45,8 +45,7 @@ Broker::Application.configure do
     :password => "mooo",
     :db => "openshift_broker_dev",
     :collections => {:user => "user",
-                     :district => "district",
-                     :application_template => "template"}
+                     :district => "district"}
   }
 
   config.usage_tracking = {

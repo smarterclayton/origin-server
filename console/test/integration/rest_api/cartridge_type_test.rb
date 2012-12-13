@@ -121,17 +121,6 @@ class RestApiCartridgeTypeTest < ActiveSupport::TestCase
     assert missing.empty?
   end
 
-  # Currently /application_templates/<string>.json can return an array
-  # if the value is not a properly formatted ID.  This is questionable,
-  # and this test is only to protect us in the case that we have code
-  # depending on that behavior.  If this behavior is moved to a new
-  # route then we can remove this.
-  test 'application template names returned by server' do
-    template = ApplicationTemplate.first(:from => :wordpress)
-    omit("No templates defined on this server") unless template
-    assert_equal 'WordPress', template.display_name
-  end
-
   test 'match cartridges' do
     assert_equal [], CartridgeType.cached.matches('bra').map(&:name)
     assert_equal ['ruby-1.9','ruby-1.8'], CartridgeType.cached.matches('ruby').map(&:name)

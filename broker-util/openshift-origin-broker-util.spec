@@ -44,7 +44,6 @@ rm -rf $RPM_BUILD_ROOT
 %attr(0755,-,-) %{_sbindir}/oo-admin-ctl-app
 %attr(0755,-,-) %{_sbindir}/oo-admin-ctl-district
 %attr(0755,-,-) %{_sbindir}/oo-admin-ctl-domain
-%attr(0755,-,-) %{_sbindir}/oo-admin-ctl-template
 %attr(0755,-,-) %{_sbindir}/oo-admin-ctl-user
 %attr(0755,-,-) %{_sbindir}/oo-admin-move
 %attr(0755,-,-) %{_sbindir}/oo-register-dns
@@ -59,7 +58,6 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/oo-admin-ctl-app.8.gz
 %{_mandir}/man8/oo-admin-ctl-district.8.gz
 %{_mandir}/man8/oo-admin-ctl-domain.8.gz
-%{_mandir}/man8/oo-admin-ctl-template.8.gz
 %{_mandir}/man8/oo-admin-ctl-user.8.gz
 %{_mandir}/man8/oo-admin-move.8.gz
 %{_mandir}/man8/oo-register-dns.8.gz
