@@ -4,27 +4,27 @@ development:
       database: openshift_broker_dev
       hosts:
         - localhost:27017
-      username: openshift
+      user: openshift
       password: mooo
   options:
     raise_not_found_error: true
 production:
   sessions:
     default:
-      database: openshift_broker_dev
+      database: openshift_broker
       hosts:
         - localhost:27017
-      username: openshift
+      user: openshift
       password: mooo
   options:
     raise_not_found_error: true
 test:
   sessions:
     default:
-      database: openshift_broker_dev
+      database: openshift_broker_test
       hosts:
         - localhost:27017
-      username: openshift
+      user: openshift
       password: mooo
   options:
     raise_not_found_error: true
