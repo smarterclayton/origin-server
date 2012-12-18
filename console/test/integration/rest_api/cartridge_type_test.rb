@@ -67,20 +67,6 @@ class RestApiCartridgeTypeTest < ActiveSupport::TestCase
     log_types(types)
 
     assert types[0].id.starts_with?('cart!jbosseap'), types[0].id
-
-    type = types.find(&:template?)
-    omit("No templates defined on this server") if type.nil?
-
-    template = type.template
-    assert template.name
-    assert template.description
-    assert template.version
-    assert template.website
-    assert template.git_url
-    assert template.git_project_url
-    assert_equal type.id, "template!#{template.name}"
-    assert template.git_project_url
-    assert_same template.tags, template.tags
   end
 
   test 'sort cartridges' do
