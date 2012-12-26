@@ -4,10 +4,11 @@ Rails.application.routes.draw do
   match 'domain'          => 'legacy_broker#domain_post', :via => [:post]
   match 'userinfo'        => 'legacy_broker#user_info_post', :via => [:post]
   match 'cartlist'        => 'legacy_broker#cart_list_post', :via => [:post]
-  match 'ssh_keys'        => 'legacy_broker#ssh_keys_post', :via => [:post]    
+  match 'ssh_keys'        => 'legacy_broker#ssh_keys_post', :via => [:post]
+
   scope "/rest" do
-    resource :api, :only => [:show], :controller => :base
-    resource :environment, :only => [:show], :controller => :environment
+    resource :api, :only => :show, :controller => :api
+    resource :environment, :only => :show, :controller => :environment
     resource :user, :only => [:show, :destroy], :controller => :user do
       resources :keys, :controller => :keys, :constraints => { :id => /[\w]+/ } 
     end
@@ -19,15 +20,15 @@ Rails.application.routes.draw do
     match "domains/:existing_id" => "domains#update", :via => :put, :existing_id => /[A-Za-z0-9]+/
     resources :domains, :constraints => { :id => /[A-Za-z0-9]+/ } do
       resources :applications, :constraints => { :id => /[\w]+/ } do
-        resource :descriptor, :only => [:show]
+        resource :descriptor, :only => :show
         resources :gear_groups, :constraints => { :id => /[A-Za-z0-9]+/ }, :only => [:index, :show]
         #added back the gears URL so we can return an appropriate message instead of a routing error
         resources :gears, :only => [:index, :show]
         resources :cartridges, :controller => :emb_cart, :only => [:index, :show, :create, :update, :destroy], :constraints => { :id => /([\w\-]+(-)([\d]+(\.[\d]+)*)+)/ } do
-            resources :events, :controller => :emb_cart_events, :only => [:create]
+            resources :events, :controller => :emb_cart_events, :only => :create
         end
-        resources :events, :controller => :app_events, :only => [:create]
-        resource :dns_resolvable, :only => [:show], :controller => :dns_resolvable
+        resources :events, :controller => :app_events, :only => :create
+        resource :dns_resolvable, :only => :show, :controller => :dns_resolvable
       end
     end
   end

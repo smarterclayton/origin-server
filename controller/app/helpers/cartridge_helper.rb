@@ -1,10 +1,10 @@
 module CartridgeHelper
   def get_cartridges(application)
     cartridges = Array.new
-    cartridges.push(RestEmbeddedCartridge.new("standalone", application.framework, application, get_url, nil, nolinks)) if $requested_api_version != 1.0
+    cartridges.push(RestEmbeddedCartridge.new("standalone", application.framework, application, get_url, nil, nolinks)) if requested_api_version != 1.0
 
     application.embedded.each_key do |key|
-      if $requested_api_version == 1.0
+      if requested_api_version == 1.0
         cartridge = RestEmbeddedCartridge10.new("embedded", key, application, get_url, nil, nolinks)
       else
         cartridge = RestEmbeddedCartridge.new("embedded", key, application, get_url, nil, nolinks)

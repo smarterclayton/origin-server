@@ -1,6 +1,6 @@
 class CartridgesController < BaseController
-  respond_to :xml, :json
-  before_filter :check_version
+  skip_before_filter :authenticate_user!
+
   def show
     index
   end
@@ -15,7 +15,7 @@ class CartridgesController < BaseController
     end
     rest_cartridges = []
     cartridges.map! do |c|
-      if $requested_api_version == 1.0
+      if requested_api_version == 1.0
         rest_cartridges.push(RestCartridge10.new(c))
       else
         rest_cartridges.push(RestCartridge.new(c))

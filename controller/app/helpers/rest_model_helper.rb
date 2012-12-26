@@ -1,6 +1,6 @@
 module RestModelHelper
   def get_rest_application(application, include_cartridges)
-    if $requested_api_version == 1.0
+    if requested_api_version == 1.0
       app = RestApplication10.new(application, get_url, nolinks)
     else
       app = RestApplication.new(application, get_url, nolinks)
@@ -38,7 +38,7 @@ module RestModelHelper
     
     cart = CartridgeCache.find_cartridge(component_instance.cartridge_name)
     comp = cart.get_component(component_instance.component_name)
-    if $requested_api_version == 1.0
+    if requested_api_version == 1.0
       RestEmbeddedCartridge10.new(cart, application, component_instance, get_url, messages, nolinks)
     else
       RestEmbeddedCartridge.new(cart, comp, application, component_instance, colocated_instances, scale, get_url, messages, nolinks)
