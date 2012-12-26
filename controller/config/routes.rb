@@ -1,4 +1,6 @@
 Rails.application.routes.draw do
+  use_doorkeeper
+
   match 'cartridge'       => 'legacy_broker#cartridge_post', :via => [:post]
   match 'embed_cartridge' => 'legacy_broker#embed_cartridge_post', :via => [:post]
   match 'domain'          => 'legacy_broker#domain_post', :via => [:post]
@@ -11,6 +13,7 @@ Rails.application.routes.draw do
     resource :environment, :only => :show, :controller => :environment
     resource :user, :only => [:show, :destroy], :controller => :user do
       resources :keys, :controller => :keys, :constraints => { :id => /[\w]+/ } 
+      resources :authorizations, :controller => :authorizations, :constraints => { :id => /[\w]+/ }, :only => [:index, :destroy]
     end
     resources :cartridges, :only => [:index, :show], :constraints => { :id => /standalone|embedded/ }
     resources :quickstarts, :only => [:index, :show]
