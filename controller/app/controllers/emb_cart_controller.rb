@@ -1,6 +1,4 @@
 class EmbCartController < BaseController
-  respond_to :xml, :json
-  before_filter :authenticate, :check_version
   include RestModelHelper
 
   # GET /domains/[domain_id]/applications/[application_id]/cartridges
@@ -180,7 +178,7 @@ class EmbCartController < BaseController
       feature = application.get_feature(comp.cartridge_name, comp.component_name)     
       application.remove_features([feature])
       
-      if $requested_api_version == 1.0
+      if requested_api_version == 1.0
         app = RestApplication10.new(application, get_url, nolinks)
       else
         app = RestApplication.new(application, get_url, nolinks)
