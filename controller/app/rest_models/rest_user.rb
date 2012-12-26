@@ -1,5 +1,5 @@
 class RestUser < OpenShift::Model
-  attr_accessor :login, :consumed_gears, :capabilities, :plan_id, :usage_account_id, :links, :consumed_gear_sizes, :max_gears
+  attr_accessor :login, :consumed_gears, :capabilities, :plan_id, :usage_account_id, :links, :consumed_gear_sizes, :max_gears, :identities, :created_at
 
   def initialize(cloud_user, url, nolinks=false)
     consumed_map = {}
@@ -12,7 +12,7 @@ class RestUser < OpenShift::Model
         end
       end
     end
-    
+
     self.login = cloud_user.login
     self.consumed_gears = cloud_user.consumed_gears
     self.capabilities = cloud_user.get_capabilities
@@ -21,6 +21,8 @@ class RestUser < OpenShift::Model
     self.plan_id = cloud_user.plan_id
     self.usage_account_id = cloud_user.usage_account_id
     self.consumed_gear_sizes = consumed_map
+    self.identities = cloud_user.identities.map{ |i| RestIdentity.new(i, url, false) }
+    self.created_at = cloud_user.updated_at
 
     unless nolinks
       @links = {

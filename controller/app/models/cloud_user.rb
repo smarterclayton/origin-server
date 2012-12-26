@@ -35,33 +35,46 @@ class CloudUser
   field :consumed_gears, type: Integer, default: 0
   embeds_many :ssh_keys, class_name: SshKey.name
   embeds_many :pending_ops, class_name: PendingUserOps.name
+  embeds_many :identities, class_name: Identity.name
   has_many :domains, class_name: Domain.name, dependent: :restrict
-  
+
   validates :login, presence: true, login: true
-  validates :capabilities, presence: true, capabilities: true
-  
+  validates :capabilities, presence: true, capabilities: true 
+  validate{ errors.add(:base, "CloudUser must have one or more identities") if identities.empty? }
+
+  scope :with_identity, lambda{ |provider, uid| where(:identities => { '$elemMatch' => { provider: provider, uid: uid } }) }
+
   index({:login => 1}, {:unique => true})
   create_indexes
-  
+
   # Returns a map of field to error code for validation failures.
   def self.validation_map
     {login: 107, capabilities: 107}
   end
-  
+
   # Auth method can either be :login or :broker_auth. :login represents a normal authentication with user/pass.
   # :broker_auth is used when the applciation needs to make a request to the broker on behalf of the user (eg: scale-up)
   def auth_method=(m)
     @auth_method = m
   end
-  
+
   # @see #auth_method=
   def auth_method
     @auth_method
   end
-  
+
   # Convenience method to get the max_gears capability
   def max_gears
     get_capabilities["max_gears"]
+  end
+
+  def active_identity!(provider, uid)
+    identities.select{ |i| i.provider == provider && i.uid == uid }.first.tap do |i|
+      i.active = true if i
+    end
+  end
+  def active_identity
+    identities.select(&:active).first
   end
 
   def save(options = {})

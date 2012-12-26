@@ -84,7 +84,7 @@ class BaseController < ActionController::Base
     login = nil
     password = nil
     @request_id = gen_req_uuid
-    
+
     if request.headers['User-Agent'] == "OpenShift"
       if params['broker_auth_key'] && params['broker_auth_iv']
         login = params['broker_auth_key']
@@ -101,11 +101,12 @@ class BaseController < ActionController::Base
         login = u
         password = p
       }
-    end      
+    end
     begin
       auth = OpenShift::AuthService.instance.authenticate(request, login, password)
       @login = auth[:username]
       @auth_method = auth[:auth_method]
+      @auth_provider = auth[:provider]
 
       if not request.headers["X-Impersonate-User"].nil?
         subuser_name = request.headers["X-Impersonate-User"]
@@ -138,15 +139,18 @@ class BaseController < ActionController::Base
         end
       else
         begin
-          @cloud_user = CloudUser.find_by(login: @login)
+          @cloud_user = CloudUser.with_identity(@auth_provider, @login).find_by
+          @identity = @cloud_user.active_identity!(@auth_provider, @login)
         rescue Mongoid::Errors::DocumentNotFound
           Rails.logger.debug "Adding user #{@login}...inside base_controller"
           @cloud_user = CloudUser.new(login: @login)
+          @identity = @cloud_user.identities.build(provider: @auth_provider, uid: @login)
           @cloud_user.with(safe: true).save
           Lock.create_lock(@cloud_user)
         end
+        response.header['X-OpenShift-Identity'] = @identity._id
       end
-      
+
       @cloud_user.auth_method = @auth_method unless @cloud_user.nil?
     rescue OpenShift::UserException => e
       render_format_exception(e)

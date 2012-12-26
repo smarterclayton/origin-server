@@ -7,13 +7,17 @@ require 'mongoid'
 module OpenShift
   class MongoAuthService < OpenShift::AuthService
 
+    def provider_name
+      nil
+    end
+
     def initialize(auth_info=nil)
       if auth_info != nil
         # no-op
       elsif defined? Rails
         auth_info = Rails.application.config.auth
       else
-        raise Exception.new("Mongo DataStore service is not inilialized")
+        raise Exception.new("Mongo DataStore service is not initialized")
       end
     
       @salt         = auth_info[:salt]
@@ -32,7 +36,7 @@ module OpenShift
     end
     
     def generate_broker_key(app)
-      cipher = OpenSSL::Cipher::Cipher.new("aes-256-cbc")                                                                                                                                                                 
+      cipher = OpenSSL::Cipher::Cipher.new("aes-256-cbc")
       cipher.encrypt
       cipher.key = OpenSSL::Digest::SHA512.new(@salt).digest
       cipher.iv = iv = cipher.random_iv
@@ -68,23 +72,23 @@ module OpenShift
         Rails.logger.debug "Broker key authentication failed. #{e.backtrace.inspect}"
         raise OpenShift::AccessDeniedException.new
       end
-  
+
       token = JSON.parse(json_token)
       username = token['login']
       app_name = token['app_name']
       creation_time = token['creation_time']
-      
+
       begin
         user = CloudUser.find_by(login: username)
       rescue Mongoid::Errors::DocumentNotFound
         raise OpenShift::AccessDeniedException.new
       end
       app = Application.find(user, app_name)
-      
+
       raise OpenShift::AccessDeniedException.new if app.nil? or creation_time != app.created_at
-      return {:username => username, :auth_method => :broker_auth}
+      return {:username => username, :auth_method => :broker_auth, :provider => provider_name}
     end
-    
+
     def authenticate(request, login, password)
       params = request.request_parameters()
       if params['broker_auth_key'] && params['broker_auth_iv']
@@ -92,10 +96,10 @@ module OpenShift
       else
         raise OpenShift::AccessDeniedException if login.nil? || login.empty? || password.nil? || password.empty?
         encoded_password = Digest::MD5.hexdigest(Digest::MD5.hexdigest(password) + @salt)
-                
+
         begin
           account = UserAccount.find_by(user: login, password_hash: encoded_password)
-          return {:username => account.user, :auth_method => :login}          
+          return {:username => account.user, :auth_method => :login, :provider => provider_name}
         rescue Mongoid::Errors::DocumentNotFound
           raise OpenShift::AccessDeniedException
         end

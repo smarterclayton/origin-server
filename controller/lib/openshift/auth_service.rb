@@ -12,6 +12,17 @@ module OpenShift
       @oo_auth_provider.new
     end
 
+    #
+    # Auth service consumers may return a provider name to a user
+    # to disambiguate user identifiers across multiple providers
+    # (e.g. Facebook and Google may share the same username, but
+    # are not the same fundamental user).  By default, all users
+    # will be created without a provider.
+    #
+    def provider_name
+      nil
+    end
+
     def initialize(auth_info = nil)
       # This is useful for testing
       @auth_info = auth_info
@@ -81,19 +92,19 @@ module OpenShift
       app = Application.find(user, app_name)
 
       raise OpenShift::AccessDeniedException.new if app.nil? or creation_time != app.created_at
-      return {:username => username, :auth_method => :broker_auth}
+      return {:username => username, :auth_method => :broker_auth, :provider => provider_name}
     end
 
     def authenticate(request, login, password)
-      return {:username => login, :auth_method => :login}
+      return {:username => login, :auth_method => :login, :provider => provider_name}
     end
 
     def login(request, params, cookies)
       if params['broker_auth_key'] && params['broker_auth_iv']
-        return {:username => params['broker_auth_key'], :auth_method => :broker_auth}
+        return {:username => params['broker_auth_key'], :auth_method => :broker_auth, :provider => provider_name}
       else
         data = JSON.parse(params['json_data'])
-        return {:username => data["rhlogin"], :auth_method => :login}
+        return {:username => data["rhlogin"], :auth_method => :login, :provider => provider_name}
       end
     end
   end

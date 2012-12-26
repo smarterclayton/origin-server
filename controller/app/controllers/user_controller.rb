@@ -15,7 +15,7 @@ class UserController < BaseController
 
     return render_error(:not_found, "User '#{@login}' not found", 99, "DELETE_USER") unless @cloud_user
     return render_error(:forbidden, "User deletion not permitted. Only applicable for subaccount users.", 138, "DELETE_USER") unless @cloud_user.parent_user_id
-  
+
     if force
       @cloud_user.domains.each do |domain|
         domain.applications.each do |app|
