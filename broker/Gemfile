@@ -7,8 +7,12 @@ gem 'xml-simple'
 gem 'rack'
 gem 'regin'
 gem 'open4'
-gem 'openshift-origin-controller'
+if ENV['SOURCE']
+  gem 'openshift-origin-controller', :path => '../controller'
+  gem 'openshift-origin-common', :path => '../common'
+end
 gem 'rest-client'
+gem 'netrc'
 gem 'systemu'
 gem 'minitest'
 gem 'mongoid'

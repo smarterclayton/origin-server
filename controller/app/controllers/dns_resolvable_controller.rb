@@ -1,15 +1,12 @@
-require 'rubygems'
 require 'dnsruby'
 
 class DnsResolvableController < BaseController
-  respond_to :xml, :json
-  before_filter :authenticate, :check_version
-  
+
   # GET /domains/[domain_id]/applications/<id>/dns_resolvable
   def show
     domain_id = params[:domain_id]
     id = params[:application_id]
-    
+
     begin
       domain = Domain.find_by(owner: @cloud_user, canonical_namespace: domain_id.downcase)
       @domain_name = domain.namespace

@@ -1,6 +1,4 @@
 class EmbCartEventsController < BaseController
-  respond_to :xml, :json
-  before_filter :authenticate, :check_version
 
   # POST /domain/[domain_id]/applications/[application_id]/cartridges/[cartridge_id]/events
   def create
@@ -44,7 +42,7 @@ class EmbCartEventsController < BaseController
       return render_exception(e, "CARTRIDGE_EVENT")
     end
    
-    if $requested_api_version == 1.0
+    if requested_api_version == 1.0
       app = RestApplication10.new(application, get_url, nolinks)
     else
       app = RestApplication.new(application, get_url, nolinks)

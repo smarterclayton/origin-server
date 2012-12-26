@@ -1,11 +1,10 @@
 class UserController < BaseController
-  respond_to :json, :xml
-  before_filter :authenticate, :check_version
-  
+
   # GET /user
   def show
-    return render_error(:not_found, "User '#{@login}' not found", 99, "SHOW_USER") unless @cloud_user
-    render_success(:ok, "user", get_rest_user(@cloud_user), "SHOW_USER")
+    # How did this line ever get called?
+    # return render_error(:not_found, "User '#{@login}' not found", 99, "SHOW_USER") unless @cloud_user
+    render_success(:ok, "user", get_rest_user(current_user), "SHOW_USER")
   end
 
   # DELETE /user
@@ -13,7 +12,8 @@ class UserController < BaseController
   def destroy
     force = get_bool(params[:force])
 
-    return render_error(:not_found, "User '#{@login}' not found", 99, "DELETE_USER") unless @cloud_user
+    # How did this line ever get called?
+    #return render_error(:not_found, "User '#{@login}' not found", 99, "DELETE_USER") unless @cloud_user
     return render_error(:forbidden, "User deletion not permitted. Only applicable for subaccount users.", 138, "DELETE_USER") unless @cloud_user.parent_user_id
   
     begin
@@ -32,7 +32,7 @@ class UserController < BaseController
   private
 
   def get_rest_user(cloud_user)
-    if $requested_api_version == 1.0
+    if requested_api_version == 1.0
       RestUser10.new(cloud_user, get_url, nolinks)
     else
       RestUser.new(cloud_user, get_url, nolinks)
