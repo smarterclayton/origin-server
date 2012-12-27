@@ -7,13 +7,15 @@ gem 'xml-simple'
 gem 'rack'
 gem 'regin'
 gem 'open4'
-gem 'openshift-origin-controller'
+gem 'openshift-origin-common', :path => '../common'
+gem 'openshift-origin-controller', :path => '../controller'
 gem 'rest-client'
 gem 'systemu'
 gem 'minitest'
 gem 'mongoid'
 gem 'bson'
 gem 'bson_ext'
+gem 'doorkeeper', :path => '../../../projects/doorkeeper'
 
 # Load plugin gems.
 Dir["/etc/openshift/plugins.d/*.conf"].delete_if{ |x| x.end_with? "-dev.conf" }.map{|x| File.basename(x, ".conf")}.each {|plugin| gem plugin}

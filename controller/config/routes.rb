@@ -13,7 +13,8 @@ Rails.application.routes.draw do
     resource :environment, :only => :show, :controller => :environment
     resource :user, :only => [:show, :destroy], :controller => :user do
       resources :keys, :controller => :keys, :constraints => { :id => /[\w]+/ } 
-      resources :authorizations, :controller => :authorizations, :constraints => { :id => /[\w]+/ }, :only => [:index, :destroy]
+      resources :authorizations, :controller => :authorizations, :constraints => { :id => /[\w]+/ }, :only => [:index, :destroy, :create, :update]
+      match 'authorizations' => 'authorizations#destroy_all', :via => :delete
     end
     resources :cartridges, :only => [:index, :show], :constraints => { :id => /standalone|embedded/ }
     resources :quickstarts, :only => [:index, :show]

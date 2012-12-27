@@ -1,3 +1,8 @@
+require 'doorkeeper/config'
+class Doorkeeper::Config
+  option :max_access_token_expires_in, :default => 1.month.seconds
+end
+
 Doorkeeper.configure do
   orm :mongoid3
 
@@ -60,15 +65,17 @@ class Doorkeeper::OAuth::PasswordAccessTokenRequest
     end
 end
 
+=begin # Not needed if there is a direct auth path
 require 'doorkeeper/oauth/client/credentials'
 class Doorkeeper::OAuth::Client::Credentials
   def blank?
     false
   end
 end
+=end
 
 ActiveSupport.on_load(:action_controller) do
-  require 'oauth_client'
+  require 'o_auth_client'
   require 'doorkeeper/helpers/controller'
   module Doorkeeper::Helpers::Controller
     protected
