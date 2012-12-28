@@ -125,7 +125,7 @@ class DomainsController < BaseController
   private
   
   def get_rest_domain(domain)
-    if $requested_api_version == 1.0
+    if requested_api_version == 1.0
       domain = RestDomain10.new(domain, get_url, nolinks)
     else
       domain = RestDomain.new(domain, get_url, nolinks)

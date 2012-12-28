@@ -71,7 +71,7 @@ class AppEventsController < BaseController
           end
           #TODO: We need to reconsider how we are reporting messages to the client
           message = Message.new(:result, msg, 0)
-          if $requested_api_version == 1.0
+          if requested_api_version == 1.0
             app = RestApplication10.new(application, get_url, nolinks)
           else
             app = RestApplication.new(application, get_url, nolinks)
@@ -94,12 +94,12 @@ class AppEventsController < BaseController
     end
 
     application = Application.find_by(domain: domain, name: id)
-    if $requested_api_version == 1.0
+    if requested_api_version == 1.0
       app = RestApplication10.new(application, get_url, nolinks)
     else
       app = RestApplication.new(application, get_url, nolinks)
     end
-    @reply = RestReply.new(:ok, "application", app)
+    @reply = RestReply.new(requested_api_version, :ok, "application", app)
     message = Message.new("INFO", msg)
     @reply.messages.push(message)
     respond_with @reply, :status => @reply.status

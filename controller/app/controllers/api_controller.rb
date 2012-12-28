@@ -41,7 +41,7 @@ class ApiController < BaseController
       end
     end
 
-    @reply = RestReply.new(:ok, "links", links)
+    @reply = RestReply.new(requested_api_version, :ok, "links", links)
     respond_with @reply, :status => @reply.status
   end
 end

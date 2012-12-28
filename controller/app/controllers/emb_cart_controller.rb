@@ -159,7 +159,7 @@ class EmbCartController < BaseController
       
       application.remove_features([feature])
       
-      if $requested_api_version == 1.0
+      if requested_api_version == 1.0
         app = RestApplication10.new(application, get_url, nolinks)
       else
         app = RestApplication.new(application, get_url, nolinks)
