@@ -48,17 +48,24 @@ module OpenShift
         rescue OpenShift::AccessDeniedException => e
           log_action(request.uuid, nil, nil, "AUTHENTICATE", false, "Access denied by auth service", {'ERROR' => e.message})
           request_http_basic_authentication #FIXME Return better client information (header? body?)
-        #FIXME Handle auth exceptions more correctly
+        #FIXME Handle auth exceptions more consistently, gracefully recover from misbehaving
+        #  services
         #rescue => e
         #  render :status => 500, :text =>
         end
 
+        #
+        # This should be abstracted to an OpenShift.config service implementation
+        # that allows the product to easily reuse these without having to be exposed
+        # as helpers.
+        #
         def broker_key_auth
           @broker_key_auth ||= OpenShift::Auth::BrokerKey.new
         end
 
       private
 
+        # Same note as for broker_key_auth
         def auth_service
           @auth_service ||= OpenShift::AuthService.instance
         end
