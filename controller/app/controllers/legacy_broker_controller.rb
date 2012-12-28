@@ -1,7 +1,7 @@
 class LegacyBrokerController < BaseController
   layout nil
   before_filter :validate_request, :process_notification
-  before_filter :authenticate_user!, :except => :cart_list_post
+  before_filter :authenticate, :except => :cart_list_post
   rescue_from Exception, :with => :exception_handler
   include UserActionLogger
   include CartridgeHelper
@@ -408,16 +408,17 @@ class LegacyBrokerController < BaseController
       end
     end
   end
-  
+
   def authenticate
-    @request_id = gen_req_uuid
+    @request_id = request.uuid
     begin
-      auth = OpenShift::AuthService.instance.login(request, params, cookies)
+      auth = broker_key_auth.authenticate_request(request) ||
+        OpenShift::AuthService.instance.login(request, params, cookies)
 
       if auth  
         @login = auth[:username]
         @auth_method = auth[:auth_method]
-        
+
         begin
           @cloud_user = CloudUser.find_by(login: @login)
         rescue Mongoid::Errors::DocumentNotFound

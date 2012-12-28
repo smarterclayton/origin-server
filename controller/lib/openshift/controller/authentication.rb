@@ -53,10 +53,11 @@ module OpenShift
         #  render :status => 500, :text =>
         end
 
-      private
         def broker_key_auth
           @broker_key_auth ||= OpenShift::Auth::BrokerKey.new
         end
+
+      private
 
         def auth_service
           @auth_service ||= OpenShift::AuthService.instance
