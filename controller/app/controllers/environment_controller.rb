@@ -1,6 +1,4 @@
 class EnvironmentController < BaseController
-  respond_to :xml, :json
-  before_filter :check_version
 
   # GET /environment 
   def show

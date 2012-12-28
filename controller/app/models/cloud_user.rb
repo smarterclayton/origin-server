@@ -38,13 +38,13 @@ class CloudUser
   embeds_many :identities, class_name: Identity.name
   has_many :domains, class_name: Domain.name, dependent: :restrict
 
-  validates :login, presence: true, login: true
+  #validates :login, presence: true, login: true
   validates :capabilities, presence: true, capabilities: true 
   validate{ errors.add(:base, "CloudUser must have one or more identities") if identities.empty? }
 
   scope :with_identity, lambda{ |provider, uid| where(:identities => { '$elemMatch' => { provider: provider, uid: uid } }) }
 
-  index({:login => 1}, {:unique => true})
+  #index({:login => 1}, {:unique => true})
   create_indexes
 
   # Returns a map of field to error code for validation failures.
@@ -54,14 +54,9 @@ class CloudUser
 
   # Auth method can either be :login or :broker_auth. :login represents a normal authentication with user/pass.
   # :broker_auth is used when the applciation needs to make a request to the broker on behalf of the user (eg: scale-up)
-  def auth_method=(m)
-    @auth_method = m
-  end
-
-  # @see #auth_method=
-  def auth_method
-    @auth_method
-  end
+  #
+  # This is a transient attribute and is not persisted
+  attr_accessor :auth_method
 
   # Convenience method to get the max_gears capability
   def max_gears

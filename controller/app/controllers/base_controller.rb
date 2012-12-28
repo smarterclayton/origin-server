@@ -1,20 +1,25 @@
 class BaseController < ActionController::Base
+  include UserActionLogger
+  include OpenShift::Controller::Authentication
+
   respond_to :json, :xml
-  before_filter :check_version, :only => :show
-  before_filter :check_nolinks
+
   API_VERSION = 1.3
   SUPPORTED_API_VERSIONS = [1.0, 1.1, 1.2, 1.3]
-  include UserActionLogger
   #Mongoid.logger.level = Logger::WARN
   #Moped.logger.level = Logger::WARN
-  
+
   # Initialize domain/app variables to be used for logging in user_action.log
   # The values will be set in the controllers handling the requests
   @domain_name = nil
   @application_name = nil
   @application_uuid = nil
-  
-  before_filter :set_locale
+
+  before_filter :set_locale, :check_nolinks, :check_version
+  before_filter :authenticate_user!
+
+  protected
+
   def set_locale
     # if params[:locale] is nil then I18n.default_locale will be used
     I18n.locale = nil
@@ -24,139 +29,16 @@ class BaseController < ActionController::Base
   def respond_with(*arguments)
     super(arguments, :responder => OpenShift::Responder)
   end
-  
-  def show
-    blacklisted_words = OpenShift::ApplicationContainerProxy.get_blacklisted
-    unless nolinks
-      links = {
-        "API" => Link.new("API entry point", "GET", URI::join(get_url, "api")),
-        "GET_ENVIRONMENT" => Link.new("Get environment information", "GET", URI::join(get_url, "environment")),
-        "GET_USER" => Link.new("Get user information", "GET", URI::join(get_url, "user")),      
-        "LIST_DOMAINS" => Link.new("List domains", "GET", URI::join(get_url, "domains")),
-        "ADD_DOMAIN" => Link.new("Create new domain", "POST", URI::join(get_url, "domains"), [
-          Param.new("id", "string", "Name of the domain",nil,blacklisted_words)
-        ]),
-        "LIST_CARTRIDGES" => Link.new("List cartridges", "GET", URI::join(get_url, "cartridges"))
-      }
-      
-      base_url = Rails.application.config.openshift[:community_quickstarts_url]
-      if base_url.nil?
-        quickstart_links = {
-          "LIST_QUICKSTARTS"   => Link.new("List quickstarts", "GET", URI::join(get_url, "quickstarts")),
-          "SHOW_QUICKSTART"    => Link.new("Retrieve quickstart with :id", "GET", URI::join(get_url, "quickstarts/:id"), [
-            Param.new(":id", "string", "Unique identifier of the quickstart", nil, [])
-          ]),
-        }
-        links.merge! quickstart_links
-      else
-        base_url = URI.join(get_url, base_url).to_s
-        quickstart_links = {
-          "LIST_QUICKSTARTS"   => Link.new("List quickstarts", "GET", URI::join(base_url, "v1/quickstarts/promoted.json")),
-          "SHOW_QUICKSTART"    => Link.new("Retrieve quickstart with :id", "GET", URI::join(base_url, "v1/quickstarts/:id"), [
-            Param.new(":id", "string", "Unique identifier of the quickstart", nil, [])
-          ]),
-          "SEARCH_QUICKSTARTS" => Link.new("Search quickstarts", "GET", URI::join(base_url, "v1/quickstarts.json"), [
-            Param.new("search", "string", "The search term to use for the quickstart", nil, [])
-          ]),
-        }
-        links.merge! quickstart_links
-      end
-    end
-    
-    @reply = RestReply.new(:ok, "links", links)
-    respond_with @reply, :status => @reply.status
-  end
-  
-  protected
-  
+
   # Generates a unique request ID to identify indivigulal REST API calls in the logs
   #
   # == Returns:
   #   GUID to identify the the request
+  #DEPRECATED use request.uuid
   def gen_req_uuid
     # The request id can be generated differently to make it a bit more meaningful
     File.open("/proc/sys/kernel/random/uuid", "r") do |file|
       file.gets.strip.gsub("-","")
-    end
-  end
-  
-  def authenticate
-    login = nil
-    password = nil
-    @request_id = gen_req_uuid
-
-    if request.headers['User-Agent'] == "OpenShift"
-      if params['broker_auth_key'] && params['broker_auth_iv']
-        login = params['broker_auth_key']
-        password = params['broker_auth_iv']
-      else  
-        if request.headers['broker_auth_key'] && request.headers['broker_auth_iv']
-          login = request.headers['broker_auth_key']
-          password = request.headers['broker_auth_iv']
-        end
-      end
-    end
-    if login.nil? or password.nil?
-      authenticate_with_http_basic { |u, p|
-        login = u
-        password = p
-      }
-    end
-    begin
-      auth = OpenShift::AuthService.instance.authenticate(request, login, password)
-      @login = auth[:username]
-      @auth_method = auth[:auth_method]
-      @auth_provider = auth[:provider]
-
-      if not request.headers["X-Impersonate-User"].nil?
-        subuser_name = request.headers["X-Impersonate-User"]
-
-        if CloudUser.where(login: @login).exists?
-          @parent_user = CloudUser.find_by(login: @login)
-        else
-          Rails.logger.debug "#{@login} tried to impersonate user but #{@login} user does not exist"
-          raise OpenShift::AccessDeniedException.new "Insufficient privileges to access user #{subuser_name}"
-        end
-
-        parent_capabilities = @parent_user.get_capabilities
-        if parent_capabilities.nil? || !parent_capabilities["subaccounts"] == true
-          Rails.logger.debug "#{@parent_user.login} tried to impersonate user but does not have require capability."
-          raise OpenShift::AccessDeniedException.new "Insufficient privileges to access user #{subuser_name}"
-        end        
-
-        if CloudUser.where(login: subuser_name).exists?
-          subuser = CloudUser.find_by(login: subuser_name)
-          if subuser.parent_user_id != @parent_user._id
-            Rails.logger.debug "#{@parent_user.login} tried to impersinate user #{subuser_name} but does not own the subaccount."
-            raise OpenShift::AccessDeniedException.new "Insufficient privileges to access user #{subuser_name}"
-          end
-          @cloud_user = subuser
-        else
-          Rails.logger.debug "Adding user #{subuser_name} as sub user of #{@parent_user.login} ...inside base_controller"
-          @cloud_user = CloudUser.new(login: subuser_name, parent_user_id: @parent_user._id)
-          @cloud_user.with(safe: true).save
-          Lock.create_lock(@cloud_user)
-        end
-      else
-        begin
-          @cloud_user = CloudUser.with_identity(@auth_provider, @login).find_by
-          @identity = @cloud_user.active_identity!(@auth_provider, @login)
-        rescue Mongoid::Errors::DocumentNotFound
-          Rails.logger.debug "Adding user #{@login}...inside base_controller"
-          @cloud_user = CloudUser.new(login: @login)
-          @identity = @cloud_user.identities.build(provider: @auth_provider, uid: @login)
-          @cloud_user.with(safe: true).save
-          Lock.create_lock(@cloud_user)
-        end
-        response.header['X-OpenShift-Identity'] = @identity._id
-      end
-
-      @cloud_user.auth_method = @auth_method unless @cloud_user.nil?
-    rescue OpenShift::UserException => e
-      render_format_exception(e)
-    rescue OpenShift::AccessDeniedException
-      log_action(@request_id, 'nil', login, "AUTHENTICATE", true, "Access denied", get_extra_log_args)
-      request_http_basic_authentication
     end
   end
 
@@ -222,14 +104,6 @@ class BaseController < ActionController::Base
     end
   end
 
-  def get_cloud_user_info(cloud_user)
-    if cloud_user
-      return { :uuid  => cloud_user._id.to_s, :login => cloud_user.login }
-    else
-      return { :uuid  => 0, :login => 'anonymous' }
-    end
-  end
-
   def get_extra_log_args
     args = {}
     args["APP"] = @application_name if @application_name
@@ -277,18 +151,17 @@ class BaseController < ActionController::Base
   #    msg,  err_code, field, and msg_type will be ignored.
   def render_error(status, msg, err_code=nil, log_tag=nil, field=nil, msg_type=nil, messages=nil, internal_error=false)
     reply = RestReply.new(status)
-    user_info = get_cloud_user_info(@cloud_user)
     if messages && !messages.empty?
       reply.messages.concat(messages)
       if log_tag
         log_msg = []
         messages.each { |msg| log_msg.push(msg.text) }
-        log_action(@request_id, user_info[:uuid], user_info[:login], log_tag, !internal_error, log_msg.join(', '), get_extra_log_args)
+        log_action(request.uuid, @cloud_user && @cloud_user.id.to_s, @identity && @identity.id.to_s, log_tag, !internal_error, log_msg.join(', '), get_extra_log_args)
       end
     else
       msg_type = :error unless msg_type
       reply.messages.push(Message.new(msg_type, msg, err_code, field)) if msg
-      log_action(@request_id, user_info[:uuid], user_info[:login], log_tag, !internal_error, msg, get_extra_log_args) if log_tag
+      log_action(request.uuid, @cloud_user && @cloud_user.id.to_s, @identity && @identity.id.to_s, log_tag, !internal_error, msg, get_extra_log_args) if log_tag
     end
     respond_with reply, :status => reply.status
   end
@@ -338,18 +211,17 @@ class BaseController < ActionController::Base
   #    publish_msg, log_msg, and msg_type will be ignored.
   def render_success(status, type, data, log_tag, log_msg=nil, publish_msg=false, msg_type=nil, messages=nil)
     reply = RestReply.new(status, type, data)
-    user_info = get_cloud_user_info(@cloud_user)
     if messages && !messages.empty?
       reply.messages.concat(messages)
       if log_tag
         log_msg = []
         messages.each { |msg| log_msg.push(msg.text) }
-        log_action(@request_id, user_info[:uuid], user_info[:login], log_tag, true, log_msg.join(', '), get_extra_log_args)
+        log_action(request.uuid, @cloud_user && @cloud_user.id.to_s, @identity && @identity.id.to_s, log_tag, true, log_msg.join(', '), get_extra_log_args)
       end
     else
       msg_type = :info unless msg_type
       reply.messages.push(Message.new(msg_type, log_msg)) if publish_msg && log_msg
-      log_action(@request_id, user_info[:uuid], user_info[:login], log_tag, true, log_msg, get_extra_log_args) if log_tag
+      log_action(request.uuid, @cloud_user && @cloud_user.id.to_s, @identity && @identity.id.to_s, log_tag, true, log_msg, get_extra_log_args) if log_tag
     end
     respond_with reply, :status => reply.status
   end

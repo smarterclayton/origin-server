@@ -1,7 +1,5 @@
 class GearGroupsController < BaseController
-  respond_to :xml, :json
-  before_filter :authenticate, :check_version
-  
+
   # GET /domains/[domain_id]/applications/[application_id]/gear_groups
   def index
     domain_id = params[:domain_id]

@@ -1,6 +1,6 @@
 class CartridgesController < BaseController
-  respond_to :xml, :json
-  before_filter :check_version
+  skip_before_filter :authenticate_user!
+
   def show
     index
   end

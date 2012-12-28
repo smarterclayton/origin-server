@@ -24,7 +24,7 @@ module UserActionLogger
       date = time_obj.strftime("%Y-%m-%d")
       time = time_obj.strftime("%H:%M:%S")
       
-      message = "#{result} DATE=#{date} TIME=#{time} ACTION=#{action} REQ_ID=#{request_id} USER_ID=#{user_id} LOGIN=#{login}"
+      message = "#{result} DATE=#{date} TIME=#{time} ACTION=#{action} REQ_ID=#{request_id} USER_ID=#{user_id.to_s} LOGIN=#{login.to_s}"
       args.each {|k,v| message += " #{k}=#{v}"}
       
       action_logger.info("#{message} #{description}")

@@ -1,11 +1,11 @@
 class LegacyBrokerController < BaseController
   layout nil
   before_filter :validate_request, :process_notification
-  before_filter :authenticate, :except => :cart_list_post
+  before_filter :authenticate_user!, :except => :cart_list_post
   rescue_from Exception, :with => :exception_handler
   include UserActionLogger
   include CartridgeHelper
-  
+
   # Initialize domain/app variables to be used for logging in user_action.log
   # The values will be set in the controllers handling the requests
   @domain_name = nil
