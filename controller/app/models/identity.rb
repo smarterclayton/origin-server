@@ -7,5 +7,9 @@ class Identity
   field :uid, type: String
   field :_id, type: String, default: ->{ "#{provider}:#{uid}" }
 
-  attr_accessor :active
+  def self.for(provider, uid, created_at=nil)
+    new(:provider => provider, :uid => uid) do |i|
+      i.created_at = created_at if created_at
+    end
+  end
 end

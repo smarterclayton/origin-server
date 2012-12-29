@@ -6,6 +6,7 @@ module OpenShift
 
     autoload :ApiResponses,            'openshift/controller/api_responses'
     autoload :Authentication,          'openshift/controller/authentication'
+    autoload :OAuth,                   'openshift/controller/oauth'
   end
 
   module Auth

@@ -1,5 +1,4 @@
 class AuthorizationsController < BaseController
-  before_filter :authenticate
 
   #
   # Display only non-revoked tokens (includes expired tokens).
@@ -15,15 +14,14 @@ class AuthorizationsController < BaseController
   def create
     server = Doorkeeper::Server.new(self)
 
-    expires_in = params[:expires_in]
-    expires_in = if expires_in.present?
-      unless expires_in.to_i > 0 && expires_in.to_i <= server.config.max_access_token_expires_in
-        render_error(:unprocessable_entity, "The expires_in value must be a number of seconds greater than zero and less than #{server.config.max_access_token_expires_in}.", 130, "CREATE_AUTHORIZATION") and return
+    expires_in =
+      if params[:expires_in].present?
+        expires_in = params[:expires_in].to_i
+        expires_in = server.config.max_access_token_expires_in if expires_in <= 0 || expires_in > server.config.max_access_token_expires_in
+        expires_in
+      else
+        server.config.access_token_expires_in
       end
-      expires_in.to_i
-    else
-      server.config.access_token_expires_in
-    end
 
     scopes = params[:scopes]
     scopes = if scopes.present?

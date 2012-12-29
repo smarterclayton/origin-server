@@ -9,15 +9,21 @@ Doorkeeper.configure do
   default_scopes :userinfo
   optional_scopes :userinfo, :scale, :read, :control, :grant
 
+  #
+  # Used during OAuth flows to authenticate the user via the browser.  Needs to
+  # integrate with Omniauth/Login directly and redirect if the user is not
+  # authenticated in the current session.
+  #
   resource_owner_authenticator do
     Rails.logger.debug "Resource owner authenticator #{params.inspect}"
-    current_user || authenticate_user!
+    authenticate_user! # Should be replaced with a web flow
   end
 
+  #
+  # For OAuth password credential flow
+  #
   resource_owner_from_credentials do |routes|
-    Rails.logger.debug "Resource owner from credentials #{params[:username]}"
-    auth = OpenShift::AuthService.instance.authenticate(request, params[:username], params[:password])
-    CloudUser.with_identity(auth[:provider], auth[:username]).find_by if auth
+    authenticate_user_from_credentials(params[:username], params[:password])
   end
 end
 
@@ -30,6 +36,12 @@ module Doorkeeper::OAuth::Helpers::ScopeChecker
     Doorkeeper::OAuth::Scopes.from_string(scope).all? do |s|
       server_scopes.exists?(s) || s.to_s =~ %r[(?:app|domain)/\w{1,20}/\w{1,10}]
     end
+  end
+end
+
+class Doorkeeper::Config
+  def parameterized_scopes
+    @parameterized_scopes ||= [:app, :domain].map{ |t| [:read, :scale, :control, :grant].map{ |s| "#{t}/:id/#{s}" } }.flatten
   end
 end
 
@@ -80,6 +92,6 @@ ActiveSupport.on_load(:action_controller) do
   module Doorkeeper::Helpers::Controller
     protected
       include UserActionLogger
-      include AuthenticationHelper
+      include OpenShift::Controller::Authentication
   end
 end
