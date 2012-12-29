@@ -71,13 +71,9 @@ class CloudUser
     set_capabilities(user_capabilities)
   end
 
-  def active_identity!(provider, uid)
-    identities.select{ |i| i.provider == provider && i.uid == uid }.first.tap do |i|
-      i.active = true if i
-    end
-  end
-  def active_identity
-    identities.select(&:active).first
+  attr_accessor :current_identity
+  def current_identity!(provider, uid)
+    self.current_identity = identities.select{ |i| i.provider == provider && i.uid == uid }.first
   end
 
   def save(options = {})

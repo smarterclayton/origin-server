@@ -71,10 +71,11 @@ module OpenShift
                  raise OpenShift::AccessDeniedException, "No such user exists #{user_id}"
                end
         app = Application.find(user, app_name) #FIXME should be app id
-        identity = user.identities.first
+
+        user.current_identity = Identity.for('broker_app_key', "#{user.id}/#{app_name}", creation_time)
 
         raise OpenShift::AccessDeniedException, "No such application exists #{app_name} or invalid token time" if app.nil? or identity.nil? or creation_time != app.created_at
-        {:username => identity.uid, :provider => identity.provider, :auth_method => :broker_auth}
+        {:user => user, :auth_method => :broker_auth}
       end
 
       private
