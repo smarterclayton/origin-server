@@ -30,16 +30,12 @@ class BaseController < ActionController::Base
       super(arguments, :responder => OpenShift::Responder)
     end
 
-    def rest_replies_url(*args)
-      return "/broker/rest/api"
-    end
-
     def get_url
-      URI::join(request.url, "/broker/rest/").to_s
+      @rest_url ||= "#{rest_url}/"
     end
 
     def nolinks
-      get_bool(params[:nolinks])
+      @nolinks ||= get_bool(params[:nolinks])
     end
 
     def check_nolinks
@@ -64,15 +60,16 @@ class BaseController < ActionController::Base
 
     def check_version
       accept_header = request.headers['Accept']
-      Rails.logger.debug accept_header    
-      mime_types = accept_header.split(%r{,\s*})
+      #Rails.logger.debug accept_header
       version_header = API_VERSION
-      mime_types.each do |mime_type|
+      accept_header.split(%r{,\s*}).each do |mime_type|
         values = mime_type.split(%r{;\s*})
         values.each do |value|
           value = value.downcase
-          if value.include?("version")
+          if value.starts_with?("version")
             version_header = value.split("=")[1].delete(' ').to_f
+          elsif value == 'nolinks=true'
+            @nolinks = true
           end
         end
       end

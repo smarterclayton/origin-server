@@ -14,7 +14,7 @@ class ApiController < BaseController
         "ADD_DOMAIN" => Link.new("Create new domain", "POST", URI::join(get_url, "domains"), [
           Param.new("id", "string", "Name of the domain",nil,blacklisted_words)
         ]),
-        "LIST_CARTRIDGES" => Link.new("List cartridges", "GET", URI::join(get_url, "cartridges"))
+        "LIST_CARTRIDGES" => Link.new("List cartridges", "GET", URI::join(get_url, "cartridges")),
       }
 
       base_url = Rails.application.config.openshift[:community_quickstarts_url]

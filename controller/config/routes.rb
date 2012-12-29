@@ -31,5 +31,7 @@ Rails.application.routes.draw do
         resource :dns_resolvable, :only => :show, :controller => :dns_resolvable
       end
     end
+    match '/' => lambda{ |env| [200, {}, []] }, :as => 'rest'
   end
+  root :to => lambda{ |env| [200, {}, []] }
 end
