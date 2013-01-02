@@ -67,5 +67,5 @@ Subscribes:
     Type: "NET_TCP:jdbc"
 Group-Overrides:
   - components:
-    - "jboss-ews1.0"
+    - "jbossews-1.0"
     - web_proxy
