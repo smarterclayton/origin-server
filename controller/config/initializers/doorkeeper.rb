@@ -50,6 +50,17 @@ class Doorkeeper::AccessToken
   field :note, type: String
   validates_length_of :note, maximum: 1024, allow_blank: true
   attr_accessible :note
+
+  scope :for_owner, lambda { |app, resource_owner_id|
+    where(:application_id => app.respond_to?(:to_key) ? app.id : app,
+          :resource_owner_id => resource_owner_id)
+  }
+  scope :matches_details, lambda { |note, scopes|
+    q = queryable
+    q = q.where(:note => note.to_s) if note
+    q = q.where(:scopes => scopes.to_s) if scopes
+    q
+  }
 end
 
 require 'doorkeeper/oauth/password_access_token_request'

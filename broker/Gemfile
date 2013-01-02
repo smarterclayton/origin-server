@@ -16,6 +16,7 @@ gem 'mongoid'
 gem 'bson'
 gem 'bson_ext'
 gem 'doorkeeper', :path => '../../../projects/doorkeeper'
+gem 'pry' if ENV['PRY']
 
 # Load plugin gems.
 Dir["/etc/openshift/plugins.d/*.conf"].delete_if{ |x| x.end_with? "-dev.conf" }.map{|x| File.basename(x, ".conf")}.each {|plugin| gem plugin}

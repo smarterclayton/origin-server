@@ -33,9 +33,19 @@ class AuthorizationsController < BaseController
         server.config.default_scopes
       end
 
+    app_id = (server.client_via_uid || OAuthClient.default_client).id
+
+    if params[:reuse]
+      token = Doorkeeper::AccessToken.for_owner(app_id, current_user.id).
+        matches_details(params[:note], scopes).
+        order_by([:created_at, :desc]).
+        limit(10).detect{ |i| i.expires_in_seconds > [10.minute.seconds, expires_in / 2].min }
+      render_success(:ok, "authorization", RestAuthorization.new(token, get_url, nolinks), "CREATE_AUTHORIZATION") and return if token
+    end
+
     token = Doorkeeper::AccessToken.create!({
-      :application_id    => (server.client_via_uid || OAuthClient.default_client).id,
-      :resource_owner_id => @cloud_user.id,
+      :application_id    => app_id,
+      :resource_owner_id => current_user.id,
       :scopes            => scopes.to_s,
       :expires_in        => expires_in,
       :note              => params[:note],

@@ -42,6 +42,9 @@ module OpenShift
             [info[:user], info[:user].current_identity] :
             impersonate(*find_or_create_user_by_identity(info[:provider], info[:username]))
 
+          raise "No identity provided by the service" unless @identity
+          @identity.scopes = info[:scopes] || @identity.scopes || Doorkeeper::OAuth::Scopes.new
+
           @cloud_user.auth_method = info[:auth_method] || :login
           response.headers['X-OpenShift-Identity'] = @identity.id
 
@@ -125,7 +128,7 @@ module OpenShift
               if access_token.accessible?
                 user = CloudUser.find(access_token.resource_owner_id)
                 user.current_identity = Identity.for('access_token', access_token.id, access_token.created_at)
-                {:user => user, :auth_method => :access_token}
+                {:user => user, :auth_method => :access_token, :scopes => access_token.scopes}
               else
                 request_http_bearer_token_authentication(:invalid_token, 'The access token expired')
                 log_action(request.uuid, nil, nil, "AUTHENTICATE", false, "Access denied, token #{access_token.id} was expired")
@@ -146,6 +149,8 @@ module OpenShift
             if info == false || response_body
               log_action(request.uuid, nil, nil, "AUTHENTICATE", false, "Access denied, authenticate_request handled response")
               return false
+            elsif info
+              info[:scopes] ||= Doorkeeper::OAuth::Scopes.from_array([:grant])
             end
           end
         rescue OpenShift::AccessDeniedException => e
@@ -167,6 +172,8 @@ module OpenShift
           end.tap do |info|
             if info == false
               log_action(request.uuid, nil, nil, "AUTHENTICATE", false, "Access denied, login/password rejected")
+            elsif info
+              info[:scopes] ||= Doorkeeper::OAuth::Scopes.from_array([:grant])
             end
           end
         rescue OpenShift::AccessDeniedException => e
