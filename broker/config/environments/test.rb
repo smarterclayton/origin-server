@@ -38,14 +38,10 @@ Broker::Application.configure do
   ############################################
 
   config.datastore = {
-    :replica_set => true,
-    :host_port => ["localhost", 27017],
-
+    :host_port => "localhost:27017",
     :user => "openshift",
     :password => "mooo",
-    :db => "openshift_broker_dev",
-    :collections => {:user => "user",
-                     :district => "district"}
+    :db => "openshift_broker_test"
   }
 
   config.usage_tracking = {
