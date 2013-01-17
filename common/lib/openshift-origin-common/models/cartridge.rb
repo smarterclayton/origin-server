@@ -73,6 +73,10 @@ module OpenShift
       return categories.include?('web_framework')
     end
     
+    def is_domain_scoped?
+      return categories.include?('domain_scope')
+    end
+    
     def from_descriptor(spec_hash={})
       self.name = spec_hash["Name"]
       self.version = spec_hash["Version"] || "0.0"

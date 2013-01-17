@@ -329,6 +329,18 @@ class Application
       else
           raise OpenShift::UserException.new("#{feature_name} cannot be added to non-scalable app '#{name}'.", 137) if cart.is_web_proxy?
       end
+      
+      # Validate that this feature either does not have the domain_scope category
+      # or if it does, then no other application within the domain has this feature already
+      if cart.is_domain_scoped?
+        begin
+          if Application.where(domain_id: self.domain._id, "component_instances.cartridge_name" => cart.name).count() > 0
+            raise OpenShift::UserException.new("An application with #{feature_name} already exists within the domain. You can only have a single application with #{feature_name} within a domain.")
+          end
+        rescue Mongoid::Errors::DocumentNotFound
+          #ignore
+        end
+      end
     end
     
     result_io = ResultIO.new
