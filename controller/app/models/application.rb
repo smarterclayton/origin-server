@@ -320,16 +320,17 @@ class Application
 
   # Adds components to the application
   # @note {#run_jobs} must be called in order to perform the updates
-  def add_features(features, group_overrides=[], init_git_url=nil)
-    # Validate that the features support scalable if necessary
-    if self.scalable
-      features.each do |feature_name|
-        cart = CartridgeCache.find_cartridge(feature_name)
-        unless cart.is_plugin? || cart.is_service?
-          raise OpenShift::UserException.new("#{feature_name} cannot be embedded in scalable app '#{name}'.", 108)  
-        end
+  def add_features(features, group_overrides=[], init_git_url=nil)   
+    features.each do |feature_name|
+      cart = CartridgeCache.find_cartridge(feature_name)
+      if self.scalable
+          # Validate that the features support scalable if necessary
+          raise OpenShift::UserException.new("#{feature_name} cannot be embedded in scalable app '#{name}'.", 137)  unless cart.is_plugin? || cart.is_service?
+      else
+          raise OpenShift::UserException.new("#{feature_name} cannot be added to non-scalable app '#{name}'.", 137) if cart.is_web_proxy?
       end
     end
+    
     result_io = ResultIO.new
     Application.run_in_application_lock(self) do
       self.pending_op_groups.push PendingAppOpGroup.new(op_type: :add_features, args: {"features" => features, "group_overrides" => group_overrides, "init_git_url"=>init_git_url}, user_agent: self.user_agent)
@@ -340,13 +341,18 @@ class Application
     result_io
   end
 
-  # Adds components to the application
+  # Removes components from the application
+  # set force to true if deleting application
   # @note {#run_jobs} must be called in order to perform the updates
-  def remove_features(features, group_overrides=[])
+  def remove_features(features, group_overrides=[], force=false)
     installed_features = self.requires
+    
     features.each do |feature|
-      raise OpenShift::UserException.new("'#{feature}' is not a feature of '#{self.name}'") unless installed_features.include? feature
-    end
+      cart = CartridgeCache.find_cartridge(feature)
+      Rails.logger.error "Removing feature #{feature}"
+      raise OpenShift::UserException.new("'#{feature}' cannot be removed", 137) if (cart.is_web_proxy? and self.scalable) or cart.is_web_framework?
+      raise OpenShift::UserException.new("'#{feature}' is not a feature of '#{self.name}'", 135) unless installed_features.include? feature
+    end if !force
     result_io = ResultIO.new
     Application.run_in_application_lock(self) do
       self.pending_op_groups.push PendingAppOpGroup.new(op_type: :remove_features, args: {"features" => features, "group_overrides" => group_overrides}, user_agent: self.user_agent)
@@ -370,7 +376,7 @@ class Application
         end
       }
     }
-    self.remove_features(self.requires)
+    self.remove_features(self.requires, [], true)
     Application.run_in_application_lock(self) do
       self.pending_op_groups.push PendingAppOpGroup.new(op_type: :delete_app, user_agent: self.user_agent)
       result_io = ResultIO.new
@@ -419,8 +425,8 @@ class Application
     raise OpenShift::UserException.new("Application #{self.name} is not scalable") if !self.scalable
     
     ginst = group_instances_with_scale.select {|gi| gi._id == group_instance_id}.first
-    raise OpenShift::UserException.new("Cannot scale below minimum gear requirements.") if scale_by < 0 && ginst.gears.length <= ginst.min
-    raise OpenShift::UserException.new("Cannot scale up beyond maximum gear limit in app #{self.name}.") if scale_by > 0 && ginst.gears.length >= ginst.max and ginst.max > 0
+    raise OpenShift::UserException.new("Cannot scale below minimum gear requirements.", 168) if scale_by < 0 && ginst.gears.length <= ginst.min
+    raise OpenShift::UserException.new("Cannot scale up beyond maximum gear limit in app #{self.name}.", 168) if scale_by > 0 && ginst.gears.length >= ginst.max and ginst.max > 0
     
     Application.run_in_application_lock(self) do
       self.pending_op_groups.push PendingAppOpGroup.new(op_type: :scale_by, args: {"group_instance_id" => group_instance_id, "scale_by" => scale_by}, user_agent: self.user_agent)
@@ -440,7 +446,7 @@ class Application
     self.group_instances.each do |group_instance|
       if group_instance.gears.where(app_dns: true).count > 0
         gear = group_instance.gears.find_by(app_dns: true)
-        return "#{gear._id}@#{fqdn}"
+        return "#{gear.uuid}@#{fqdn}"
       end
     end
     ""
@@ -656,7 +662,7 @@ class Application
     end
     
     Application.run_in_application_lock(self) do
-      raise OpenShift::UserException.new("Alias #{server_alias} is already registered") if Application.where(aliases: server_alias).count > 0
+      raise OpenShift::UserException.new("Alias #{server_alias} is already registered", 140) if Application.where(aliases: server_alias).count > 0
       aliases.push(server_alias)
       op_group = PendingAppOpGroup.new(op_type: :add_alias, args: {"fqdn" => server_alias}, user_agent: self.user_agent)
       self.pending_op_groups.push op_group
@@ -783,7 +789,12 @@ class Application
       when "SYSTEM_SSH_KEY_ADD"
         domain_keys_to_add.push({"name" => self.name, "content" => command_item[:args][0], "type" => "ssh-rsa"})
       when "SYSTEM_SSH_KEY_REMOVE"
-        domain_keys_to_rm.push({"name" => self.name})
+        begin
+          key = self.domain.system_ssh_keys.find_by(name: self.name)
+          domain_keys_to_rm.push({"name" => key.name, "content" => key.content, "type" => key.type})
+        rescue Mongoid::Errors::DocumentNotFound
+          #ignore
+        end
       when "APP_SSH_KEY_ADD"
         add_ssh_keys << ApplicationSshKey.new(name: "application-" + command_item[:args][0], type: "ssh-rsa", content: command_item[:args][1], created_at: Time.now)
       when "APP_SSH_KEY_REMOVE"
@@ -797,7 +808,7 @@ class Application
       when "ENV_VAR_ADD"
         domain_env_vars_to_add.push({"key" => command_item[:args][0], "value" => command_item[:args][1]})
       when "ENV_VAR_REMOVE"
-        domain_env_vars_to_rm.push({"key" => command_item[:args][0]})
+        self.domain.env_vars.each {|env_var| domain_env_vars_to_rm << env_var if env_var["key"] == command_item[:args][0]}
       when "BROKER_KEY_ADD"
         iv, token = OpenShift::AuthService.instance.generate_broker_key(self)
         pending_op = PendingAppOpGroup.new(op_type: :add_broker_auth_key, args: { "iv" => iv, "token" => token }, user_agent: self.user_agent)
@@ -987,7 +998,7 @@ class Application
         Lock.unlock_application(application)
       end
     else
-      raise OpenShift::LockUnavailableException.new("Unable to perform action. Another operation is already running.")
+      raise OpenShift::LockUnavailableException.new("Unable to perform action. Another operation is already running.", 171)
     end
   end
 
@@ -1939,7 +1950,7 @@ class Application
 
   def get_components_for_feature(feature)
     cart = CartridgeCache.find_cartridge(feature)
-    raise OpenShift::UserException.new("No cartridge found that provides #{feature}") if cart.nil?
+    raise OpenShift::UserException.new("No cartridge found that provides #{feature}", 109) if cart.nil?
     prof = cart.profile_for_feature(feature)
     prof.components.map{ |comp| self.component_instances.find_by(cartridge_name: cart.name, component_name: comp.name) }
   end
