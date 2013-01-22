@@ -68,7 +68,7 @@ class BaseController < ActionController::Base
           value = value.downcase
           if value.starts_with?("version")
             version_header = value.split("=")[1].delete(' ').to_f
-          elsif value == 'nolinks=true'
+          elsif value == 'nolinks'
             @nolinks = true
           end
         end

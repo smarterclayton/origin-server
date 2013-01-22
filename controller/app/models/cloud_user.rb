@@ -23,7 +23,7 @@ class CloudUser
   
   DEFAULT_SSH_KEY_NAME = "default"
 
-  field :login, type: String
+  #field :login, type: String
   field :capabilities, type: Hash, default: {"subaccounts" => false, 
                                              "gear_sizes" => [Rails.application.config.openshift[:default_gear_size]], 
                                              "max_gears" => Rails.application.config.openshift[:default_max_gears]}
@@ -43,10 +43,11 @@ class CloudUser
  
   scope :with_plan, any_of({:plan_id.ne => nil}, {:pending_plan_id.ne => nil}) 
   #index({:login => 1}, {:unique => true})
+  index({:'identities._id' => 1}, {:unique => true})
 
   validate{ errors.add(:base, "CloudUser must have one or more identities") if identities.empty? }
 
-  scope :with_identity, lambda{ |provider, uid| where(:identities => { '$elemMatch' => { provider: provider, uid: uid } }) }
+  scope :with_identity, lambda{ |provider, uid| where(:'identities._id' => Identity.id_for(provider, uid)) }
 
   create_indexes
 
@@ -55,11 +56,19 @@ class CloudUser
     {login: 107, capabilities: 107}
   end
 
+  # This is a transient attibute and is not persisted
+  attr_accessor :login
   # Auth method can either be :login or :broker_auth. :login represents a normal authentication with user/pass.
   # :broker_auth is used when the applciation needs to make a request to the broker on behalf of the user (eg: scale-up)
   #
   # This is a transient attribute and is not persisted
   attr_accessor :auth_method
+
+  # This is a transient attribute and is not persisted
+  attr_accessor :current_identity
+  def current_identity!(provider, uid)
+    self.current_identity = identities.select{ |i| i.provider == provider && i.uid == uid }.first
+  end
 
   # Convenience method to get the max_gears capability
   def max_gears
@@ -69,11 +78,6 @@ class CloudUser
     user_capabilities = get_capabilities
     user_capabilities["max_gears"] = m
     set_capabilities(user_capabilities)
-  end
-
-  attr_accessor :current_identity
-  def current_identity!(provider, uid)
-    self.current_identity = identities.select{ |i| i.provider == provider && i.uid == uid }.first
   end
 
   def save(options = {})

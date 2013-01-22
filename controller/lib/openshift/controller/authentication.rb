@@ -4,7 +4,7 @@ module OpenShift
       extend ActiveSupport::Concern
 
       included do
-        include OpenShift::Controller::OAuth::ControllerMethods
+        #include OpenShift::Controller::OAuth::ControllerMethods
       end
 
       protected
@@ -120,6 +120,7 @@ module OpenShift
         end
 
         def authenticate_bearer_token
+=begin
           authenticate_with_bearer_token do |token|
             if access_token = Doorkeeper::AccessToken.authenticate(token)
               if access_token.accessible?
@@ -137,6 +138,7 @@ module OpenShift
               false
             end
           end
+=end
         end
 
         def authenticate_request_via_service

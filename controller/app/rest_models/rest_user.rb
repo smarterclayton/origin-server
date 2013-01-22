@@ -36,13 +36,13 @@ class RestUser < OpenShift::Model
           Param.new("type", "string", "Type of Key", SshKey.get_valid_ssh_key_types()),
           Param.new("content", "string", "The key portion of an rsa key (excluding ssh-rsa and comment)"),
         ]),
-        "ADD_AUTHORIZATION" => Link.new("Create new authorization", "POST", URI::join(url, "user/authorizations"), nil, [
-          OptionalParam.new("note", "string", "A description of this authorization", nil, nil),
-          OptionalParam.new("expires_in", "integer", "The number of seconds this authorization will last", nil, 7200),
-          OptionalParam.new("scopes", "string", "A space delimited list of valid scopes the token will grant", Doorkeeper.configuration.scopes.to_a + Doorkeeper.configuration.parameterized_scopes, Doorkeeper.configuration.default_scopes.to_s),
-          OptionalParam.new("client_id", "string", "The identifier of a client program that this token will be limited to.", nil, nil),
-        ]),
-        "LIST_AUTHORIZATIONS" => Link.new("List authorizations", "GET", URI::join(url, "user/authorizations")),
+        #"ADD_AUTHORIZATION" => Link.new("Create new authorization", "POST", URI::join(url, "user/authorizations"), nil, [
+        #  OptionalParam.new("note", "string", "A description of this authorization", nil, nil),
+        #  OptionalParam.new("expires_in", "integer", "The number of seconds this authorization will last", nil, 7200),
+        #  OptionalParam.new("scopes", "string", "A space delimited list of valid scopes the token will grant", Doorkeeper.configuration.scopes.to_a + Doorkeeper.configuration.parameterized_scopes, Doorkeeper.configuration.default_scopes.to_s),
+        #  OptionalParam.new("client_id", "string", "The identifier of a client program that this token will be limited to.", nil, nil),
+        #]),
+        #"LIST_AUTHORIZATIONS" => Link.new("List authorizations", "GET", URI::join(url, "user/authorizations")),
       }
       @links["DELETE_USER"] = Link.new("Delete user. Only applicable for subaccount users.", "DELETE", URI::join(url, "user"), nil, [
         OptionalParam.new("force", "boolean", "Force delete user. i.e. delete any domains and applications under this user", [true, false], false)
