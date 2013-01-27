@@ -25,7 +25,7 @@ class AuthorizationsController < BaseController
         matches_details(params[:note]).
         order_by([:created_at, :desc]).
         limit(10).detect{ |i| i.expires_in_seconds > [10.minute.seconds, expires_in / 2].min }
-      render_success(:ok, "authorization", RestAuthorization.new(token, get_url, nolinks), "CREATE_AUTHORIZATION") and return if token
+      render_success(:ok, "authorization", RestAuthorization.new(token, get_url, nolinks), "CREATE_AUTHORIZATION", "Reused existing") and return if token
     end
 
     token = Authorization.create!({
@@ -34,7 +34,7 @@ class AuthorizationsController < BaseController
     }) do |t|
       t.user = current_user
     end
-    render_success(:created, "authorization", RestAuthorization.new(token, get_url, nolinks), "CREATE_AUTHORIZATION")
+    render_success(:created, "authorization", RestAuthorization.new(token, get_url, nolinks), "CREATE_AUTHORIZATION", "Expires at #{token.expired_time}")
   end
 
   def update

@@ -15,6 +15,7 @@ class Authorization
   #   client => an OAuth client object
   #   scopes => comma-delimited string representing
   #             the roles available through this token
+  #
 
   index({ token: 1 }, { unique: true })
 
@@ -24,8 +25,7 @@ class Authorization
   validates :identity_id, :presence => true
   validates :note, length: {maximum: 4096}
 
-  before_validation :generate_token, :on => :create
-  before_validation :associate_identity, :on => :create
+  before_validation :generate_token, :associate_identity, :on => :create
 
   scope :for_owner, lambda { |user| where(:user_id => user.respond_to?(:to_key) ? user.id : user) }
   scope :matches_details, lambda { |note|
@@ -75,7 +75,7 @@ class Authorization
     expires_sec = expires.seconds.round(0)
     expires_sec > 0 ? expires_sec : 0  
   end
-  private :expired_time
+  #private :expired_time
 
   def self.last_authorized_token_for(application, resource_owner_id)
     where(:application_id => application.id,

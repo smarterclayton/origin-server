@@ -4,7 +4,7 @@ module OpenShift
       extend ActiveSupport::Concern
 
       included do
-        #include OpenShift::Controller::OAuth::ControllerMethods
+        include OpenShift::Controller::OAuth::ControllerMethods
       end
 
       protected
@@ -45,7 +45,7 @@ module OpenShift
           @cloud_user.auth_method = info[:auth_method] || :login
           response.headers['X-OpenShift-Identity'] = @identity.id
 
-          log_action(request.uuid, nil, @identity.id, "AUTHENTICATE", true, "Authenticated to #{@cloud_user.id} as #{@identity.id}")
+          log_action(request.uuid, @cloud_user.id, @identity.id, "AUTHENTICATE", true, "Authenticated")
 
           @cloud_user
         end
@@ -120,13 +120,12 @@ module OpenShift
         end
 
         def authenticate_bearer_token
-=begin
           authenticate_with_bearer_token do |token|
-            if access_token = Doorkeeper::AccessToken.authenticate(token)
-              if access_token.accessible?
-                user = CloudUser.find(access_token.resource_owner_id)
-                user.current_identity = Identity.for('access_token', access_token.id, access_token.created_at)
-                {:user => user, :auth_method => :access_token}
+            if auth = Authorization.authenticate(token)
+              if auth.accessible?
+                user = auth.user
+                user.current_identity = Identity.for('authorization_token', auth.id, auth.created_at)
+                {:user => user, :auth_method => :authorization_token}
               else
                 request_http_bearer_token_authentication(:invalid_token, 'The access token expired')
                 log_action(request.uuid, nil, nil, "AUTHENTICATE", false, "Access denied, token #{access_token.id} was expired")
@@ -138,7 +137,6 @@ module OpenShift
               false
             end
           end
-=end
         end
 
         def authenticate_request_via_service

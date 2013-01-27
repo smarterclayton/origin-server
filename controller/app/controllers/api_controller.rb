@@ -14,9 +14,14 @@ class ApiController < BaseController
           Param.new("id", "string", "Name of the domain",nil,blacklisted_words)
         ]),
         "LIST_CARTRIDGES" => Link.new("List cartridges", "GET", URI::join(get_url, "cartridges")),
+
         "LIST_AUTHORIZATIONS" => Link.new("List authorizations", "GET", URI::join(get_url, "user/authorizations")),
         "SHOW_AUTHORIZATION"  => Link.new("Retrieve authorization :id", "GET", URI::join(get_url, "user/authorizations/:id"), [
           Param.new(":id", "string", "Unique identifier of the authorization", nil, [])
+        ]),
+        "ADD_AUTHORIZATION" => Link.new("Add new authorization", "POST", URI::join(get_url, "user/authorizations"), [], [
+          OptionalParam.new("note", "string", "A description to remind you what this authorization is for."),
+          OptionalParam.new("expires_in", "int", "The number of seconds before this authorization expires. Out of range values will be set to the maximum allowed time.", nil, -1),
         ]),
       }
 
