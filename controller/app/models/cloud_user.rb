@@ -38,10 +38,11 @@ class CloudUser
   embeds_many :pending_ops, class_name: PendingUserOps.name
   embeds_many :identities, class_name: Identity.name
   has_many :domains, class_name: Domain.name, dependent: :restrict
-  
+  has_many :authorizations, class_name: Authorization.name, dependent: :restrict
+
   #validates :login, presence: true, login: true
   validates :capabilities, presence: true, capabilities: true
- 
+
   scope :with_plan, any_of({:plan_id.ne => nil}, {:pending_plan_id.ne => nil}) 
   #index({:login => 1}, {:unique => true})
   index({:'identities._id' => 1}, {:unique => true})

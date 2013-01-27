@@ -1,7 +1,6 @@
 class ApiController < BaseController
 
   skip_before_filter :authenticate_user!, :only => :show
-  before_filter :check_version, :only => :show
 
   def show
     blacklisted_words = OpenShift::ApplicationContainerProxy.get_blacklisted
@@ -15,6 +14,10 @@ class ApiController < BaseController
           Param.new("id", "string", "Name of the domain",nil,blacklisted_words)
         ]),
         "LIST_CARTRIDGES" => Link.new("List cartridges", "GET", URI::join(get_url, "cartridges")),
+        "LIST_AUTHORIZATIONS" => Link.new("List authorizations", "GET", URI::join(get_url, "user/authorizations")),
+        "SHOW_AUTHORIZATION"  => Link.new("Retrieve authorization :id", "GET", URI::join(get_url, "user/authorizations/:id"), [
+          Param.new(":id", "string", "Unique identifier of the authorization", nil, [])
+        ]),
       }
 
       base_url = Rails.application.config.openshift[:community_quickstarts_url]

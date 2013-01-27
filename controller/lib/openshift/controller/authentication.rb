@@ -194,7 +194,6 @@ module OpenShift
         def impersonate(user, identity)
           other = request.headers["X-Impersonate-User"]
           return [user, identity] unless other.present?
-          #subuser_name = request.headers["X-Impersonate-User"]
 
           unless user.get_capabilities && user.get_capabilities['subaccounts'] == true
             log_action(request.uuid, nil, identity.id, "IMPERSONATE", false, "Failed to impersonate #{other} as #{identity.id}, subaccount capability not set")
