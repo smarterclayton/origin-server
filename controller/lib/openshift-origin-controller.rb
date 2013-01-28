@@ -7,6 +7,7 @@ module OpenShift
     autoload :ApiResponses,            'openshift/controller/api_responses'
     autoload :Authentication,          'openshift/controller/authentication'
     autoload :OAuth,                   'openshift/controller/oauth'
+    autoload :ActionLog,               'openshift/controller/action_log'
   end
 
   module Auth
@@ -19,6 +20,8 @@ module OpenShift
   autoload :DnsService,                'openshift/dns_service'
   autoload :DataStore,                 'openshift/data_store'
   autoload :MongoDataStore,            'openshift/mongo_data_store'
+
+  autoload :UserActionLog,             'openshift/user_action_log'
 end
 
 require "openshift/exceptions"

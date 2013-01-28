@@ -1,4 +1,8 @@
 class BaseController < ActionController::Base
+  include OpenShift::Controller::ActionLog
+  include OpenShift::Controller::ApiResponses
+  include OpenShift::Controller::Authentication
+
   API_VERSION = 1.3
   SUPPORTED_API_VERSIONS = [1.0, 1.1, 1.2, 1.3]
   #Mongoid.logger.level = Logger::WARN
@@ -14,9 +18,6 @@ class BaseController < ActionController::Base
   before_filter :authenticate_user!
 
   protected
-    include UserActionLogger
-    include OpenShift::Controller::ApiResponses
-    include OpenShift::Controller::Authentication
 
     def set_locale
       # if params[:locale] is nil then I18n.default_locale will be used

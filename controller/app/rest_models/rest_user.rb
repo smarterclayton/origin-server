@@ -13,10 +13,9 @@ class RestUser < OpenShift::Model
       end
     end if cloud_user.consumed_gears > 0
 
-    if identity = cloud_user.current_identity
-      self.login = identity.id
-      self.current_identity = RestIdentity.new(identity, url, true)
-    end
+    identity = cloud_user.current_identity
+    self.login = identity.provider.nil? ? identity.uid : identity.id
+    self.current_identity = RestIdentity.new(identity, url, true)
 
     self.consumed_gears = cloud_user.consumed_gears
     self.capabilities = cloud_user.get_capabilities

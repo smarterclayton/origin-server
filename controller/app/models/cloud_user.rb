@@ -47,10 +47,10 @@ class CloudUser
   #index({:login => 1}, {:unique => true})
   index({:'identities._id' => 1}, {:unique => true})
 
-  validate{ errors.add(:base, "CloudUser must have one or more identities") if identities.empty? }
-
   scope :with_identity_id, lambda{ |id| where(:'identities._id' => id) }
-  scope :with_identity, lambda{ |provider, uid| where(:'identities._id' => Identity.id_for(provider, uid)) }
+  scope :with_identity, lambda{ |provider, uid| with_identity_id(Identity.id_for(provider, uid)) }
+
+  validate{ errors.add(:base, "CloudUser must have one or more identities") if identities.empty? }
 
   create_indexes
 
@@ -102,6 +102,29 @@ class CloudUser
       notify_observers(:after_cloud_user_create)
     end
     res
+  end
+
+  def self.find_by_identity(*arguments)
+    if arguments.length == 2
+      with_identity(*arguments)
+    else
+      with_identity_id(arguments[0])
+    end.find_by
+  end
+
+  def self.find_or_create_by_identity(provider, login, create_attributes={}, &block)
+    user = find_by_identity(provider, login)
+    identity = user.current_identity!(provider, login)
+    yield user, identity if block_given?
+    user
+  rescue Mongoid::Errors::DocumentNotFound
+    user = CloudUser.new(create_attributes)
+    user.current_identity = user.identities.build(provider: provider, uid: login)
+    user.login = user.current_identity.id
+    user.with(safe: true).save
+    Lock.create_lock(user)
+    OpenShift::UserActionLog.action("CREATE_USER", true, "Creating user for identity #{provider}, #{login}", get_extra_log_args)
+    user
   end
 
   # Used to add an ssh-key to the user. Use this instead of ssh_keys= so that the key can be propagated to the

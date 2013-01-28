@@ -27,15 +27,14 @@ module OpenShift
     end
 
     #
-    # The authenticate_request may be optionally implemented.  It will be executed in the 
-    # current Rails controller context, allowing the consumer access to the standard
-    # Rails controller method variables.  Use this method if you need access to other
-    # parameters
+    # The authenticate_request may be optionally implemented.  Use this method 
+    # if you need access to the request to determine authentication.
     #
-    # Implementors may write to the response to signal to a client that the request has failed.
+    # Implementors may write to the response to signal to a client that the 
+    # request has failed.
     #
     #
-    # def authenticate_request
+    # def authenticate_request(controller)
     # end
 
     # DEPRECATED: Will be removed once the legacy controllers are removed
