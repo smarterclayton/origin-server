@@ -3,6 +3,18 @@ module OpenShift
     module ApiResponses
       extend ActiveSupport::Concern
 
+      included do
+        respond_to :json, :xml
+        self.responder = OpenShift::Responder
+      end
+
+      # Override default Rails responder to return status code and objects from PUT/POST/DELETE requests
+      #def respond_with(*arguments)
+      #  options = arguments.extract_options!
+      #  options[:responder] = OpenShift::Responder
+      #  super(*arguments, options)
+      #end
+
       # Process all validation errors on a model and returns an array of message objects.
       #
       # == Parameters:
@@ -41,16 +53,20 @@ module OpenShift
       #    Array of message objects. If provided, it will log all messages in the action log and will add them to the REST response.
       #    msg,  err_code, field, and msg_type will be ignored.
       def render_error(status, msg, err_code=nil, log_tag=nil, field=nil, msg_type=nil, messages=nil, internal_error=false)
-        reply = RestReply.new(status)
-        user_info = get_cloud_user_info(@cloud_user)
+        reply = RestReply.new(requested_api_version, status)
         if messages && !messages.empty?
           reply.messages.concat(messages)
           if log_tag
             log_msg = []
-            messages.each{ |msg| log_msg.push(msg.text) }
-            log_action(@request_id, user_info[:uuid], user_info[:login], log_tag, !internal_error, log_msg.join(', '), get_extra_log_args)
+            messages.each { |msg| log_msg.push(msg.text) }
+            log_action(request.uuid, current_user.id, current_user_identity.id, log_tag, !internal_error, log_msg.join(', '), get_extra_log_args)
           end
+        else
+          msg_type = :error unless msg_type
+          reply.messages.push(Message.new(msg_type, msg, err_code, field)) if msg
+          log_action(request.uuid, current_user.id, current_user_identity.id, log_tag, !internal_error, msg, get_extra_log_args) if log_tag
         end
+        respond_with reply, :status => reply.status
       end
 
       # Renders a REST response for an exception.

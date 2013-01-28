@@ -39,8 +39,12 @@ class OpenShift::Responder < ::ActionController::Responder
   ACTIONS_FOR_VERBS	=	{ :post => :new, :put => :edit, :patch => :update }
   def api_behavior(error)
     raise error unless resourceful?
-    status = resource.each{ |r| break(r[:status]) if r.class == Hash && r.has_key?(:status) }
-    display resource[0], status: status
+    status = options[:status] || (resource.respond_to?(:status) && resource.status) || nil
+    #Rails.logger.debug("options #{options.inspect}, resource #{resource.inspect}")
+    display resource, :status => status 
+    #, :location => post? ? api_location : nil
+    #    status = resource.each{ |r| break(r[:status]) if r.class == Hash && r.has_key?(:status) }
+    #    display resource[0], status: status
   end
 end
 

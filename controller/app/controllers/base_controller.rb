@@ -1,6 +1,4 @@
 class BaseController < ActionController::Base
-  respond_to :json, :xml
-
   API_VERSION = 1.3
   SUPPORTED_API_VERSIONS = [1.0, 1.1, 1.2, 1.3]
   #Mongoid.logger.level = Logger::WARN
@@ -23,11 +21,6 @@ class BaseController < ActionController::Base
     def set_locale
       # if params[:locale] is nil then I18n.default_locale will be used
       I18n.locale = nil
-    end
-
-    # Override default Rails responder to return status code and objects from PUT/POST/DELETE requests
-    def respond_with(*arguments)
-      super(arguments, :responder => OpenShift::Responder)
     end
 
     def get_url

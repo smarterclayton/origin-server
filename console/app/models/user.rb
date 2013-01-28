@@ -23,5 +23,4 @@ class User < RestApi::Base
   def plan=(plan)
     @plan_id = plan.is_a?(String) ? plan : plan.id
   end
-
 end

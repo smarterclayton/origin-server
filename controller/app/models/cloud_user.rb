@@ -49,6 +49,7 @@ class CloudUser
 
   validate{ errors.add(:base, "CloudUser must have one or more identities") if identities.empty? }
 
+  scope :with_identity_id, lambda{ |id| where(:'identities._id' => id) }
   scope :with_identity, lambda{ |provider, uid| where(:'identities._id' => Identity.id_for(provider, uid)) }
 
   create_indexes

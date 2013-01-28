@@ -304,7 +304,8 @@ puts
 puts
 
 begin
-    user = CloudUser::find_by(login: login)
+    user = CloudUser.with_identity_id(login).find_by
+    #user = CloudUser::find_by(login: login)
 rescue Mongoid::Errors::DocumentNotFound
     puts "Error: User '#{login}' not found"
     exit 5
