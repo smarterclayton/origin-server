@@ -1,10 +1,10 @@
 class RestAuthorization < OpenShift::Model
-  attr_accessor :id, :identity, :token, :note, :created_at, :expires_in, :expires_in_seconds, :links
+  attr_accessor :id, :identity, :token, :note, :created_at, :expires_in, :expires_in_seconds, :links, :scopes
 
   def initialize(auth, url, nolinks=false)
     [:token, :created_at, :expires_in, :expires_in_seconds, :note].each{ |sym| self.send("#{sym}=", auth.send(sym)) }
     self.id = auth._id
-    self.identity = auth.identity_id
+    self.scopes = auth.scopes
 
     self.links = {
       "GET" => Link.new("Get authorization", "GET", URI::join(url, "user/authorizations/#{id}")),

@@ -7,7 +7,7 @@ class RestReply < OpenShift::Model
     self.data = data
     self.messages = []
     self.version = requested_api_version.to_s
-    self.supported_api_versions = BaseController::SUPPORTED_API_VERSIONS
+    self.supported_api_versions = OpenShift::Controller::ApiBehavior::SUPPORTED_API_VERSIONS
   end
   
   def process_result_io(result_io)
@@ -21,7 +21,7 @@ class RestReply < OpenShift::Model
   
   def to_xml(options={})
     options[:tag_name] = "response"
-    if not self.data.kind_of?Enumerable
+    unless self.data.kind_of? Enumerable
       new_data = self.data
       self.data = [new_data]
     end

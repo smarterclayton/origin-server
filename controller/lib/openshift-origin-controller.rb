@@ -4,6 +4,7 @@ module OpenShift
   module Controller
     require 'controller_engine' if defined?(Rails) && Rails::VERSION::MAJOR == 3
 
+    autoload :ApiBehavior,             'openshift/controller/api_behavior'
     autoload :ApiResponses,            'openshift/controller/api_responses'
     autoload :Authentication,          'openshift/controller/authentication'
     autoload :OAuth,                   'openshift/controller/oauth'

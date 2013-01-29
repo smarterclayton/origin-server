@@ -20,9 +20,16 @@ class AuthorizationsController < BaseController
         (expires_in <= 0 || expires_in > max_expires) ? nil : expires_in
       end || max_expires
 
+    scopes = Authorization::Scopes::DEFAULT
+    if params[:scope]
+      scopes = Authorization::Scopes.from_string(params[:scope])
+      return render_error(:unprocessable_entity, "The provided scope is invalid.",
+                          194, "ADD_AUTHORIZATION", "scope") unless scopes.valid?
+    end
+
     if params[:reuse]
       token = Authorization.for_owner(current_user).
-        matches_details(params[:note]).
+        matches_details(params[:note], scopes).
         order_by([:created_at, :desc]).
         limit(10).detect{ |i| i.expires_in_seconds > [10.minute.seconds, expires_in / 2].min }
       render_success(:ok, "authorization", RestAuthorization.new(token, get_url, nolinks), "CREATE_AUTHORIZATION", "Reused existing") and return if token
@@ -30,6 +37,7 @@ class AuthorizationsController < BaseController
 
     token = Authorization.create!({
       :expires_in        => expires_in,
+      :scope             => scopes.to_s,
       :note              => params[:note],
     }) do |t|
       t.user = current_user

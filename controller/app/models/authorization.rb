@@ -1,4 +1,20 @@
 class Authorization
+  class Scopes < Array
+    VALID = [:session, :userinfo]
+    DEFAULT = Scopes.new([:userinfo]).freeze
+
+    def self.from_string(s)
+      new.concat(s.split(/[,\s]/).map!(&:strip).delete_if(&:blank?).map!(&:downcase).map!(&:to_sym))
+    end
+    def to_s
+      map(&:downcase).join(',')
+    end
+
+    def valid?
+      all?{ |s| VALID.include?(s) }
+    end
+  end
+
   include Mongoid::Document
   include Mongoid::Timestamps
 
@@ -9,12 +25,11 @@ class Authorization
   field :expires_in, :type => Integer
   field :revoked_at, :type => DateTime
   field :note, :type => String
+  field :scopes, :type => String, :default => Scopes::DEFAULT.to_s
 
   #
   # Future elements for OAuth2 compliance:
   #   client => an OAuth client object
-  #   scopes => comma-delimited string representing
-  #             the roles available through this token
   #
 
   index({ token: 1 }, { unique: true })
@@ -28,9 +43,10 @@ class Authorization
   before_validation :generate_token, :associate_identity, :on => :create
 
   scope :for_owner, lambda { |user| where(:user_id => user.respond_to?(:to_key) ? user.id : user) }
-  scope :matches_details, lambda { |note|
+  scope :matches_details, lambda { |note, scopes|
     q = queryable
     q = q.where(:note => note.to_s) if note
+    q = q.where(:scopes => scopes.to_s) if scopes.present?
     q
   }
 
@@ -46,6 +62,13 @@ class Authorization
     user_id = user.respond_to?(:to_key) ? user.id : user
     token = last_authorized_token_for(user)#(application, resource_owner_id)
     token #if token && ScopeChecker.matches?(token.scopes, scopes)
+  end
+
+  def scopes
+    Scopes.from_string(self[:scopes])
+  end
+  def scopes_string
+    scopes.to_s
   end
 
   # Maps to Doorkeeper::Models::Revokeable
@@ -90,6 +113,9 @@ class Authorization
   private
     def generate_token
       self.token = SecureRandom.hex(32)
+    end
+    def collapse_scopes
+      self.scopes = scopes.to_s unless scopes.is_a? String
     end
     def associate_identity
       self.identity_id = user.current_identity._id
