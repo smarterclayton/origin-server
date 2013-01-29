@@ -7,7 +7,12 @@ module OpenShift::Controller::ActionLog
 
   protected
     def log_action(*arguments)
-      OpenShift::UserActionLog.action(*arguments.drop(3))
+      if arguments.first.is_a? CloudUser
+        OpenShift::UserActionLog.with_user(arguments.shift)
+      else
+        arguments.shift(3)
+      end
+      OpenShift::UserActionLog.action(*arguments)
     end
 
   private

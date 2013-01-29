@@ -1,1 +1,0 @@
-OpenShift::UserActionLog.init

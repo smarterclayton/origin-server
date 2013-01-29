@@ -46,7 +46,7 @@ module OpenShift
           @cloud_user.auth_method = info[:auth_method] || :login
           response.headers['X-OpenShift-Identity'] = @identity.id
 
-          log_action(request.uuid, @cloud_user.id, @identity.id, "AUTHENTICATE", true, "Authenticated")
+          log_action(@cloud_user, "AUTHENTICATE", true, "Authenticated")
 
           @cloud_user
         end
@@ -67,7 +67,7 @@ module OpenShift
             raise "Authentication service must return a username with its response" if info[:username].nil?
 
             user = CloudUser.find_or_create_by_identity(info[:provider], info[:username])
-            log_action(request.uuid, user.id, user.current_identity.id, "CREDENTIAL_AUTHENTICATE", true, "Authenticated via credentials")
+            log_action(user, "CREDENTIAL_AUTHENTICATE", true, "Authenticated via credentials")
             user
           end
         rescue OpenShift::AccessDeniedException => e
@@ -182,17 +182,17 @@ module OpenShift
           identity = user.current_identity
 
           unless user.get_capabilities && user.get_capabilities['subaccounts'] == true
-            log_action(request.uuid, nil, identity.id, "IMPERSONATE", false, "Failed to impersonate #{other} as #{identity.id}, subaccount capability not set")
+            log_action(user, "IMPERSONATE", false, "Failed to impersonate #{other} as #{identity.id}, subaccount capability not set")
             raise OpenShift::AccessDeniedException, "Insufficient privileges to access user #{other}"
           end
 
           CloudUser.find_or_create_by_identity("impersonation/#{as.id}", other, parent_user_id: user.id) do |existing_user, existing_identity|
             if existing_user.parent_user_id != user.id
-              log_action(request.uuid, nil, identity.id, "IMPERSONATE", false, "Failed to impersonate #{other} as #{identity.id}, account is not associated with the parent")
+              log_action(user, "IMPERSONATE", false, "Failed to impersonate #{other} as #{identity.id}, account is not associated with the parent")
               raise OpenShift::AccessDeniedException, "Account is not associated with impersonate account #{other}"
             end
           end.tap do |other_user, other_identity|
-            log_action(request.uuid, nil, identity.id, "IMPERSONATE", true, "User #{user.id} was able to impersonate as #{other_user.id}")
+            log_action(user, "IMPERSONATE", true, "User #{user.id} was able to impersonate as #{other_user.id}")
           end
         end
     end

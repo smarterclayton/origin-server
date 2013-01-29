@@ -1,17 +1,10 @@
 module OpenShift::UserActionLog
-  def self.init
-    if Rails.configuration.user_action_logging[:logging_enabled]
-      if file = Rails.configuration.user_action_logging[:log_filepath]
-        self.logger = Logger.new(file)
-      end
-    end
-  end
 
   def self.begin_request(request)
-    Thread.current['user_action_log/uuid'] = request.uuid
+    Thread.current['user_action_log/uuid'] = request ? request.uuid : nil
   end
   def self.end_request
-    in_request(nil)
+    begin_request(nil)
     with_user(nil)
   end
   def self.with_user(user)
@@ -31,7 +24,7 @@ module OpenShift::UserActionLog
     message = "#{result} DATE=#{date} TIME=#{time} ACTION=#{action} REQ_ID=#{Thread.current['user_action_log/uuid']} USER_ID=#{Thread.current['user_action_log/user_id'].to_s} LOGIN=#{Thread.current['user_action_log/identity_id'].to_s}"
     args.each {|k,v| message += " #{k}=#{v}"}
 
-    action_logger.info("#{message} #{description}")
+    logger.info("#{message} #{description}")
 
     log_level = success ? Logger::DEBUG : Logger::ERROR
     # Using a block prevents the message in the block from being executed 
@@ -40,7 +33,8 @@ module OpenShift::UserActionLog
   end
 
   class << self
+    attr_writer :logger
     private
-      attr_accessor :logger
+      attr_reader :logger
   end
 end
