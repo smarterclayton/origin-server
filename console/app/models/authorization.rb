@@ -21,6 +21,17 @@ class Authorization < RestApi::Base
     created_at + expires_in.seconds
   end
 
+  def scopes
+    (attributes[:scopes] || (attributes[:scope] || '').split(',')).map(&:to_sym)
+  end
+  def scopes=(a)
+    self.scope = a
+  end
+  def scope=(scopes)
+    attributes.delete :scopes
+    attributes[:scope] = Array(scopes).join(',')
+  end
+
   def reuse!
     attributes[:reuse] = true
   end

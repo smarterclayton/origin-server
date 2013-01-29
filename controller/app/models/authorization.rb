@@ -70,6 +70,9 @@ class Authorization
   def scopes_string
     scopes.to_s
   end
+  def scopes=(scope)
+    self[:scopes] = scope && scope.is_a?(String) ? scope : scope.to_s || nil
+  end
 
   # Maps to Doorkeeper::Models::Revokeable
   def revoke(clock = DateTime)
