@@ -123,7 +123,7 @@ class CloudUser
     user.login = user.current_identity.id
     user.with(safe: true).save
     Lock.create_lock(user)
-    OpenShift::UserActionLog.action("CREATE_USER", true, "Creating user for identity #{provider}, #{login}", get_extra_log_args)
+    OpenShift::UserActionLog.action("CREATE_USER", true, "Creating user for identity #{provider}, #{login}")
     user
   end
 

@@ -29,7 +29,7 @@ module OpenShift::UserActionLog
     log_level = success ? Logger::DEBUG : Logger::ERROR
     # Using a block prevents the message in the block from being executed 
     # if the log_level is lower than the one set for the logger
-    Rails.logger.add(log_level) {"[REQ_ID=#{request_id}] ACTION=#{action} #{description}"}
+    Rails.logger.add(log_level) {"[REQ_ID=#{Thread.current['user_action_log/uuid']}] ACTION=#{action} #{description}"}
   end
 
   class << self

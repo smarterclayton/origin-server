@@ -1,23 +1,15 @@
 class BaseController < ActionController::Base
-  include OpenShift::Controller::ActionLog
-  include OpenShift::Controller::ApiResponses
-  include OpenShift::Controller::Authentication
-
   API_VERSION = 1.3
   SUPPORTED_API_VERSIONS = [1.0, 1.1, 1.2, 1.3]
-  #Mongoid.logger.level = Logger::WARN
-  #Moped.logger.level = Logger::WARN
-
-  # Initialize domain/app variables to be used for logging in user_action.log
-  # The values will be set in the controllers handling the requests
-  @domain_name = nil
-  @application_name = nil
-  @application_uuid = nil
-
-  before_filter :set_locale, :check_nolinks, :check_version
-  before_filter :authenticate_user!
 
   protected
+    include OpenShift::Controller::ActionLog
+    include OpenShift::Controller::ApiResponses
+    include OpenShift::Controller::Authentication
+
+    before_filter :set_locale, :check_nolinks, :check_version
+    before_filter :authenticate_user!
+
 
     def set_locale
       # if params[:locale] is nil then I18n.default_locale will be used
@@ -78,12 +70,4 @@ class BaseController < ActionController::Base
       end
     end
     attr_reader :requested_api_version
-
-    def get_extra_log_args
-      args = {}
-      args["APP"] = @application_name if @application_name
-      args["DOMAIN"] = @domain_name if @domain_name
-      args["APP_UUID"] = @application_uuid if @application_uuid
-      return args
-    end
 end

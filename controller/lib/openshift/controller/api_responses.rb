@@ -138,6 +138,14 @@ module OpenShift
         end
         respond_with reply, :status => reply.status
       end
+
+      def get_extra_log_args
+        args = {}
+        args["APP"] = @application_name if @application_name
+        args["DOMAIN"] = @domain_name if @domain_name
+        args["APP_UUID"] = @application_uuid if @application_uuid
+        return args
+      end
     end
   end
 end
