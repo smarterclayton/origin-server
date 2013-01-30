@@ -9,7 +9,7 @@ class AuthorizationsController < BaseController
                       :revoked_at => nil).
                      order_by([:created_at, :desc]).
                      map{ |auth| RestAuthorization.new(auth, get_url, nolinks) }
-    render_success(:ok, "authorizations", authorizations, "LIST_AUTHORIZATIONS")
+    render_success(:ok, "authorizations", authorizations, "LIST_AUTHORIZATIONS", 'List authorizations', false, nil, nil, 'IP' => request.remote_ip)
   end
 
   def create
@@ -35,20 +35,20 @@ class AuthorizationsController < BaseController
       render_success(:ok, "authorization", RestAuthorization.new(token, get_url, nolinks), "ADD_AUTHORIZATION", "Reused existing") and return if token
     end
 
-    token = Authorization.create!({
+    auth = Authorization.create!({
       :expires_in        => expires_in,
       :note              => params[:note],
-    }) do |t|
-      t.user = current_user
-      t.scopes = scopes.to_s
+    }) do |a|
+      a.user = current_user
+      a.scopes = scopes.to_s
     end
-    render_success(:created, "authorization", RestAuthorization.new(token, get_url, nolinks), "ADD_AUTHORIZATION", "Scope #{token.scopes_string}, expires at #{token.expired_time}")
+    render_success(:created, "authorization", RestAuthorization.new(auth, get_url, nolinks), "ADD_AUTHORIZATION", "Create authorization", false, nil, nil, 'TOKEN' => auth.token, 'SCOPE' => auth.scopes_string, 'EXPIRES' => auth.expired_time, 'IP' => request.remote_ip)
   end
 
   def update
-    token = Authorization.find(params[:id])
-    token.update_attributes!(params.slice(:note))
-    render_success(:ok, "authorization", RestAuthorization.new(token, get_url, nolinks), "UPDATE_AUTHORIZATION")
+    auth = Authorization.find(params[:id])
+    auth.update_attributes!(params.slice(:note))
+    render_success(:ok, "authorization", RestAuthorization.new(auth, get_url, nolinks), "UPDATE_AUTHORIZATION", "Change authorization", false, nil, nil, 'TOKEN' => auth.token, 'IP' => request.remote_ip)
   end
 
   def destroy

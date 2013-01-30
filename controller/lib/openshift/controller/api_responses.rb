@@ -60,12 +60,12 @@ module OpenShift
             if log_tag
               log_msg = []
               messages.each { |msg| log_msg.push(msg.text) }
-              log_action(request.uuid, current_user.id, current_user_identity.id, log_tag, !internal_error, log_msg.join(', '), get_extra_log_args)
+              log_action(request.uuid, current_user && current_user.id, current_user && current_user_identity.id, log_tag, !internal_error, log_msg.join(', '), get_extra_log_args)
             end
           else
             msg_type = :error unless msg_type
             reply.messages.push(Message.new(msg_type, msg, err_code, field)) if msg
-            log_action(request.uuid, current_user.id, current_user_identity.id, log_tag, !internal_error, msg, get_extra_log_args) if log_tag
+            log_action(request.uuid, current_user && current_user.id, current_user && current_user_identity.id, log_tag, !internal_error, msg, get_extra_log_args) if log_tag
           end
           respond_with reply, :status => reply.status
         end
@@ -78,12 +78,14 @@ module OpenShift
         #  log_tag::
         #    Tag used in action logs
         def render_exception(ex, log_tag=nil)
-          Rails.logger.error "Reference ID: #{@request_id}"
+          Rails.logger.error "Reference ID: #{request.uuid}"
           Rails.logger.error ex.message
-          Rails.logger.error ex.backtrace
+          Rails.logger.error ex.backtrace.join("\n")
           error_code = ex.respond_to?('code') ? ex.code : 1
           if ex.kind_of? OpenShift::UserException
             status = :unprocessable_entity
+          elsif ex.kind_of? OpenShift::AccessDeniedException
+            status = :forbidden
           elsif ex.kind_of? OpenShift::DNSException
             status = :service_unavailable
           elsif ex.kind_of? OpenShift::NodeException
@@ -123,19 +125,19 @@ module OpenShift
         #  messages::
         #    Array of message objects. If provided, it will log all messages in the action log and will add them to the REST response.
         #    publish_msg, log_msg, and msg_type will be ignored.
-        def render_success(status, type, data, log_tag, log_msg=nil, publish_msg=false, msg_type=nil, messages=nil)
+        def render_success(status, type, data, log_tag, log_msg=nil, publish_msg=false, msg_type=nil, messages=nil, extra_log=get_extra_log_args)
           reply = RestReply.new(requested_api_version, status, type, data)
           if messages && !messages.empty?
             reply.messages.concat(messages)
             if log_tag
               log_msg = []
               messages.each { |msg| log_msg.push(msg.text) }
-              log_action(request.uuid, @cloud_user && @cloud_user.id.to_s, @identity && @identity.id.to_s, log_tag, true, log_msg.join(', '), get_extra_log_args)
+              log_action(request.uuid, @cloud_user && @cloud_user.id.to_s, @identity && @identity.id.to_s, log_tag, true, log_msg.join(', '), extra_log)
             end
           else
             msg_type = :info unless msg_type
             reply.messages.push(Message.new(msg_type, log_msg)) if publish_msg && log_msg
-            log_action(request.uuid, @cloud_user && @cloud_user.id.to_s, @identity && @identity.id.to_s, log_tag, true, log_msg, get_extra_log_args) if log_tag
+            log_action(request.uuid, @cloud_user && @cloud_user.id.to_s, @identity && @identity.id.to_s, log_tag, true, log_msg, extra_log) if log_tag
           end
           respond_with reply, :status => reply.status
         end

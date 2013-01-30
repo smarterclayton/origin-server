@@ -21,15 +21,17 @@ module OpenShift::UserActionLog
     date = time_obj.strftime("%Y-%m-%d")
     time = time_obj.strftime("%H:%M:%S")
 
-    message = "#{result} DATE=#{date} TIME=#{time} ACTION=#{action} REQ_ID=#{Thread.current['user_action_log/uuid']} USER_ID=#{Thread.current['user_action_log/user_id'].to_s} LOGIN=#{Thread.current['user_action_log/identity_id'].to_s}"
-    args.each {|k,v| message += " #{k}=#{v}"}
+    message = "#{result} DATE=#{date} TIME=#{time} ACTION=#{action} REQ_ID=#{Thread.current['user_action_log/uuid']}"
+    auth = " USER_ID=#{Thread.current['user_action_log/user_id'].to_s} LOGIN=#{Thread.current['user_action_log/identity_id'].to_s}"
+    extra = args.map{|k,v| " #{k}=#{v}"}.join
 
-    logger.info("#{message} #{description}")
+    logger.info("#{message}#{auth}#{extra} #{description}")
 
-    log_level = success ? Logger::DEBUG : Logger::ERROR
-    # Using a block prevents the message in the block from being executed 
-    # if the log_level is lower than the one set for the logger
-    Rails.logger.add(log_level) {"[REQ_ID=#{Thread.current['user_action_log/uuid']}] ACTION=#{action} #{description}"}
+    unless Rails.env.production?
+      # Using a block prevents the message in the block from being executed 
+      # if the log_level is lower than the one set for the logger
+      Rails.logger.add(Logger::DEBUG){ "  #{result} ACTION=#{action}#{auth}#{extra} #{description}" }
+    end
   end
 
   class << self
