@@ -16,7 +16,7 @@ class RestApiTest < ActiveSupport::TestCase
 
     @ts = "#{Time.now.to_i}#{gen_small_uuid[0,6]}"
 
-    @user = RestApi::Authorization.new 'test1', '1234'
+    @user = RestApi::Credentials.new 'test1', '1234'
     @auth_headers = {'Cookie' => "rh_sso=1234", 'Authorization' => 'Basic dGVzdDE6'};
 
     ActiveSupport::XmlMini.backend = 'REXML'
@@ -373,15 +373,15 @@ class RestApiTest < ActiveSupport::TestCase
 
   def test_create_cookie
     base_connection = ActiveResource::PersistentConnection.new 'http://localhost', :xml
-    connection = RestApi::UserAwareConnection.new base_connection, RestApi::Authorization.new('test1', '1234')
+    connection = RestApi::UserAwareConnection.new base_connection, RestApi::Credentials.new('test1', '1234')
     headers = connection.authorization_header(:post, '/something')
     assert_equal 'rh_sso=1234', headers['Cookie']
   end
 
   def test_reuse_connection
     ActiveResource::HttpMock.enabled = false
-    auth1 = RestApi::Authorization.new('test1', '1234', 'pass1')
-    auth2 = RestApi::Authorization.new('test2', '12345', 'pass2')
+    auth1 = RestApi::Credentials.new('test1', '1234', 'pass1')
+    auth2 = RestApi::Credentials.new('test2', '12345', 'pass2')
 
     assert connection = RestApi::Base.connection(:as => auth1)
     assert connection1 = RestApi::Base.connection(:as => auth1)
@@ -1065,7 +1065,7 @@ class RestApiTest < ActiveSupport::TestCase
     assert_equal 2, CacheableRestApi.count
     cached.all :as => @user
     assert_equal 2, CacheableRestApi.count
-    cached.all :as => RestApi::Authorization.new('different')
+    cached.all :as => RestApi::Credentials.new('different')
     assert_equal 2, CacheableRestApi.count
   end
 

@@ -135,6 +135,10 @@ module RestApi
     def root_attributes(hash)
       hash.slice('messages', *@root_attrs)
     end
+
+    def mime_type
+      'application/json; nolinks'
+    end
   end
 
   class Base < ActiveResource::Base

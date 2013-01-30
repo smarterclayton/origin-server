@@ -11,6 +11,9 @@ module RestApi
       def decode(json)
         ActiveSupport::JSON.decode(json)
       end
+      def mime_type
+        'application/json'
+      end
     end.new
 
     schema do

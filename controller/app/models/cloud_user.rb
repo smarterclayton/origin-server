@@ -36,7 +36,7 @@ class CloudUser
   field :consumed_gears, type: Integer, default: 0
   embeds_many :ssh_keys, class_name: SshKey.name
   embeds_many :pending_ops, class_name: PendingUserOps.name
-  embeds_many :identities, class_name: Identity.name
+  embeds_many :identities, class_name: Identity.name, cascade_callbacks: true
   has_many :domains, class_name: Domain.name, dependent: :restrict
   has_many :authorizations, class_name: Authorization.name, dependent: :restrict
 

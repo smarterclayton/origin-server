@@ -39,4 +39,9 @@ class Authorization < RestApi::Base
   def to_headers
     {'Authorization' => "Bearer #{token}"}
   end
+
+  def self.destroy_all(options={})
+    prefix_options, query_options = split_options(options[:params])
+    connection(options).delete(collection_path(prefix_options, query_options))
+  end
 end

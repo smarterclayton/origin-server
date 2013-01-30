@@ -62,6 +62,6 @@ class AuthorizationsController < BaseController
 
   def destroy_all
     Authorization.where(:user => current_user).delete_all
-    render_success(:no_content, nil, nil, "DELETE_AUTHORIZATIONS", "All authorizations for  #{@cloud_user.id} are revoked.", true)
+    render_success(:no_content, nil, nil, "DELETE_AUTHORIZATIONS", "All authorizations for #{@cloud_user.id} are revoked.", true)
   end
 end

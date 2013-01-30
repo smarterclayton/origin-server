@@ -82,7 +82,7 @@ module RestApiAuth
   # without any session information.
   #
   def with_simple_unique_user
-    @user = RestApi::Authorization.new "rest-api-test-#{uuid}@test1.com"
+    @user = RestApi::Credentials.new "rest-api-test-#{uuid}@test1.com"
     @with_unique_user = true
   end
 end
