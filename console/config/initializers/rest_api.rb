@@ -1,12 +1,11 @@
-require 'rest_api'
-require 'rest_api/log_subscriber'
-require 'rest_api/railties/controller_runtime'
+#require 'console/rest_api/log_subscriber'
+#require 'console/rest_api/railties/controller_runtime'
 
-RestApi::LogSubscriber.attach_to :active_resource
+Console::RestApi::LogSubscriber.attach_to :active_resource
 
 unless Rails.env.production?
   begin
-    info = RestApi.info
+    info = Console::RestApi.info
     Rails.logger.info "Connected to #{info.url} with version #{info.version}"
   rescue Exception => e
     puts e if Rails.env.development?
@@ -15,10 +14,10 @@ unless Rails.env.production?
 end
 
 ActiveSupport.on_load(:action_controller) do
-  include RestApi::Railties::ControllerRuntime
+  include Console::RestApi::Railties::ControllerRuntime
 end
 
 ActiveSupport.on_load(:action_controller) do
-  RestApi::Base.instantiate_observers
+  Console::RestApi::Base.instantiate_observers
 end
 

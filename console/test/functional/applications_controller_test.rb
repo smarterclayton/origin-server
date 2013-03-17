@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class ApplicationsControllerTest < ActionController::TestCase
 
   test "should create and delete app" do
@@ -343,4 +344,5 @@ class ApplicationsControllerTest < ActionController::TestCase
     {:name => 'test1', :application_type => name}
   end
 
+end
 end

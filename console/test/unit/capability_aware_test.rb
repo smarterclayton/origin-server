@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class CapabilityAwareTest < ActiveSupport::TestCase
 
   def obj_class
@@ -51,4 +52,5 @@ class CapabilityAwareTest < ActiveSupport::TestCase
     assert_equal 0, cap.consumed_gears
     assert_equal [:small], cap.gear_sizes
   end
+end
 end

@@ -12,10 +12,10 @@ class ActiveSupport::TestCase
   end
 
   def setup_domain
-    domain = Domain.new :name => "#{uuid}", :as => @user
+    domain = Console::Domain.new :name => "#{uuid}", :as => @user
     begin
       domain.save!
-    rescue Domain::AlreadyExists, Domain::UserAlreadyHasDomain
+    rescue Console::Domain::AlreadyExists, Console::Domain::UserAlreadyHasDomain
       domain.errors.clear
     rescue => e
       puts "Domain create failed: #{e.response.errors.inspect}" rescue nil
@@ -24,7 +24,7 @@ class ActiveSupport::TestCase
     set_domain(domain)
   end
   def find_or_create_domain
-    set_domain(Domain.find(:one, :as => @user))
+    set_domain(Console::Domain.find(:one, :as => @user))
   rescue
     setup_domain
   end
@@ -63,11 +63,11 @@ class ActiveSupport::TestCase
   end
 
   def delete_keys
-    Key.find(:all, :as => @user).map(&:destroy)
+    Console::Key.find(:all, :as => @user).map(&:destroy)
   end
 
   def allow_duplicate_domains
-    Domain.any_instance.expects(:check_duplicate_domain).at_least(0).returns(false)
+    Console::Domain.any_instance.expects(:check_duplicate_domain).at_least(0).returns(false)
   end
 
   def assert_attr_equal(o1, o2)
@@ -84,7 +84,7 @@ class ActiveSupport::TestCase
   end
 
   def setup_from_app(app)
-    set_domain Domain.new({:id => app.domain_id, :as => app.as}, true)
+    set_domain Console::Domain.new({:id => app.domain_id, :as => app.as}, true)
     set_user app.as
     app
   end
@@ -131,7 +131,7 @@ class ActiveSupport::TestCase
   end
 
   def gears_free?(count)
-    User.find(:one, :as => @user).gears_free >= count
+    Console::User.find(:one, :as => @user).gears_free >= count
   end
 
   def use_app(symbol, &block)
@@ -140,7 +140,7 @@ class ActiveSupport::TestCase
         setup_from_app(cached)
       else
         app = yield block if block_given?
-        app ||= Application.new :name => uuid
+        app ||= Console::Application.new :name => uuid
         if app.as
           set_user(app.as)
         else
@@ -161,11 +161,11 @@ class ActiveSupport::TestCase
   end
 
   def with_app
-    use_app(:readable_app) { Application.new({:name => "normal", :cartridge => 'ruby-1.8', :as => new_named_user('user_with_normal_app')}) }
+    use_app(:readable_app) { Console::Application.new({:name => "normal", :cartridge => 'ruby-1.8', :as => new_named_user('user_with_normal_app')}) }
   end
 
   def with_scalable_app
-    use_app(:scalable_app) { Application.new({:name => "scaled", :cartridge => 'ruby-1.8', :scale => true, :as => new_named_user('user_with_scaled_app')}) }
+    use_app(:scalable_app) { Console::Application.new({:name => "scaled", :cartridge => 'ruby-1.8', :scale => true, :as => new_named_user('user_with_scaled_app')}) }
   end
 
   def mock_body_for(&block)

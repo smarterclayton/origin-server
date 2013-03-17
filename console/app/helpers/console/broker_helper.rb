@@ -1,4 +1,5 @@
-module Console::BrokerHelper
+module Console
+module BrokerHelper
   # RestApi.site.host comes from the value in console.conf for BROKER_URL.
   # Currently if using the remote-user auth plugin we only allow the broker and
   # console to run on the same host and to communicate over the loopback
@@ -9,4 +10,5 @@ module Console::BrokerHelper
   def broker_host
     ['127.0.0.1', 'localhost'].include?(RestApi.site.host) ? request.host : RestApi.site.host
   end
+end
 end

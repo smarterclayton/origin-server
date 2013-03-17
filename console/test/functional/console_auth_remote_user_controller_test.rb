@@ -1,27 +1,29 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
+
+class ConsoleAuthRemoteUserController < ActionController::Base
+  include Rescue
+  include Auth::RemoteUser
+
+  before_filter :authenticate_user!, :except => :unprotected
+
+  def protected
+    render :status => 200, :nothing => true
+  end
+  def unprotected
+    render :status => 200, :nothing => true
+  end
+  def restapi
+    @user = User.find :one, :as => current_user
+    render :status => 200, :nothing => true
+  end
+end
+
 class ConsoleAuthRemoteUserControllerTest < ActionController::TestCase
   uses_http_mock :sometimes
 
-  class ConsoleAuthRemoteUserController < ActionController::Base
-    include Console::Rescue
-    include Console::Auth::RemoteUser
-
-    before_filter :authenticate_user!, :except => :unprotected
-
-    def protected
-      render :status => 200, :nothing => true
-    end
-    def unprotected
-      render :status => 200, :nothing => true
-    end
-    def restapi
-      @user = User.find :one, :as => current_user
-      render :status => 200, :nothing => true
-    end
-  end
-
-  setup{ Rails.application.routes.draw{ match ':action' => ConsoleAuthRemoteUserController } }
+  setup{ Console::Engine.routes.draw{ match ':action' => ConsoleAuthRemoteUserController } }
   teardown{ Rails.application.reload_routes! }
 
   setup{ Console.config.expects(:remote_user_header).at_least_once.returns('HTTP_X_REMOTE_USER') }
@@ -87,4 +89,5 @@ class ConsoleAuthRemoteUserControllerTest < ActionController::TestCase
     get :restapi
     assert_redirected_to  @controller.unauthorized_path
   end
+end
 end

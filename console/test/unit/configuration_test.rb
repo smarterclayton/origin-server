@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 #
 # Mock tests only - should verify functionality of ActiveResource extensions
 # and simple server/client interactions via HttpMock
@@ -155,4 +156,4 @@ class ConfigurationTest < ActiveSupport::TestCase
     assert_raise(Console::InvalidConfiguration){ Console::Configuration.new.api = nil }
   end
 end
-
+end

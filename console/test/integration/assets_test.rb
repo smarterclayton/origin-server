@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class AssetsTest < ActionDispatch::IntegrationTest
   setup { open_session }
 
@@ -31,4 +32,5 @@ class AssetsTest < ActionDispatch::IntegrationTest
     assert_equal 'text/css', @response.content_type
     assert @response.body.length > 20*1024
   end
+end
 end

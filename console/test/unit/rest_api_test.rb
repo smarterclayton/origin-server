@@ -4,6 +4,7 @@ require File.expand_path('../../test_helper', __FILE__)
 # Mock tests only - should verify functionality of ActiveResource extensions
 # and simple server/client interactions via HttpMock
 #
+module Console
 class RestApiTest < ActiveSupport::TestCase
 
   uses_http_mock
@@ -368,7 +369,7 @@ class RestApiTest < ActiveSupport::TestCase
   def test_create_safe_reflected_name
     base = ReflectedTest.new
     r = base.send("find_or_create_resource_for", 'mysql-5.1')
-    assert_equal 'RestApiTest::ReflectedTest::Mysql51', r.name, r.pretty_inspect
+    assert_equal 'Console::RestApiTest::ReflectedTest::Mysql51', r.name, r.pretty_inspect
   end
 
   def test_create_cookie
@@ -1590,4 +1591,5 @@ class RestApiTest < ActiveSupport::TestCase
     Cartridge.any_instance.expects(:destroy).raises(ActiveResource::ServerError.new(stub))
     assert_raise(ActiveResource::ServerError) { app.destroy_build_cartridge }
   end
+end
 end

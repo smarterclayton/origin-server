@@ -7,7 +7,7 @@
 module Console::Auth::Basic
   extend ActiveSupport::Concern
 
-  class BasicUser < RestApi::Credentials
+  class BasicUser < Console::RestApi::Credentials
     extend ActiveModel::Naming
     include ActiveModel::Conversion
 

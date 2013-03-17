@@ -1,6 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
-require 'mocha'
 
+module Console
 class BuildingControllerTest < ActionController::TestCase
 
   uses_http_mock
@@ -200,4 +200,5 @@ class BuildingControllerTest < ActionController::TestCase
     assert assigns(:domain)
     assert_response :success
   end
+end
 end

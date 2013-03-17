@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class StorageControllerTest < ActionController::TestCase
   test "should show with max_storage_per_gear" do
     get :show, {:application_id => with_storage_app.to_param}
@@ -104,4 +105,5 @@ class StorageControllerTest < ActionController::TestCase
       cart.save
     end
   end
+end
 end

@@ -1,1 +1,1 @@
-require Console.config.security_controller.underscore
+Console.config.security_controller.constantize

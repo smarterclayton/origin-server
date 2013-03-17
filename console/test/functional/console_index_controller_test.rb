@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class ConsoleIndexControllerTest < ActionController::TestCase
   test 'redirect to applications path' do
     with_configured_user
@@ -19,4 +20,5 @@ class ConsoleIndexControllerTest < ActionController::TestCase
     assert_response :success
     assert_template 'console/help'
   end
+end
 end

@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class AccountControllerTest < ActionController::TestCase
 
   test "should render dashboard" do
@@ -11,4 +12,5 @@ class AccountControllerTest < ActionController::TestCase
     assert !assigns(:keys).nil?
     assert assigns(:domain).nil?
   end
+end
 end

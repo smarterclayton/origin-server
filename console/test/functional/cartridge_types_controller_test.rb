@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class CartridgeTypesControllerTest < ActionController::TestCase
 
   test "should show index" do
@@ -45,4 +46,4 @@ class CartridgeTypesControllerTest < ActionController::TestCase
     #end
   end
 end
-
+end

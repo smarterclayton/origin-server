@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class DomainsControllerTest < ActionController::TestCase
 
   @@user = nil
@@ -193,4 +194,5 @@ class DomainsControllerTest < ActionController::TestCase
   def get_post_form
     {:name => "d#{uuid[0..12]}"}
   end
+end
 end

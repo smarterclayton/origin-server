@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 module ActiveModelComplianceTest
   [
     RestApi::Base,
@@ -20,4 +21,5 @@ module ActiveModelComplianceTest
       setup{ @model = klass.new }
     end)
   end
+end
 end

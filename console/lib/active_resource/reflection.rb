@@ -20,7 +20,7 @@ module ActiveResource
 
     module ClassMethods
       def create_reflection(macro, name, options)
-        reflection = AssociationReflection.new(macro, name, options)
+        reflection = AssociationReflection.new(macro, name, options, self.parent)
 
         # Simple reflection based abstraction
         if (target = "#{reflection.class_name}Associations".safe_constantize)
@@ -36,8 +36,8 @@ module ActiveResource
 
     class AssociationReflection
 
-      def initialize(macro, name, options)
-        @macro, @name, @options = macro, name, options
+      def initialize(macro, name, options, parent)
+        @macro, @name, @options, @parent = macro, name, options, parent
       end
 
       # Returns the name of the macro.
@@ -70,8 +70,14 @@ module ActiveResource
       end
 
       private
+        attr_reader :parent
+
         def derive_class_name
-          return (options[:class_name] ? options[:class_name].to_s : name.to_s).classify
+          if options[:class_name]
+            options[:class_name].to_s.classify
+          else
+            "#{parent ? "#{parent.name}::" : nil}#{name.to_s.classify}"
+          end
         end
     end
   end

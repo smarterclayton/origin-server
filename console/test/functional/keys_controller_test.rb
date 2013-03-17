@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class KeysControllerTest < ActionController::TestCase
 
   setup :with_configured_user
@@ -160,4 +161,5 @@ class KeysControllerTest < ActionController::TestCase
     name = unique_name
     {:name => name, :raw_content => "ssh-rsa value#{name}"}
   end
+end
 end

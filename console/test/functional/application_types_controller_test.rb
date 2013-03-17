@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class ApplicationTypesControllerTest < ActionController::TestCase
 
   setup{ Quickstart.reset! }
@@ -239,4 +240,5 @@ class ApplicationTypesControllerTest < ActionController::TestCase
     assert_select 'input#application_domain_name', {:count=>1, :value => 'TestDomain'}
   end
 
+end
 end

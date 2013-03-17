@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class CartridgeTypesIsolationControllerTest < ActionController::TestCase
   tests CartridgeTypesController
 
@@ -80,4 +81,5 @@ class CartridgeTypesIsolationControllerTest < ActionController::TestCase
     assert cart = assigns(:cartridge_type)
     assert_equal 'fake-cart-1', cart.name
   end
+end
 end

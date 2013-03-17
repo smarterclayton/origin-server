@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class ApplicationsControllerSanityTest < ActionController::TestCase
   tests ApplicationsController
 
@@ -23,4 +24,5 @@ class ApplicationsControllerSanityTest < ActionController::TestCase
     delete :destroy, :id => app.id
     assert_redirected_to applications_path
   end
+end
 end

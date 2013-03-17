@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class CartridgesControllerTest < ActionController::TestCase
 
   def with_testable_app(remove_carts=false)
@@ -80,4 +81,5 @@ class CartridgesControllerTest < ActionController::TestCase
      :application_id => with_testable_app.id,
      :domain_id => @domain.id}
   end
+end
 end

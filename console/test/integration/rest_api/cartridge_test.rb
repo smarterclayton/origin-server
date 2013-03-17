@@ -1,5 +1,6 @@
 require File.expand_path('../../../test_helper', __FILE__)
 
+module Console
 class RestApiCartridgeTest < ActiveSupport::TestCase
   include RestApiAuth
 
@@ -41,4 +42,5 @@ class RestApiCartridgeTest < ActiveSupport::TestCase
     assert_equal base, cart.scales_to
 
   end
+end
 end

@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class HelpLinkTest < ActionDispatch::IntegrationTest
   class << self
     def urls_from_module(mod)
@@ -40,4 +41,5 @@ class HelpLinkTest < ActionDispatch::IntegrationTest
 
   urls_from_module(Console::HelpHelper).each_pair{ |name,uri| self.create_test(name,uri) }
   urls_from_module(Console::CommunityHelper).each_pair{ |name,uri| self.create_test(name,uri) }
+end
 end

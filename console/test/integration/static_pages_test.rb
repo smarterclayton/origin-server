@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class StaticPagesTest < ActionDispatch::IntegrationTest
   setup { open_session }
   setup do 
@@ -41,4 +42,5 @@ class StaticPagesTest < ActionDispatch::IntegrationTest
     assert_select 'p', /#{assigns(:reference_id)}/
   end
 
+end
 end
