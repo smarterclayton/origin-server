@@ -1,4 +1,4 @@
 Rails.application.routes.draw do
-  openshift_console
-  root :to => 'console_index#index'
+  mount Console::Engine => '/console'
+  root :to => 'console/console_index#index'
 end

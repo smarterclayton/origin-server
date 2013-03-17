@@ -187,6 +187,6 @@ module Console
     config.parent_controller = 'ApplicationController'
     config.security_controller = 'Console::Auth::Basic'
     config.include_helpers = true
-    config.capabilities_model = 'Capabilities::Cacheable'
+    config.capabilities_model = 'Console::Capabilities::Cacheable'
   end
 end

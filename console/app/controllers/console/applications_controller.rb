@@ -144,7 +144,7 @@ class ApplicationsController < ConsoleController
         #FIXME: Ideally this should be inferred via associations between @domain and @application
         @domain.errors.values.flatten.uniq.each {|e| @application.errors.add(:domain_name, e) }
 
-        return render 'application_types/show'
+        return render 'console/application_types/show'
       end
     end
     @application.domain = @domain
@@ -156,7 +156,7 @@ class ApplicationsController < ConsoleController
     else
       logger.debug @application.errors.inspect
 
-      render 'application_types/show'
+      render 'console/application_types/show'
     end
   end
 

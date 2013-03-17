@@ -13,6 +13,10 @@ module Console::ConsoleHelper
     nil
   end
 
+  def root_path
+    '/'
+  end
+
   def outage_notification
   end
 

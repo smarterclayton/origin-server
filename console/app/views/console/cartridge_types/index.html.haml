@@ -14,20 +14,20 @@
       .row
         - @carts.in_groups(2, false).each do |types|
           .span4
-            = render :collection => types, :partial => 'cartridge_types/cartridge_type', :locals => {:application => @application}
+            = render :collection => types, :partial => 'console/cartridge_types/cartridge_type', :locals => {:application => @application}
 
 
   - unless @installed.empty? and @requires.empty? and @conflicts.empty? and @blocked.empty?
     .span4
       - unless @installed.empty?
         %h3 Installed
-        = render :collection => @installed, :partial => 'cartridge_types/cartridge_type', :locals => {:application => @application, :inactive => true, :reason => :installed}
+        = render :collection => @installed, :partial => 'console/cartridge_types/cartridge_type', :locals => {:application => @application, :inactive => true, :reason => :installed}
 
       - unless @requires.empty? and @conflicts.empty? and @blocked.empty?
         %h3 Has Dependencies
-        = render :collection => @requires, :partial => 'cartridge_types/cartridge_type', :locals => {:application => @application, :inactive => true, :reason => :requires}
-        = render :collection => @conflicts, :partial => 'cartridge_types/cartridge_type', :locals => {:application => @application, :inactive => true, :reason => :conflicts}
-        = render :collection => @blocked, :partial => 'cartridge_types/cartridge_type', :locals => {:application => @application, :inactive => true, :reason => :blocked}
+        = render :collection => @requires, :partial => 'console/cartridge_types/cartridge_type', :locals => {:application => @application, :inactive => true, :reason => :requires}
+        = render :collection => @conflicts, :partial => 'console/cartridge_types/cartridge_type', :locals => {:application => @application, :inactive => true, :reason => :conflicts}
+        = render :collection => @blocked, :partial => 'console/cartridge_types/cartridge_type', :locals => {:application => @application, :inactive => true, :reason => :blocked}
 
 - content_for :javascripts do
   :javascript

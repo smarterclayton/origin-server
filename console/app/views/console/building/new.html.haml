@@ -37,7 +37,7 @@
         .control-group.control-group-important{:data => errors ? {:"server-error" => 'true'} : {}}
           %h3.control-label Public URL
           .controls
-            = render :partial => 'applications/name', :locals => {:form => f, :application => @jenkins_server}
+            = render :partial => 'console/applications/name', :locals => {:form => f, :application => @jenkins_server}
 
     %h2 Create cartridge
     %p

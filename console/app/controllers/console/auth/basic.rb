@@ -4,10 +4,11 @@
 # information to the broker, and then cache the ticket and the user
 # identifier in the session until the ticket expires.
 #
-module Console::Auth::Basic
+module Console
+module Auth::Basic
   extend ActiveSupport::Concern
 
-  class BasicUser < Console::RestApi::Credentials
+  class BasicUser < RestApi::Credentials
     extend ActiveModel::Naming
     include ActiveModel::Conversion
 
@@ -62,4 +63,5 @@ module Console::Auth::Basic
     def console_access_denied
       request_http_basic_authentication(auth_realm)
     end
+end
 end

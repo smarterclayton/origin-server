@@ -32,7 +32,7 @@ class CartridgesController < ConsoleController
     else
       Rails.logger.debug @cartridge.errors.inspect
       @application_id = @application.id
-      render 'cartridge_types/show'
+      render 'console/cartridge_types/show'
     end
   end
 end

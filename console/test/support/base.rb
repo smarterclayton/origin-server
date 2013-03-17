@@ -146,3 +146,10 @@ class ActiveSupport::TestCase
   end
 end
 
+class ActionController::TestCase
+  setup do
+    if @controller.class.parent == Console
+      @routes = Console::Engine.routes
+    end
+  end
+end

@@ -76,7 +76,7 @@
     = control_group(e.has_key?(:name) || e.has_key?(:domain_name), :important => true) do
       %h3.control-label Public URL
       .controls.first
-        = render :partial => 'applications/name', :locals => {:form => f, :application => @application}
+        = render :partial => 'console/applications/name', :locals => {:form => f, :application => @application}
         = f.inline_errors_for :name
         = f.inline_errors_for :domain_name
       .controls
@@ -189,7 +189,7 @@
           - else
             %span.text-warning= scale_reason
 
-        = render :partial => 'application_types/application_type_notifications', :locals => { :type => @application_type }
+        = render :partial => 'console/application_types/application_type_notifications', :locals => { :type => @application_type }
 
   = f.buttons do
     = link_to "Back", application_types_path, :class => 'btn'
