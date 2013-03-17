@@ -51,7 +51,9 @@
       %h3.control-label Based On
       .controls.first
         %h3
-          = render :partial => 'application_types/application_type_title', :locals => { :type => @application_type}
+          #{@application_type.display_name} #{@application_type.source.to_s.humanize}
+          - if @application_type.usage_rates?
+            %span.label.label-premium{:title => 'Premium'}> $
 
       .controls
         - if @application_type.persisted?
