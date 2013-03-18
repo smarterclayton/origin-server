@@ -149,7 +149,7 @@ end
 class ActionController::TestCase
   setup do
     if @controller.class.parent == Console
-      @routes = Console::Engine.routes
+      #@routes = Console::Engine.routes
     end
   end
 end

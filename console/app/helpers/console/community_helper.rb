@@ -67,12 +67,4 @@ module Console::CommunityHelper
   def link_to_account_mailto
     link_to "openshift@redhat.com", mailto_openshift_url
   end
-
-  def status_jsonp_url(id)
-    status_js_path :id => id
-  end
-
-  def open_issues_jsonp_url(jsonp)
-    open_issues_js_path :jsonp => jsonp
-  end
 end

@@ -17,9 +17,9 @@ class ConsoleController < Console.config.parent_controller.constantize
   #
   # By default, all URL helpers will use the console routes
   #
-  def _routes
-    console
-  end
+  #def _routes
+  #  console
+  #end
 
   protected
     def to_boolean(param)
