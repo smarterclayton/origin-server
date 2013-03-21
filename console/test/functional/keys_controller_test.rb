@@ -11,6 +11,7 @@ class KeysControllerTest < ActionController::TestCase
   end
 
   test "should show key creation form" do
+    binding.pry
     get :new
     assert_response :success
     assert_template :new

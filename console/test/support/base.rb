@@ -147,9 +147,11 @@ class ActiveSupport::TestCase
 end
 
 class ActionController::TestCase
-  setup do
-    if @controller.class.parent == Console
-      #@routes = Console::Engine.routes
+  setup :select_controller_routes
+
+  def select_controller_routes
+    if Console::ConsoleController === @controller
+      @routes = Console::Engine.routes
     end
   end
 end
