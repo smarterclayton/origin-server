@@ -145,4 +145,3 @@ class ActiveSupport::TestCase
     "#{community_url}#{path}"
   end
 end
-
