@@ -59,6 +59,19 @@ for i, v in ipairs(deads:get_keys()) do
     deads:delete(v)
 end
 
+-- Report hit values to the backend
+local intervals = ngx.shared.intervals
+local next = intervals:get("next")
+if next == nil or next < ngx.req.start_time() then
+    -- ngx.log(ngx.ERR, 'Sending hits to redis')
+    intervals:set("next", ngx.now() + ngx.var.hits_update_interval)
+    local hits = ngx.shared.hits
+    for i, v in ipairs(hits:get_keys()) do
+        red:hincrby(v, 'hits', hits:get(v))
+        hits:delete(v)
+    end
+end
+
 -- Set the connection pool (to avoid connect/close everytime)
 red:set_keepalive(0, 100)
 
