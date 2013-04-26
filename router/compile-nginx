@@ -1,0 +1,61 @@
+#
+# Set up a test environment for Nginx on a devenv
+#
+rm -rf /root/openshift-nginx
+set -e
+mkdir -p /root/openshift-nginx
+pushd /root/openshift-nginx
+
+V_LUAJIT=2.0.1
+V_NGINX=1.2.7
+V_NGX_DEVEL=0.2.18
+V_LUA_NGINX=0.8.0
+V_LUA_RESTY_REDIS=0.15
+
+# Download prereqs
+wget -O - http://nginx.org/download/nginx-$V_NGINX.tar.gz | tar -xvz
+wget -O - https://github.com/chaoslawful/lua-nginx-module/archive/v$V_LUA_NGINX.tar.gz | tar -xvz
+wget -O - https://github.com/simpl/ngx_devel_kit/archive/v$V_NGX_DEVEL.tar.gz | tar -xvz
+wget -O - http://luajit.org/download/LuaJIT-$V_LUAJIT.tar.gz | tar -xvz
+
+# Build LuaJIT
+pushd LuaJIT-$V_LUAJIT
+make && sudo make install
+popd
+
+# Build Nginx
+export LUAJIT_INC=/usr/local/include/luajit-2.0
+export LUAJIT_LIB=/usr/local/lib #FIXME
+export LD_LIBRARY_PATH=/usr/local/lib/:$LD_LIBRARY_PATH
+pushd nginx-$V_NGINX
+yum install pcre-devel -y
+./configure --prefix=/opt/nginx --add-module=../ngx_devel_kit-$V_NGX_DEVEL --add-module=../lua-nginx-module-$V_LUA_NGINX
+make -j2
+make install
+popd
+
+# Redis driver for Lua
+mkdir -p /opt/nginx/modules/openshift
+pushd /opt/nginx/modules
+rm -rf lua-resty-redis
+wget -O - https://github.com/agentzh/lua-resty-redis/archive/v$V_LUA_RESTY_REDIS.tar.gz | tar -xvz
+ln -s lua-resty-redis-$V_LUA_RESTY_REDIS lua-resty-redis
+popd
+
+# Redis for the backend
+yum install redis -y
+service redis start
+
+popd
+
+cat <<END
+  # Nginx installed
+
+  # Copy the router source to the server after making updates
+  #
+  scp * verifier:/opt/nginx/modules/openshift/
+
+  # Launch nginx
+  #
+  /opt/nginx/sbin/nginx -c /opt/nginx/modules/openshift/nginx.conf
+END
