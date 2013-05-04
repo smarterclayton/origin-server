@@ -11,20 +11,22 @@
     %global gemdir /usr/share/rubygems/gems
 %endif
 %{!?scl:%global pkg_name %{name}}
+%global rubyabi 1.9.1
 
 Summary:       The OpenShift Management Console
 Name:          openshift-origin-console
-Version:       1.5.17
+Version:       1.5.18
 Release:       1%{?dist}
 Group:         Network/Daemons
 License:       ASL 2.0
-URL:           http://openshift.redhat.com
+URL:           http://www.openshift.com
 Source0:       http://mirror.openshift.com/pub/openshift-origin/source/%{name}/%{name}-%{version}.tar.gz
 Requires:      rubygem-openshift-origin-console
 Requires:      %{?scl:%scl_prefix}rubygem-passenger
 Requires:      %{?scl:%scl_prefix}rubygem-passenger-native
 Requires:      %{?scl:%scl_prefix}rubygem-passenger-native-libs
 Requires:      %{?scl:%scl_prefix}mod_passenger
+
 %if 0%{?rhel}
 Requires:      %{?scl:%scl_prefix}rubygem-minitest
 Requires:      %{?scl:%scl_prefix}rubygem-therubyracer
@@ -35,6 +37,31 @@ Requires:      openshift-origin-util
 Requires:      v8-devel
 Requires:      gcc-c++
 %endif
+
+%if 0%{?fedora}%{?rhel} <= 6
+BuildRequires:  ruby193-build
+BuildRequires:  scl-utils-build
+BuildRequires: %{?scl:%scl_prefix}rubygem(rails)
+BuildRequires: %{?scl:%scl_prefix}rubygem(compass-rails)
+BuildRequires: %{?scl:%scl_prefix}rubygem(test-unit)
+BuildRequires: %{?scl:%scl_prefix}rubygem(ci_reporter)
+BuildRequires: %{?scl:%scl_prefix}rubygem(sprockets)
+BuildRequires: %{?scl:%scl_prefix}rubygem(rdiscount)
+BuildRequires: %{?scl:%scl_prefix}rubygem(formtastic)
+BuildRequires: %{?scl:%scl_prefix}rubygem(net-http-persistent)
+BuildRequires: %{?scl:%scl_prefix}rubygem(haml)
+BuildRequires: %{?scl:%scl_prefix}rubygem(therubyracer)
+BuildRequires: %{?scl:%scl_prefix}rubygem(minitest)
+%endif
+BuildRequires: %{?scl:%scl_prefix}rubygems-devel
+%if 0%{?fedora} >= 19
+BuildRequires: ruby(release)
+%else
+BuildRequires: %{?scl:%scl_prefix}ruby(abi) >= %{rubyabi}
+%endif
+BuildRequires: %{?scl:%scl_prefix}rubygems
+BuildRequires: rubygem-openshift-origin-console
+
 BuildArch:     noarch
 Provides:      openshift-origin-console = %{version}
 Obsoletes:     openshift-console
@@ -47,6 +74,34 @@ This includes the configuration necessary to run the console with mod_passenger.
 %setup -q
 
 %build
+%{?scl:scl enable %scl - << \EOF}
+
+set -e
+%if 0%{?fedora}%{?rhel} <= 6
+rm -f Gemfile.lock
+bundle install --local
+
+mkdir -p %{buildroot}%{_var}/log/openshift/console/
+mkdir -m 770 %{buildroot}%{_var}/log/openshift/console/httpd/
+touch %{buildroot}%{_var}/log/openshift/console/production.log
+chmod 0666 %{buildroot}%{_var}/log/openshift/console/production.log
+
+CONSOLE_CONFIG_FILE=etc/openshift/console.conf \
+  RAILS_ENV=production \
+  RAILS_LOG_PATH=%{buildroot}%{_var}/log/openshift/console/production.log \
+  RAILS_RELATIVE_URL_ROOT=/console bundle exec rake assets:precompile assets:public_pages
+
+rm -rf tmp/cache/*
+echo > %{buildroot}%{_var}/log/openshift/console/production.log
+
+find . -name .gitignore -delete
+find . -name .gitkeep -delete
+
+rm -rf %{buildroot}%{_var}/log/openshift/*
+rm -f Gemfile.lock
+%endif
+%{?scl:EOF}
+
 
 %install
 %if %{with_systemd}
@@ -78,8 +133,9 @@ mv %{buildroot}%{consoledir}/systemd/openshift-console.service %{buildroot}%{_un
 mv %{buildroot}%{consoledir}/systemd/openshift-console.env %{buildroot}%{_sysconfdir}/sysconfig/openshift-console
 %else
 mv %{buildroot}%{consoledir}/init.d/* %{buildroot}%{_initddir}
-rm -rf %{buildroot}%{consoledir}/init.d
 %endif
+rm -rf %{buildroot}%{consoledir}/init.d
+rm -rf %{buildroot}%{consoledir}/systemd
 
 ln -s %{consoledir}/public %{buildroot}%{htmldir}/console
 mv %{buildroot}%{consoledir}/etc/openshift/* %{buildroot}%{_sysconfdir}/openshift
@@ -120,6 +176,7 @@ fi
 %files
 %defattr(0640,apache,apache,0750)
 %{openshiftconfigdir}
+%attr(0750,-,-) %{_var}/log/openshift/console
 %attr(0750,-,-) %{_var}/log/openshift/console/httpd
 %attr(0644,-,-) %ghost %{_var}/log/openshift/console/production.log
 %attr(0644,-,-) %ghost %{_var}/log/openshift/console/development.log
@@ -172,6 +229,16 @@ _EOF
 /sbin/fixfiles -R %{?scl:%scl_prefix}mod_passenger restore
 /sbin/restorecon -R -v /var/run
 %changelog
+* Sat Apr 13 2013 Krishna Raman <kraman@gmail.com> 1.5.18-1
+- Add a few base URLs and helpers for fetching assets during static page
+  compilation (ccoleman@redhat.com)
+- Merge pull request #1814 from smarterclayton/helpers_out_of_date
+  (dmcphers+openshiftbot@redhat.com)
+- Helpers in openshift-console out of date (ccoleman@redhat.com)
+- Adding SESSION_SECRET settings to the broker and console
+  (bleanhar@redhat.com)
+- Origin RHEL & Fedora build fixes. (rmillner@redhat.com)
+
 * Tue Mar 12 2013 Troy Dawson <tdawson@redhat.com> 1.5.17-1
 - Fixing console log file SELinux context and permissions (kraman@gmail.com)
 - Merge pull request #1456 from rclsilver/master

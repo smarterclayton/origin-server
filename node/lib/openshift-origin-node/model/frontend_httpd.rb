@@ -24,6 +24,7 @@ require 'openssl'
 require 'fcntl'
 require 'json'
 require 'tmpdir'
+require 'net/http'
 
 module OpenShift
   
@@ -110,10 +111,38 @@ module OpenShift
     attr_reader :container_uuid, :container_name
     attr_reader :namespace, :fqdn
 
+    # Public: return an Enumerator which yields FrontendHttpServer
+    # objects for each gear which has run create.
+    def self.all
+      Enumerator.new do |yielder|
+
+        # Avoid deadlocks by listing the gears first
+        gearlist = {}
+        GearDB.open(GearDB::READER) do |d|
+          d.each do |uuid, container|
+            gearlist[uuid.clone] = container.clone
+          end
+        end
+
+        gearlist.each do |uuid, container|
+          frontend = nil
+          begin
+            frontend = FrontendHttpServer.new(uuid, container['container_name'], container['namespace'])
+          rescue => e
+            NodeLogger.logger.error("Failed to instantiate FrontendHttpServer for #{uuid}: #{e}")
+            NodeLogger.logger.error("Backtrace: #{e.backtrace}")
+          else
+            yielder.yield(frontend)
+          end
+        end
+      end
+
+    end
+
     def initialize(container_uuid, container_name=nil, namespace=nil)
       @config = OpenShift::Config.new
 
-      @cloud_domain = @config.get("CLOUD_DOMAIN")
+      @cloud_domain = clean_server_name(@config.get("CLOUD_DOMAIN"))
 
       @basedir = @config.get("OPENSHIFT_HTTP_CONF_DIR")
 
@@ -123,15 +152,25 @@ module OpenShift
 
       @fqdn = nil
 
-      # Attempt to infer from the gear itself
+      # Did we save the old information?
+      if (@container_name.to_s == "") or (@namespace.to_s == "")
+        begin
+          GearDB.open(GearDB::READER) do |d|
+            @container_name = d.fetch(@container_uuid).fetch('container_name')
+            @namespace = d.fetch(@container_uuid).fetch('namespace')
+            @fqdn = d.fetch(@container_uuid).fetch('fqdn')
+          end
+        rescue
+        end
+      end
+
+      # Last ditch, attempt to infer from the gear itself
       if (@container_name.to_s == "") or (@namespace.to_s == "")
         begin
           env = Utils::Environ.for_gear(File.join(@config.get("GEAR_BASE_DIR"), @container_uuid))
-
+          @fqdn = clean_server_name(env['OPENSHIFT_GEAR_DNS'])
           @container_name = env['OPENSHIFT_GEAR_NAME']
-          @fqdn = env['OPENSHIFT_GEAR_DNS']
-
-          @namespace = @fqdn.sub(/\.#{@cloud_domain}$/,"").sub(/^#{@container_name}\-/,"")
+          @namespace = env['OPENSHIFT_GEAR_DNS'].sub(/\..*$/,"").sub(/^.*\-/,"")
         rescue
         end
       end
@@ -157,7 +196,9 @@ module OpenShift
     #
     # Returns nil on Success or raises on Failure
     def create
-      # Reserved for future use.
+      GearDB.open(GearDB::WRCREAT) do |d|
+        d.store(@container_uuid, {'fqdn' => @fqdn,  'container_name' => @container_name, 'namespace' => @namespace})
+      end
     end
 
     # Public: Remove the frontend httpd configuration for a gear.
@@ -174,6 +215,7 @@ module OpenShift
       ApacheDBIdler.open(ApacheDBIdler::WRCREAT)     { |d| d.delete(@fqdn) }
       ApacheDBSTS.open(ApacheDBSTS::WRCREAT)         { |d| d.delete(@fqdn) }
       NodeJSDBRoutes.open(NodeJSDBRoutes::WRCREAT)   { |d| d.delete_if { |k, v| (k == @fqdn) or (v["alias"] == @fqdn) } }
+      GearDB.open(GearDB::WRCREAT)                   { |d| d.delete(@container_uuid) }
 
       # Clean up SSL certs and legacy node configuration
       ApacheDBAliases.open(ApacheDBAliases::WRCREAT) do
@@ -233,8 +275,8 @@ module OpenShift
       end
 
       if data.has_key?("ssl_certs")
-        data["ssl_certs"].each do |a, c, k|
-          new_obj.add_ssl_cert(a, c, k)
+        data["ssl_certs"].each do |c, k, a|
+          new_obj.add_ssl_cert(c, k, a)
         end
       end
 
@@ -260,6 +302,12 @@ module OpenShift
 
     # Public: Update identifier to the new names
     def update(container_name, namespace)
+      if (container_name == @container_name) and (namespace == @namespace)
+        return nil
+      end
+
+      saved_ssl_certs = ssl_certs
+
       new_fqdn = clean_server_name("#{container_name}-#{namespace}.#{@cloud_domain}")
 
       ApacheDBNodes.open(ApacheDBNodes::WRCREAT) do |d|
@@ -306,9 +354,23 @@ module OpenShift
         end
       end
 
+      GearDB.open(GearDB::WRCREAT) do |d|
+        d.store(@container_uuid, {'fqdn' => new_fqdn,  'container_name' => container_name, 'namespace' => namespace})
+      end
+
+      old_namespace = @namespace
+
       @container_name = container_name
       @namespace = namespace
       @fqdn = new_fqdn
+
+      saved_ssl_certs.each do |c, k, a|
+        add_ssl_cert(c, k, a)
+        old_path = File.join(@basedir, "#{@container_uuid}_#{old_namespace}_#{a}")
+        FileUtils.rm_rf(old_path + ".conf")
+        FileUtils.rm_rf(old_path)
+        reload_httpd
+      end
     end
 
     def update_name(container_name)
@@ -354,6 +416,8 @@ module OpenShift
             map_dest = "FORBIDDEN"
           elsif options["noproxy"]
             map_dest = "NOPROXY"
+          elsif options["health"]
+            map_dest = "HEALTH"
           elsif options["redirect"]
             map_dest = "REDIRECT:#{uri}"
           elsif options["file"]
@@ -394,6 +458,12 @@ module OpenShift
         bw = 100
       end
 
+      # Use the websocket port if it is passed as an option
+      port = options["websocket_port"]
+      if port
+        uri = uri.sub(/:(\d)+/, ":" + port.to_s)
+      end
+
       routes_ent = {
         "endpoints" => [ uri ],
         "limits"    => {
@@ -431,7 +501,7 @@ module OpenShift
             end
           end
 
-          if v =~ /^(GONE|FORBIDDEN|NOPROXY)$/
+          if v =~ /^(GONE|FORBIDDEN|NOPROXY|HEALTH)$/
             entry[2][$~[1].downcase] = 1
           elsif v =~ /^(REDIRECT|FILE|TOHTTPS):(.*)$/
             entry[2][$~[1].downcase] = 1
@@ -501,6 +571,30 @@ module OpenShift
     def unidle
       ApacheDBIdler.open(ApacheDBIdler::WRCREAT) do |d|
         d.delete(@fqdn)
+      end
+    end
+
+    # Public: Make an unprivileged call to unidle the gear
+    #
+    # Examples
+    #
+    #     unprivileged_unidle()
+    #
+    #     # => nil()
+    #
+    # Returns nil.  This is an opportunistic call, failure conditions
+    # are ignored but the call may take over a minute to complete.
+    def unprivileged_unidle
+      begin
+        http = Net::HTTP.new('127.0.0.1', 80)
+        http.open_timeout = 5
+        http.read_timeout = 60
+        http.use_ssl = false
+        http.start do |client|
+          resp = client.request_head('/', { 'Host' => @fqdn })
+          resp.code
+        end
+      rescue
       end
     end
 
@@ -833,12 +927,34 @@ module OpenShift
 
   # Present an API to Apache's DB files for mod_rewrite.
   #
-  # This is a bit complicated since there don't appear to be a DB file
-  # format common to ruby and Apache that does not have corruption
-  # issues.  The only format they can agree on is text, which is slow
-  # for 10's of thousands of entries.  Unfortunately, that means we
-  # have to go through a convoluted process to populate the final
-  # Apache DB.
+  # The process to update database files is complicated and
+  # hand-editing is strongly discouraged for the following reasons:
+  #
+  # 1. There did not appear to be a corruption free database format in
+  # common between ruby and Apache that had a guaranteed consistent
+  # API.  Even BerkeleyDB and the BDB module corrupted each other on
+  # testing.
+  #
+  # 2. Every effort was made to ensure that a crash, even due to a
+  # system issue such as disk space or memory starvation did not
+  # result in a corrupt database and the loss of old information.
+  #
+  # 3. Every effort was made to ensure that multiple threads and
+  # processes could not corrupt or step on each other.
+  #
+  # 4. While the httxt2dbm tool can run on an existing database, that
+  # will result in additions but not removals from the database.  Only
+  # some of your changes will take unless the entire db is recreated
+  # each time.
+  #
+  # 5. In order for BerkeleyDB to be safe for multiple processes to
+  # access/edit, the environment must be specifically set up to allow
+  # locking.  An audit of the Apache source code shows that it does
+  # not do that.  And an strace of Apache shows no attempt to either
+  # lock or establish a mutex on the BerkeleyDB file.  I believe the
+  # claim that BerkeleyDB is safe to have multiple processess
+  # reading/writing it is simply not true the way its used by Apache.
+  #
   #
   # This locks down to one thread for safety.  You MUST ensure that
   # close is called to release all locks.  Close also syncs changes to
@@ -1105,6 +1221,10 @@ module OpenShift
 
   class NodeJSDBRoutes < NodeJSDB
     self.MAPNAME = "routes"
+  end
+
+  class GearDB < ApacheDBJSON
+    self.MAPNAME = "geardb"
   end
 
   # TODO: Manage SNI Certificate and alias store

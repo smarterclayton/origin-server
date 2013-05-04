@@ -1,2 +1,0 @@
-#/bin/env sh
-echo "This is a shared script"

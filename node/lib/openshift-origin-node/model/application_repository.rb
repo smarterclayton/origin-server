@@ -16,8 +16,12 @@
 require 'rubygems'
 require 'erb'
 require 'openshift-origin-common'
-require_relative '../../openshift-origin-node/utils/shell_exec'
-require_relative '../../openshift-origin-node/model/unix_user'
+require 'openshift-origin-node/utils/shell_exec'
+require 'openshift-origin-node/utils/selinux'
+require 'openshift-origin-node/utils/environ'
+require 'openshift-origin-node/model/unix_user'
+require 'openshift-origin-common/utils/path_utils'
+require 'openshift-origin-node/utils/node_logger'
 
 module OpenShift
 
@@ -26,6 +30,9 @@ module OpenShift
 
   class ApplicationRepository
     include OpenShift::Utils
+    include NodeLogger
+
+    SUPPORTED_PROTOCOLS = %w{git:// http:// https:// file:// ftp:// ftps:// rsync://}
 
     attr_reader :path
 
@@ -35,106 +42,133 @@ module OpenShift
     # +user+ is of type +UnixUser+
     def initialize(user)
       @user = user
-      @path = File.join(@user.homedir, 'git', "#{@user.app_name}.git")
+      @path = PathUtils.join(@user.homedir, 'git', "#{@user.app_name}.git")
     end
 
-    def exists?
+    def exist?
       File.directory?(@path)
     end
+
+    alias exists? exist?
 
     ##
     # +populate_from_cartridge+ uses the provided +cartridge_name+ to install a template application
     # for the gear
     #
-    # If the directory +template+ exists it will be installed in the application's repository.
-    # If the directory +template.git+ exists it will be cloned as the application's repository.
+    # Template search locations:
+    #   * ~/<cartridge home>/template
+    #   * ~/<cartridge home>/template.git
+    #   * ~/<cartridge home>/usr/template
+    #   * ~/<cartridge home>/usr/template.git
     #
+    # return nil if application bare repository exists or no template found
+    #            otherwise path of template used
     def populate_from_cartridge(cartridge_name)
       return nil if exists?
 
       FileUtils.mkpath(File.join(@user.homedir, 'git'))
 
-      cartridge_template     = File.join(@user.homedir, cartridge_name, 'template')
-      cartridge_template_git = File.join(@user.homedir, cartridge_name, 'template.git')
+      locations = [
+          File.join(@user.homedir, cartridge_name, 'template'),
+          File.join(@user.homedir, cartridge_name, 'template.git'),
+          File.join(@user.homedir, cartridge_name, 'usr', 'template'),
+          File.join(@user.homedir, cartridge_name, 'usr', 'template.git'),
+      ]
 
-      have_template = (File.exist? cartridge_template or File.exist? cartridge_template_git)
-      return nil unless have_template
-
-      # TODO: Support tar balls etc...
-      raise NotImplementedError.new(
-                "#{File.join(cartridge_name, 'template')}: files are not support for initializing a git repository"
-            ) if File.file? cartridge_template
+      template = locations.find {|l| File.directory?(l)}
+      logger.debug("Using '#{template}' to populate git repository for #{@user.uuid}")
+      return nil unless template
 
       # expose variables for ERB processing
       @application_name = @user.app_name
       @cartridge_name   = cartridge_name
       @user_homedir     = @user.homedir
 
-      # FIXME: See below
-      @broker_host      = OpenShift::Config.new.get('BROKER_HOST')
-
-      case
-        when File.exists?(cartridge_template)
-          pull_directory(cartridge_template)
-        when File.exist?(cartridge_template_git)
-          pull_bare_repository(cartridge_template_git)
+      if template.end_with? '.git'
+        FileUtils.cp_r(template, @path, preserve: true)
+      else
+        build_bare(template)
       end
 
-      configure_repository
+      configure
+      template
     end
 
     ##
-    # Copy bare git repository to be used as application repository
-    def pull_bare_repository(path)
-      FileUtils.cp_r(path, @path)
-    end
+    # +populate_from_url+ uses the provided +cartridge_url+ to install a template application
+    # for the gear
+    #
+    def populate_from_url(cartridge_name, url)
+      return nil if exists?
 
-    ##
-    # Copy a file tree structure and build an application repository
-    def pull_directory(path)
-      template = File.join(@user.homedir, 'git', 'template')
-      FileUtils.rm_r(template) if File.exist? template
+      supported = SUPPORTED_PROTOCOLS.any? { |k| url.start_with?(k) }
+      raise Utils::ShellExecutionException.new(
+                "CLIENT_ERROR: Source Code repository URL type must be one of: #{SUPPORTED_PROTOCOLS.join(', ')}", 130
+            ) unless supported
 
       git_path = File.join(@user.homedir, 'git')
-      FileUtils.cp_r(path, git_path)
+      FileUtils.mkpath(git_path)
 
-      Utils.oo_spawn(ERB.new(GIT_INIT).result(binding),
-                     chdir:               template,
-                     expected_exitstatus: 0)
+      # expose variables for ERB processing
+      @application_name = @user.app_name
+      @cartridge_name   = cartridge_name
+      @user_homedir     = @user.homedir
+      @url              = url
+
       begin
-        # trying to clone as the user proved to be painful as git managed to "loose" the selinux context
-        Utils.oo_spawn(ERB.new(GIT_LOCAL_CLONE).result(binding),
+        Utils.oo_spawn(ERB.new(GIT_URL_CLONE).result(binding),
                        chdir:               git_path,
                        expected_exitstatus: 0)
-      rescue ShellExecutionException => e
-        FileUtils.rm_r(@path) if File.exist? @path
-
-        raise ShellExecutionException.new(
-                  'Failed to clone application git repository from template repository',
-                  e.rc, e.stdout, e.stderr)
-      ensure
-        FileUtils.rm_r(template)
+      rescue Utils::ShellExecutionException => e
+        raise Utils::ShellExecutionException.new(
+                  "CLIENT_ERROR: Source Code repository could not be cloned: '#{url}'.  Please verify the repository is correct and contact support.",
+                  131
+              )
       end
+
+      configure
     end
 
-    def deploy_repository
+    def deploy
       # expose variables for ERB processing
       @application_name = @user.app_name
       @user_homedir     = @user.homedir
+      @target_dir       = PathUtils.join(@user.homedir, 'app-root', 'runtime', 'repo')
 
-      # FIXME: See below
-      @broker_host      = OpenShift::Config.new.get('BROKER_HOST')
+      FileUtils.rm_rf Dir.glob(PathUtils.join(@target_dir, '*'))
+      FileUtils.rm_rf Dir.glob(PathUtils.join(@target_dir, '.[^\.]*'))
 
       Utils.oo_spawn(ERB.new(GIT_DEPLOY).result(binding),
                      chdir:               @path,
                      uid:                 @user.uid,
                      expected_exitstatus: 0)
+
+      return unless File.exist? PathUtils.join(@target_dir, '.gitmodules')
+
+      env = Utils::Environ.load(PathUtils.join(@user.homedir, '.env'))
+
+      cache = PathUtils.join(env['OPENSHIFT_TMP_DIR'], 'git_cache')
+      FileUtils.rm_r(cache) if File.exist?(cache)
+      FileUtils.mkpath(cache)
+
+      Utils.oo_spawn(ERB.new(GIT_DEPLOY_SUBMODULES).result(binding),
+                     chdir:               @user.homedir,
+                     env:                 env,
+                     uid:                 @user.uid,
+                     expected_exitstatus: 0)
+
+      Utils.oo_spawn("/bin/rm -rf #{cache} &")
+    end
+
+    def destroy
+      FileUtils.rm_r(@path) if File.exist? @path
     end
 
     ##
     # Install Git repository hooks and set permissions
-    def configure_repository
-      UnixUser.match_ownership(@user.homedir, @path)
+    def configure
+      FileUtils.chown_R(@user.uid, @user.uid, @path)
+      Utils::SELinux.set_mcs_label(Utils::SELinux.get_mcs_label(@user.uid), @path)
 
       # application developer cannot change git hooks
       hooks = File.join(@path, 'hooks')
@@ -149,6 +183,35 @@ module OpenShift
 
       render_file.call(File.join(hooks, 'pre-receive'), 0755, PRE_RECEIVE)
       render_file.call(File.join(hooks, 'post-receive'), 0755, POST_RECEIVE)
+    end
+
+    ##
+    # Copy a file tree structure and build an application repository
+    def build_bare(path)
+      template = File.join(@user.homedir, 'git', 'template')
+      FileUtils.rm_r(template) if File.exist? template
+
+      git_path = File.join(@user.homedir, 'git')
+      Utils.oo_spawn("/bin/cp -ad #{path} #{git_path}",
+                     expected_exitstatus: 0)
+
+      Utils.oo_spawn(ERB.new(GIT_INIT).result(binding),
+                     chdir:               template,
+                     expected_exitstatus: 0)
+      begin
+        # trying to clone as the user proved to be painful as git managed to "lose" the selinux context
+        Utils.oo_spawn(ERB.new(GIT_LOCAL_CLONE).result(binding),
+                       chdir:               git_path,
+                       expected_exitstatus: 0)
+      rescue ShellExecutionException => e
+        FileUtils.rm_r(@path) if File.exist? @path
+
+        raise ShellExecutionException.new(
+                  'Failed to clone application git repository from template repository',
+                  e.rc, e.stdout, e.stderr)
+      ensure
+        FileUtils.rm_r(template)
+      end
     end
 
     private
@@ -166,16 +229,33 @@ git commit -a -m "Creating template"
     GIT_LOCAL_CLONE = %Q{\
 set -xe;
 git clone --bare --no-hardlinks template <%= @application_name %>.git;
-GIT_DIR="./<%= @application_name %>.git" git repack
+GIT_DIR=./<%= @application_name %>.git git repack
 }
 
-    # TODO: submodule support
-    GIT_DEPLOY      = %Q{\
+    GIT_URL_CLONE = %Q{\
 set -xe;
-git archive --format=tar HEAD | (cd <%= @user_homedir %>/app-root/runtime/repo && tar --warning=no-timestamp -xf -);
+git clone --bare --no-hardlinks <%= @url %> <%= @application_name %>.git;
+GIT_DIR=./<%= @application_name %>.git git repack
 }
 
-    GIT_DESCRIPTION = %Q{\
+    GIT_DEPLOY = %Q{\
+set -xe;
+shopt -s dotglob;
+rm -rf <%= @target_dir %>/*;
+git archive --format=tar HEAD | (cd <%= @target_dir %> && tar --warning=no-timestamp -xf -);
+}
+
+    GIT_DEPLOY_SUBMODULES = %Q{\
+set -xe;
+cd $OPENSHIFT_TMP_DIR;
+git clone <%= @path %> git_cache;
+pushd git_cache;
+git submodule update --init --recursive;
+git submodule foreach --recursive 'git archive --format=tar HEAD | (cd <%= @target_dir %>/\\\\\\$path && tar --warning=no-timestamp -xf -)';
+popd;
+}
+
+    GIT_DESCRIPTION = %Q{
 <%= @cartridge_name %> application <%= @application_name %>
 }
 
@@ -186,46 +266,12 @@ git archive --format=tar HEAD | (cd <%= @user_homedir %>/app-root/runtime/repo &
   auto = 100
 }
 
-    LOAD_ENV = %Q{\
-# Import Environment Variables
-for f in /etc/openshift/env/* ~/.env/* ~/*/env/*
-do
-  [ -f $f ] && . $f
-done
+    PRE_RECEIVE = %Q{\
+gear prereceive
 }
 
-    PRE_RECEIVE  = %Q{\
-#!/bin/bash
-
-<%= LOAD_ENV %>
-
-for cartridge in $(ls -d $OPENSHIFT_HOMEDIR/* | grep -E -v 'app-root|git')
-do
-  $cartridge/bin/control stop
-done
-
-}
-
-    # FIXME: Broker host should not be defined here, rather nuture script should look it up
-    # currently broker_host is tagged at the end of all the build scripts. Kinda like an egg race!
     POST_RECEIVE = %Q{\
-#!/bin/bash
-
-<%= LOAD_ENV %>
-
-$OPENSHIFT_HOMEDIR/<%= @cartridge_name %>/bin/control build
-
-if [ $? -eq 0 ]; then
-  $OPENSHIFT_HOMEDIR/<%= @cartridge_name %>/bin/control deploy
-else
-  echo "Skipping deployment; build failed with exit status $?"
-fi
-
-for cartridge in $(ls -d $OPENSHIFT_HOMEDIR/* | grep -E -v 'app-root|git')
-do
-  $cartridge/bin/control start
-done
-
+gear postreceive
 }
   end
 end

@@ -1,8 +1,8 @@
-Name: perl-5.10
+Name: perl
 Cartridge-Short-Name: PERL
 Display-Name: Perl 5.10
 Description: "Perl is a general-purpose server-side scripting language originally designed for Web development to produce dynamic Web pages. Popular development frameworks include: CakePerl, Zend, Symfony, and Code Igniter."
-Version: 5.10
+Version: '5.10'
 License: "GPL v2"
 License-Url: http://dev.perl.org/licenses/
 Vendor: perl.org
@@ -14,7 +14,7 @@ Categories:
   - web_framework
 Website: http://www.perl.org
 Help-Topics:
-  "Developer Center": https://openshift.redhat.com/community/developers
+  "Developer Center": https://www.openshift.com/developers
 Cart-Data:
   - Key: OPENSHIFT_TMP_DIR
     Type: environment
@@ -54,16 +54,16 @@ Publishes:
     Type: "NET_TCP:gear-endpoint-info"
 Subscribes:
   set-db-connection-info:
-    Type: "NET_TCP:db:connection-info"
-    Required: false
-  set-nosql-db-connection-info:
-    Type: "NET_TCP:nosqldb:connection-info"
+    Type: "ENV:NET_TCP:db:connection-info"
     Required: false
   set-mysql-connection-info:
     Type: "NET_TCP:db:mysql"
     Required : false
   set-postgres-connection-info:
     Type: "NET_TCP:db:postgres"
+    Required : false
+  set-nosql-db-connection-info:
+    Type: "ENV:NET_TCP:nosqldb:connection-info"
     Required : false
   set-doc-url:
     Type: "STRING:urlpath"
@@ -80,3 +80,11 @@ Endpoints:
     Private-Port-Name: PORT
     Private-Port:      8080
     Public-Port-Name:  PROXY_PORT
+    Mappings:
+      - Frontend:      ""
+        Backend:       ""
+        Options:       { websocket: true }
+      - Frontend:      "/health"
+        Backend:       ""
+        Options:       { health: true }
+Install-Build-Required: false

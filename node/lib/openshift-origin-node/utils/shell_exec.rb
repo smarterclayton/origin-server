@@ -69,15 +69,25 @@ module OpenShift
     #   :timeout                   : Maximum number of seconds to wait for command to finish. default: 3600
     #   :uid                       : spawn command as given user in a SELinux context using runuser/runcon,
     #                              : stdin for the command is /dev/null
+    #   :out                       : If specified, STDOUT from the child process will be redirected to the
+    #                                provided +IO+ object.
+    #   :err                       : If specified, STDERR from the child process will be redirected to the
+    #                                provided +IO+ object.
+    #
+    # NOTE: If the +out+ or +err+ options are specified, the corresponding return value from +oo_spawn+
+    # will be the incoming/provided +IO+ objects instead of the buffered +String+ output. It's the
+    # responsibility of the caller to correctly handle the resulting data type.
     def self.oo_spawn(command, options = {})
+
       options[:env]         ||= {}
       options[:timeout]     ||= 3600
       options[:buffer_size] ||= 32768
 
       opts                   = {}
-      opts[:unsetenv_others] = (options[:unsetenv_others] ||= false)
+      opts[:unsetenv_others] = (options[:unsetenv_others] || false)
       opts[:close_others]    = true
-      opts[:chdir] = options[:chdir] unless options[:chdir].nil?
+      opts[:in]              = (options[:in] || '/dev/null')
+      opts[:chdir]           = options[:chdir] if options[:chdir]
 
       IO.pipe do |read_stderr, write_stderr|
         IO.pipe do |read_stdout, write_stdout|
@@ -86,15 +96,19 @@ module OpenShift
 
           if options[:uid]
             # lazy init otherwise we end up with a cyclic require...
-            require 'openshift-origin-node/model/unix_user'
+            require 'openshift-origin-node/utils/selinux'
 
-            opts[:in] = '/dev/null'
-            context   = %Q{unconfined_u:system_r:openshift_t:#{UnixUser.get_mcs_label(options[:uid])}}
-            name      = Etc.getpwuid(options[:uid]).name
-            command   = %Q{/sbin/runuser -m -s /bin/sh #{name} -c "exec /usr/bin/runcon '#{context}' /bin/sh -c \\"#{command}\\""}
+            current_context  = SELinux.getcon
+            target_context   = SELinux.context_from_defaults(SELinux.get_mcs_label(options[:uid]))
+            
+            # Only switch contexts if necessary
+            if (current_context != target_context) || (Process.uid != options[:uid])
+              target_name = Etc.getpwuid(options[:uid]).name
+              command     = %Q{/sbin/runuser -m -s /bin/sh #{target_name} -c "exec /usr/bin/runcon '#{target_context}' /bin/sh -c \\"#{command}\\""}
+            end
           end
 
-          NodeLogger.trace_logger.debug { "oo_spawn running #{command}" }
+          NodeLogger.trace_logger.debug { "oo_spawn running #{command}: #{opts}" }
           pid = Kernel.spawn(options[:env], command, opts)
 
           unless pid
@@ -107,7 +121,7 @@ module OpenShift
             write_stderr.close
 
             out, err, status = read_results(pid, read_stdout, read_stderr, options)
-            NodeLogger.logger.debug { "Shell command '#{command}' ran. rc=#{status.exitstatus}" }
+            NodeLogger.logger.debug { "Shell command '#{command}' ran. rc=#{status.exitstatus} out=#{out}" }
 
             if (!options[:expected_exitstatus].nil?) && (status.exitstatus != options[:expected_exitstatus])
               raise OpenShift::Utils::ShellExecutionException.new(
@@ -135,8 +149,8 @@ module OpenShift
     #   :buffer_size => how many bytes to read from pipe per iteration. Default: 32768
     def self.read_results(pid, stdout, stderr, options)
       # TODO: Are these variables thread safe...?
-      out     = ''
-      err     = ''
+      out     = (options[:out] || '')
+      err     = (options[:err] || '')
       status  = nil
       readers = [stdout, stderr]
 
@@ -145,16 +159,18 @@ module OpenShift
           while readers.any?
             ready = IO.select(readers, nil, nil, 10)
 
-            # If there is no IO to process check if child has exited...
             if ready.nil?
+              # If there is no IO to process check if child has exited...
               _, status = Process.wait2(pid, Process::WNOHANG)
             else
               # Otherwise, process us some IO...
               ready[0].each do |fd|
                 buffer = (fd == stdout) ? out : err
                 begin
-                  buffer << fd.readpartial(options[:buffer_size])
-                  NodeLogger.trace_logger.debug { "oo_spawn buffer(#{fd.fileno}/#{fd.pid}) #{buffer}" }
+                  partial = fd.readpartial(options[:buffer_size])
+                  buffer << partial
+
+                  NodeLogger.trace_logger.debug { "oo_spawn buffer(#{fd.fileno}/#{fd.pid}) #{partial}" }
                 rescue Errno::EAGAIN, Errno::EINTR
                 rescue EOFError
                   readers.delete(fd)

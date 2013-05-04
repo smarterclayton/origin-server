@@ -1,26 +1,29 @@
 %global cartridgedir %{_libexecdir}/openshift/cartridges/jbossas-7
-%global jbossver 7.1.0.Final
-%global oldjbossver 7.0.2.Final
+%global jbossver 7.1.1.Final
+%global oldjbossver 7.1.0.Final
 
 Summary:       Provides JBossAS7 support
 Name:          openshift-origin-cartridge-jbossas-7
-Version: 1.6.2
+Version: 1.9.2
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
-URL:           http://openshift.redhat.com
+URL:           http://www.openshift.com
 Source0:       http://mirror.openshift.com/pub/openshift-origin/source/%{name}/%{name}-%{version}.tar.gz
 Requires:      openshift-origin-cartridge-abstract-jboss
 Requires:      rubygem(openshift-origin-node)
-Requires:      jboss-as7 >= %{jbossver}
-Requires:      jboss-as7-modules >= %{jbossver}
+Requires:      openshift-origin-node-util
 Requires:      lsof
 Requires:      java-1.7.0-openjdk
 Requires:      java-1.7.0-openjdk-devel
+Requires:      jboss-as7-modules >= %{jbossver}
 %if 0%{?rhel}
+Requires:      jboss-as7 >= %{jbossver}
 Requires:      maven3
 %endif
 %if 0%{?fedora}
+Requires:      jboss-as
+Requires:      bc
 Requires:      maven
 %endif
 BuildRequires: git
@@ -59,7 +62,6 @@ ln -s %{cartridgedir}/../abstract/info/hooks/update-namespace %{buildroot}%{cart
 ln -s %{cartridgedir}/../abstract/info/hooks/deploy-httpd-proxy %{buildroot}%{cartridgedir}/info/hooks/deploy-httpd-proxy
 ln -s %{cartridgedir}/../abstract/info/hooks/remove-httpd-proxy %{buildroot}%{cartridgedir}/info/hooks/remove-httpd-proxy
 ln -s %{cartridgedir}/../abstract/info/hooks/status %{buildroot}%{cartridgedir}/info/hooks/status
-ln -s %{cartridgedir}/../abstract/info/hooks/move %{buildroot}%{cartridgedir}/info/hooks/move
 ln -s %{cartridgedir}/../abstract/info/hooks/system-messages %{buildroot}%{cartridgedir}/info/hooks/system-messages
 ln -s %{cartridgedir}/../abstract/info/connection-hooks/publish-gear-endpoint %{buildroot}%{cartridgedir}/info/connection-hooks/publish-gear-endpoint
 ln -s %{cartridgedir}/../abstract/info/connection-hooks/publish-http-url %{buildroot}%{cartridgedir}/info/connection-hooks/publish-http-url
@@ -93,7 +95,7 @@ ln -s %{cartridgedir}/../abstract-jboss/info/hooks/configure %{buildroot}%{cartr
 alternatives --install /etc/alternatives/maven-3.0 maven-3.0 /usr/share/java/apache-maven-3.0.3 100
 alternatives --set maven-3.0 /usr/share/java/apache-maven-3.0.3
 
-alternatives --remove jbossas-7.0 /opt/jboss-as-%{oldjbossver}
+alternatives --remove jbossas-7 /opt/jboss-as-%{oldjbossver}
 alternatives --install /etc/alternatives/jbossas-7 jbossas-7 /opt/jboss-as-%{jbossver} 102
 alternatives --set jbossas-7 /opt/jboss-as-%{jbossver}
 %endif
@@ -136,6 +138,76 @@ cp -p %{cartridgedir}/info/configuration/postgresql_module.xml /etc/alternatives
 %config %{cartridgedir}/info/bin/standalone.conf
 
 %changelog
+* Thu May 02 2013 Adam Miller <admiller@redhat.com> 1.9.2-1
+- update as v2 spec for as7.1.1 (bdecoste@gmail.com)
+
+* Wed May 01 2013 Adam Miller <admiller@redhat.com> 1.9.1-1
+- switchyard update and as 7.1.1 upgrade (bdecoste@gmail.com)
+
+* Thu Apr 25 2013 Adam Miller <admiller@redhat.com> 1.8.1-1
+- Bug 956497: Fix port bindings for jboss carts (ironcladlou@gmail.com)
+- Bug 955492: Fix rsync command to correct hot deployment
+  (ironcladlou@gmail.com)
+- Update outdated links in 'cartridges' directory. (asari.ruby@gmail.com)
+- Bug 928675 (asari.ruby@gmail.com)
+- V2 cartridge documentation updates (ironcladlou@gmail.com)
+- bump_minor_versions for sprint 2.0.26 (tdawson@redhat.com)
+
+* Fri Apr 12 2013 Adam Miller <admiller@redhat.com> 1.7.5-1
+- SELinux, ApplicationContainer and UnixUser model changes to support oo-admin-
+  ctl-gears operating on v1 and v2 cartridges. (rmillner@redhat.com)
+
+* Wed Apr 10 2013 Adam Miller <admiller@redhat.com> 1.7.4-1
+- Merge pull request #1981 from bdecoste/master (dmcphers@redhat.com)
+- Update standalone.xml (bdecoste@gmail.com)
+- Delete move/pre-move/post-move hooks, these hooks are no longer needed.
+  (rpenta@redhat.com)
+
+* Tue Apr 09 2013 Adam Miller <admiller@redhat.com> 1.7.3-1
+- Merge pull request #1934 from lnader/card-534 (dmcphers@redhat.com)
+- Added Additional-Control-Actions to jbosseap-6.0 and jbossas-7
+  (lnader@redhat.com)
+
+* Mon Apr 08 2013 Adam Miller <admiller@redhat.com> 1.7.2-1
+- minor fixes (bdecoste@gmail.com)
+- update rsync (bdecoste@gmail.com)
+- Bug 947016 (bdecoste@gmail.com)
+- Merge pull request #1842 from bdecoste/master (dmcphers@redhat.com)
+- rsync deployments (bdecoste@gmail.com)
+- rsync deployments (bdecoste@gmail.com)
+
+* Thu Mar 28 2013 Adam Miller <admiller@redhat.com> 1.7.1-1
+- bump_minor_versions for sprint 26 (admiller@redhat.com)
+
+* Wed Mar 27 2013 Adam Miller <admiller@redhat.com> 1.6.7-1
+- Merge pull request #1825 from bdecoste/master
+  (dmcphers+openshiftbot@redhat.com)
+- clean deployments (bdecoste@gmail.com)
+- Merge pull request #1822 from bdecoste/master
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 928142 (bdecoste@gmail.com)
+
+* Tue Mar 26 2013 Adam Miller <admiller@redhat.com> 1.6.6-1
+- Merge pull request #1800 from bdecoste/master
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 927192 (bdecoste@gmail.com)
+
+* Mon Mar 25 2013 Adam Miller <admiller@redhat.com> 1.6.5-1
+- updated Fedora Requires (bdecoste@gmail.com)
+- updated Fedora Requires (bdecoste@gmail.com)
+
+* Fri Mar 22 2013 Adam Miller <admiller@redhat.com> 1.6.4-1
+- Bug 920375 (bdecoste@gmail.com)
+- Bug 920375 (bdecoste@gmail.com)
+
+* Mon Mar 18 2013 Adam Miller <admiller@redhat.com> 1.6.3-1
+- remove java-devel BuildRequires, move ROOT.war jar to configure
+  (bdecoste@gmail.com)
+- remove java-devel BuildRequires, move ROOT.war jar to configure
+  (bdecoste@gmail.com)
+- remove java-devel BuildRequires, move ROOT.war jar to configure
+  (bdecoste@gmail.com)
+
 * Thu Mar 14 2013 Adam Miller <admiller@redhat.com> 1.6.2-1
 - Refactor Endpoints to support frontend mapping (ironcladlou@gmail.com)
 - remove old obsoletes (tdawson@redhat.com)

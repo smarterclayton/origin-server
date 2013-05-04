@@ -3,7 +3,7 @@ module OpenShift
     attr_accessor :name, :version, :architecture, :display_name, :description, :vendor, :license,
                   :provides, :requires, :conflicts, :suggests, :native_requires, :default_profile,
                   :path, :license_url, :categories, :website, :suggests_feature,
-                  :help_topics, :cart_data_def
+                  :help_topics, :cart_data_def, :additional_control_actions, :versions, :cartridge_vendor
     attr_reader   :profiles
     
     def initialize
@@ -77,6 +77,13 @@ module OpenShift
       return categories.include?('web_framework')
     end
     
+    # creating a separate method for determining primary cart
+    # even though currently the web_framework category is used to define it
+    # later on, a different mechanism may be employed to determine the primary cart
+    def is_primary_cart?
+      return categories.include?('web_framework')
+    end
+
     def is_ci_server?
       return categories.include?('ci')
     end
@@ -86,7 +93,7 @@ module OpenShift
     end
    
     def is_premium?
-      return categories.include?('premium')
+      return usage_rates.present?
     end
 
     def usage_rates
@@ -96,11 +103,13 @@ module OpenShift
     def from_descriptor(spec_hash={})
       self.name = spec_hash["Name"]
       self.version = spec_hash["Version"] || "0.0"
+      self.versions = spec_hash["Versions"] || []
       self.architecture = spec_hash["Architecture"] || "noarch"
       self.display_name = spec_hash["Display-Name"] || "#{self.name}-#{self.version}-#{self.architecture}"
       self.license = spec_hash["License"] || "unknown"
       self.license_url = spec_hash["License-Url"] || ""
       self.vendor = spec_hash["Vendor"] || "unknown"
+      self.cartridge_vendor = spec_hash["Cartridge-Vendor"] || "unknown"
       self.description = spec_hash["Description"] || ""
       self.provides = spec_hash["Provides"] || []
       self.requires = spec_hash["Requires"] || []
@@ -111,6 +120,7 @@ module OpenShift
       self.suggests = spec_hash["Suggests"] || []
       self.help_topics = spec_hash["Help-Topics"] || {}
       self.cart_data_def = spec_hash["Cart-Data"] || {}
+      self.additional_control_actions = spec_hash["Additional-Control-Actions"] || []
       
       self.provides = [self.provides] if self.provides.class == String
       self.requires = [self.requires] if self.requires.class == String
@@ -147,6 +157,7 @@ module OpenShift
       
       h["Architecture"] = self.architecture if self.architecture != "noarch"
       h["Version"] = self.version if self.version != "0.0"
+      h["Versions"] = self.versions if self.versions and !versions.empty?
       h["Description"] = self.description if self.description and !self.description.empty?
       h["License"] = self.license if self.license and !self.license.empty? and self.license != "unknown"
       h["License-Url"] = self.license_url if self.license_url and !self.license_url.empty?
@@ -154,6 +165,7 @@ module OpenShift
       h["Website"] = self.website if self.website and !self.website.empty?
       h["Help-Topics"] = self.help_topics if self.help_topics and !self.help_topics.empty?
       h["Cart-Data"] = self.cart_data_def if self.cart_data_def and !self.cart_data_def.empty?
+      h["Additional-Control-Actions"] = self.additional_control_actions if self.additional_control_actions and !self.additional_control_actions.empty?
 
       h["Provides"] = self.provides if self.provides && !self.provides.empty?
       h["Requires"] = self.requires if self.requires && !self.requires.empty?
@@ -161,6 +173,7 @@ module OpenShift
       h["Suggests"] = self.suggests if self.suggests && !self.suggests.empty? 
       h["Native-Requires"] = self.native_requires if self.native_requires && !self.native_requires.empty?
       h["Vendor"] = self.vendor if self.vendor and !self.vendor.empty? and self.vendor != "unknown"
+      h["Cartridge-Vendor"] = self.cartridge_vendor if self.cartridge_vendor and !self.cartridge_vendor.empty? and self.cartridge_vendor != "unknown"
       h["Default-Profile"] = self.default_profile if !self.default_profile.nil? and !self.default_profile.empty? and !@_profile_map[@default_profile].generated
     
       if self.profiles.length == 1 && self.profiles.first.generated

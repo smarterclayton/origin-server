@@ -9,7 +9,7 @@ class DomainsController < ConsoleController
     @domain.as = current_user
 
     if @domain.save
-      redirect_to account_path, :flash => {:success => 'Your domain has been created'}
+      redirect_to settings_path, :flash => {:success => 'Your domain has been created'}
     else
       render :new
     end
@@ -23,10 +23,15 @@ class DomainsController < ConsoleController
     @domain = Domain.find(:one, :as => current_user)
     @domain.attributes = params[:domain]
     if @domain.save
-      redirect_to account_path, :flash => {:success => 'Your domain has been changed.  Your public URLs will now be different'}
+      redirect_to settings_path, :flash => {:success => 'Your domain has been changed.  Your public URLs will now be different'}
     else
       render :edit
     end
   end
+
+  protected
+    def active_tab
+      :settings
+    end
 end
 end

@@ -1,0 +1,3 @@
+#!/bin/bash -ue
+
+mkdir $OPENSHIFT_POSTGRESQL_DIR/{log,pid,socket,data,run}

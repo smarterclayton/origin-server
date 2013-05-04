@@ -5,7 +5,7 @@ class CartridgeType < RestApi::Base
   include Comparable
 
   schema do
-    string :name, 'type'
+    string :name, 'type', :url
     string :tags
   end
 
@@ -24,17 +24,19 @@ class CartridgeType < RestApi::Base
   attr_accessor :priority
   attr_accessor :usage_rates
 
-  has_many :properties, :class_name => as_attribute_hash
-  has_many :usage_rate, :class_name => as_attribute_hash
+  has_many :properties, :class_name => as_indifferent_hash
+  has_many :usage_rate, :class_name => as_indifferent_hash
 
   self.element_name = 'cartridges'
 
   def initialize(attributes={},persisted=false)
     attributes = attributes.with_indifferent_access
     name = attributes['name'].presence || attributes[:name].presence
-    defaults = self.class.defaults(name)
-    defaults.keys.each{ |k| attributes.delete(k) if attributes[k].blank? }
-    attributes.reverse_merge!(defaults)
+    if name
+      defaults = self.class.defaults(name)
+      defaults.keys.each{ |k| attributes.delete(k) if attributes[k].blank? }
+      attributes.reverse_merge!(defaults)
+    end
     super attributes, persisted
   end
 
@@ -44,9 +46,24 @@ class CartridgeType < RestApi::Base
 
   def embedded?;    type == :embedded; end
   def standalone?;  type == :standalone; end
+  def custom?;      url.present?; end
 
   def display_name
-    @display_name || name
+    @display_name ||= url_basename || name
+  end
+
+  def to_param
+    url || name
+  end
+
+  def url_basename
+    uri = URI.parse(url)
+    name = uri.fragment
+    name = Rack::Utils.parse_nested_query(uri.query)['name'] if name.blank? && uri.query
+    name = File.basename(uri.path) if name.blank? && uri.path.present? && uri.path != '/'
+    name.presence || url
+  rescue 
+    url
   end
 
   # Legacy, use #tags
@@ -97,6 +114,10 @@ class CartridgeType < RestApi::Base
     c = priority - other.priority
     return c unless c == 0
     display_name <=> other.display_name
+  end
+
+  def self.for_url(url)
+    new({:url => url}, true)
   end
 
   def self.embedded(*arguments)

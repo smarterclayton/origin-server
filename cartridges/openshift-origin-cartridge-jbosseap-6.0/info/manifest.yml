@@ -1,5 +1,6 @@
 Name: jbosseap-6.0
 Cartridge-Short-Name: JBOSSEAP
+Cartridge-Vendor: redhat
 Display-Name: JBoss Enterprise Application Platform 6.0
 Description: "Market-leading open source enterprise platform for next-generation, highly transactional enterprise Java applications. Build and deploy enterprise Java in the cloud."
 Version: 6.0
@@ -11,10 +12,9 @@ Categories:
   - java
   - jboss
   - jee_full_profile
-  - premium
 Website: http://www.redhat.com/products/jbossenterprisemiddleware/application-platform/
 Help-Topics:
-  "Developer Center": https://openshift.redhat.com/community/developers
+  "Developer Center": https://www.openshift.com/developers
 Cart-Data:
   - Key: OPENSHIFT_JBOSSEAP_LOG_DIR
     Type: environment
@@ -105,3 +105,6 @@ Endpoints:
     Private-Port-Name: REMOTING_PORT
     Private-Port:      4447
     Public-Port-Name:  REMOTING_PROXY_PORT
+Additional-Control-Actions:
+    - threaddump
+

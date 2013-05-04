@@ -6,11 +6,11 @@
 
 Summary:       Utility scripts for the OpenShift Origin broker
 Name:          openshift-origin-broker-util
-Version: 1.6.2
+Version: 1.8.6
 Release:       1%{?dist}
 Group:         Network/Daemons
 License:       ASL 2.0
-URL:           http://openshift.redhat.com
+URL:           http://www.openshift.com
 Source0:       http://mirror.openshift.com/pub/openshift-origin/source/%{name}/%{name}-%{version}.tar.gz
 %if 0%{?fedora} >= 19
 Requires:      ruby(release)
@@ -18,12 +18,9 @@ Requires:      ruby(release)
 Requires:      %{?scl:%scl_prefix}ruby(abi) >= %{rubyabi}
 %endif
 Requires:      openshift-origin-broker
+Requires:      %{?scl:%scl_prefix}rubygem-rest-client
 # For oo-register-dns
 Requires:      bind-utils
-# For oo-setup-bind
-Requires:      rng-tools
-# For oo-setup-broker
-Requires:      openssl
 # For oo-admin-broker-auth
 Requires:      mcollective-client
 %if 0%{?fedora} >= 17
@@ -44,15 +41,15 @@ They must be run on a openshift broker instance.
 
 %install
 mkdir -p %{buildroot}%{_sbindir}
-cp oo-* %{buildroot}%{_sbindir}/
+cp -p oo-* %{buildroot}%{_sbindir}/
 
 mkdir -p %{buildroot}%{_mandir}/man8/
 cp man/*.8 %{buildroot}%{_mandir}/man8/
-mkdir -p %{buildroot}/usr/share/openshift/kickstarts
-cp kickstart/openshift-origin-remix.ks %{buildroot}/usr/share/openshift/kickstarts
 
 %files
+%doc LICENSE
 %attr(0750,-,-) %{_sbindir}/oo-admin-chk
+%attr(0750,-,-) %{_sbindir}/oo-admin-fix-sshkeys
 %attr(0750,-,-) %{_sbindir}/oo-admin-clear-pending-ops
 %attr(0750,-,-) %{_sbindir}/oo-admin-ctl-app
 %attr(0750,-,-) %{_sbindir}/oo-admin-ctl-authorization
@@ -62,17 +59,17 @@ cp kickstart/openshift-origin-remix.ks %{buildroot}/usr/share/openshift/kickstar
 %attr(0750,-,-) %{_sbindir}/oo-admin-ctl-user
 %attr(0750,-,-) %{_sbindir}/oo-admin-move
 %attr(0750,-,-) %{_sbindir}/oo-admin-broker-auth
+%attr(0750,-,-) %{_sbindir}/oo-admin-broker-cache
 %attr(0750,-,-) %{_sbindir}/oo-admin-usage
+%attr(0750,-,-) %{_sbindir}/oo-analytics-export
+%attr(0750,-,-) %{_sbindir}/oo-analytics-import
 %attr(0750,-,-) %{_sbindir}/oo-register-dns
-%attr(0750,-,-) %{_sbindir}/oo-setup-bind
-%attr(0750,-,-) %{_sbindir}/oo-setup-broker
 %attr(0750,-,-) %{_sbindir}/oo-accept-broker
 %attr(0750,-,-) %{_sbindir}/oo-accept-systems
 %attr(0750,-,-) %{_sbindir}/oo-stats
-/usr/share/openshift/kickstarts/openshift-origin-remix.ks
 
-%doc LICENSE
 %{_mandir}/man8/oo-admin-chk.8.gz
+%{_mandir}/man8/oo-admin-fix-sshkeys.8.gz
 %{_mandir}/man8/oo-admin-ctl-app.8.gz
 %{_mandir}/man8/oo-admin-ctl-district.8.gz
 %{_mandir}/man8/oo-admin-ctl-domain.8.gz
@@ -80,15 +77,209 @@ cp kickstart/openshift-origin-remix.ks %{buildroot}/usr/share/openshift/kickstar
 %{_mandir}/man8/oo-admin-ctl-user.8.gz
 %{_mandir}/man8/oo-admin-move.8.gz
 %{_mandir}/man8/oo-admin-broker-auth.8.gz
+%{_mandir}/man8/oo-admin-broker-cache.8.gz
 %{_mandir}/man8/oo-admin-usage.8.gz
 %{_mandir}/man8/oo-register-dns.8.gz
-%{_mandir}/man8/oo-setup-bind.8.gz
-%{_mandir}/man8/oo-setup-broker.8.gz
 %{_mandir}/man8/oo-accept-broker.8.gz
 %{_mandir}/man8/oo-accept-systems.8.gz
 %{_mandir}/man8/oo-stats.8.gz
 
 %changelog
+* Fri May 03 2013 Adam Miller <admiller@redhat.com> 1.8.6-1
+- <broker><oo-accept-broker> Bug 958674 - Fix Mongo SSL support
+  (jdetiber@redhat.com)
+
+* Wed May 01 2013 Adam Miller <admiller@redhat.com> 1.8.5-1
+- Fix for bug 956441  - increasing mcollective timeout for oo-admin-chk
+  (abhgupta@redhat.com)
+- Merge pull request #2308 from detiber/bz958437
+  (dmcphers+openshiftbot@redhat.com)
+- reslience to broken apps in analytics import cleanup (rchopra@redhat.com)
+- <oo-accept-broker> Bug 958437 - Making CONSOLE_SECRET check dependent on
+  existence of CONSOLE_CONF (jdetiber@redhat.com)
+- Merge pull request #2288 from detiber/bz955789
+  (dmcphers+openshiftbot@redhat.com)
+- fix oo-analytics-import to use global authentication for new db
+  (rchopra@redhat.com)
+- Bug 955789 - Enabling mongo connection check in oo-accept-broker
+  (jdetiber@redhat.com)
+- Fixing typo (abhgupta@redhat.com)
+
+* Tue Apr 30 2013 Adam Miller <admiller@redhat.com> 1.8.4-1
+- Merge pull request #2279 from abhgupta/abhgupta-dev
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2230 from pravisankar/dev/ravi/card559
+  (dmcphers+openshiftbot@redhat.com)
+- Displaying the count of applications fixed/failed for ssh key mismatches
+  (abhgupta@redhat.com)
+- Preventing false positives from being reported for oo-admin-chk and bug fixes
+  - Fix for bug 954800  - Fix for bug 955187  - Fix for bug 955359
+  (abhgupta@redhat.com)
+- Merge pull request #2263 from sosiouxme/bz957818
+  (dmcphers+openshiftbot@redhat.com)
+- <cache> bug 957818 - clear-cache script, oo-cart-version uses it
+  (lmeyer@redhat.com)
+- Removed 'setmaxstorage' option for oo-admin-ctl-user script. Added
+  'setmaxtrackedstorage' and 'setmaxuntrackedstorage' options for oo-admin-ctl-
+  user script. Updated oo-admin-ctl-user man page. Max allowed additional fs
+  storage for user will be 'max_untracked_addtl_storage_per_gear' capability +
+  'max_tracked_addtl_storage_per_gear' capability. Don't record usage for
+  additional fs storage if it is less than
+  'max_untracked_addtl_storage_per_gear' limit. Fixed unit tests and models to
+  accommodate the above change. (rpenta@redhat.com)
+
+* Mon Apr 29 2013 Adam Miller <admiller@redhat.com> 1.8.3-1
+- Fixing the rest-client dependency in broker-util (bleanhar@redhat.com)
+- Bug 957045 - fixing oo-accept-systems for v2 cartridges (bleanhar@redhat.com)
+
+* Thu Apr 25 2013 Adam Miller <admiller@redhat.com> 1.8.2-1
+- Merge pull request #2240 from detiber/bz956670
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 956670 - Fix static references to small gear size (jdetiber@redhat.com)
+
+* Thu Apr 25 2013 Adam Miller <admiller@redhat.com> 1.8.1-1
+- Merge pull request #2222 from detiber/sessionsecret
+  (dmcphers+openshiftbot@redhat.com)
+- <oo-accept-broker> Fix test for SESSION_SECRET (jdetiber@redhat.com)
+- <broker> Updated spec file for correct user_action.log location <oo-accept-
+  broker> Added permission check for rest api logs (jdetiber@redhat.com)
+- Creating fixer mechanism for replacing all ssh keys for an app
+  (abhgupta@redhat.com)
+- <oo-accept-broker> test for oo-ruby in path (jolamb@redhat.com)
+- <oo-accept-broker> replace safe_ruby fxn wrapper with oo-ruby
+  (jolamb@redhat.com)
+- <oo-accept-broker> more rhel/fedora reconciliation, cleanup
+  (jolamb@redhat.com)
+- <oo-accept-broker> cleanup, documentation comment (jolamb@redhat.com)
+- <oo-accept-broker> Fixes to generalize over RHEL and Fedora
+  (jolamb@redhat.com)
+- Bug 928675 (asari.ruby@gmail.com)
+- Merge pull request #2155 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2152 from pravisankar/dev/ravi/plan_history_cleanup
+  (dmcphers+openshiftbot@redhat.com)
+- eventual consistency is alright in some cases (rchopra@redhat.com)
+- Added pre_sync_usage, post_sync_usage operations in oo-admin-ctl-usage script
+  (rpenta@redhat.com)
+- refix unreserve_uid when destroying gear (rchopra@redhat.com)
+- unreserve should not happen twice over (rchopra@redhat.com)
+- Adding support for Bearer auth in the sample remote-user plugin
+  (bleanhar@redhat.com)
+- bump_minor_versions for sprint 2.0.26 (tdawson@redhat.com)
+
+* Tue Apr 16 2013 Troy Dawson <tdawson@redhat.com> 1.7.7-1
+- Fix for bug 952551 Preventing the removal of gears that host singletons
+  through admin script (abhgupta@redhat.com)
+
+* Sat Apr 13 2013 Krishna Raman <kraman@gmail.com> 1.7.6-1
+- Merge pull request #2042 from maxamillion/dev/maxamillion/oo-accept-cleanup
+  (dmcphers+openshiftbot@redhat.com)
+- fix '[: ==: unary operator expected' errors (admiller@redhat.com)
+
+* Fri Apr 12 2013 Adam Miller <admiller@redhat.com> 1.7.5-1
+- Merge pull request #2018 from abhgupta/abhgupta-dev (dmcphers@redhat.com)
+- Merge pull request #2026 from rajatchopra/master (dmcphers@redhat.com)
+- fix analytics to provide more details (rchopra@redhat.com)
+- Fix for bug 950974 Handling NodeException in the script (abhgupta@redhat.com)
+- Fix for bug 951031 We are now correctly listing the acceptable argument to
+  the oo-admin-usage script as gear id instead of gear uuid
+  (abhgupta@redhat.com)
+
+* Thu Apr 11 2013 Adam Miller <admiller@redhat.com> 1.7.4-1
+- Merge pull request #2001 from brenton/misc2 (dmcphers@redhat.com)
+- Merge pull request #1998 from pravisankar/dev/ravi/card526
+  (dmcphers@redhat.com)
+- oo-admin-broker-auth manpage fix (bleanhar@redhat.com)
+- Add 'plan_history' to CloudUser model. oo-admin-ctl-usage will also cache
+  'plan_history' and will pass to sync_usage(). (rpenta@redhat.com)
+
+* Wed Apr 10 2013 Adam Miller <admiller@redhat.com> 1.7.3-1
+- Bug 949819 (lnader@redhat.com)
+- Change 'allow_change_district' to 'change_district' and remove warnings when
+  target server or district is specified. Fix start/stop carts order in move
+  gear. (rpenta@redhat.com)
+- Adding checks for ssh key matches (abhgupta@redhat.com)
+
+* Mon Apr 08 2013 Adam Miller <admiller@redhat.com> 1.7.2-1
+- Handling case where the user is not present (abhgupta@redhat.com)
+- oo-accept-broker: fix and enable SELinux checks (miciah.masters@gmail.com)
+- Merge pull request #1669 from tdawson/tdawson/minor-spec-cleanup/2013-03-15
+  (dmcphers+openshiftbot@redhat.com)
+- Typo fixes (bleanhar@redhat.com)
+- fixing rebase (tdawson@redhat.com)
+- Adding ability to add and remove domain wide environment variables from admin
+  script (kraman@gmail.com)
+
+* Thu Mar 28 2013 Adam Miller <admiller@redhat.com> 1.7.1-1
+- bump_minor_versions for sprint 26 (admiller@redhat.com)
+
+* Wed Mar 27 2013 Adam Miller <admiller@redhat.com> 1.6.7-1
+- Merge pull request #1789 from brenton/master (dmcphers@redhat.com)
+- Merge pull request #1777 from kraman/remove_oo_scripts
+  (dmcphers+openshiftbot@redhat.com)
+- Removing oo-setup-* scripts as they have been replaced by puppet and ansible
+  modules. Updating puppet setup docs (kraman@gmail.com)
+- Merge remote-tracking branch 'origin/master' into update_to_new_plan_values
+  (ccoleman@redhat.com)
+- Remove references to plans from origin-server (ccoleman@redhat.com)
+- Merge remote-tracking branch 'origin/master' into update_to_new_plan_values
+  (ccoleman@redhat.com)
+- MegaShift => Silver (ccoleman@redhat.com)
+- Adding SESSION_SECRET settings to the broker and console
+  (bleanhar@redhat.com)
+
+* Tue Mar 26 2013 Adam Miller <admiller@redhat.com> 1.6.6-1
+- Fix for bug 927154 Fixing multiple issues in remove-gear command of admin
+  script (abhgupta@redhat.com)
+
+* Mon Mar 25 2013 Adam Miller <admiller@redhat.com> 1.6.5-1
+- Fix for the underlying issue behind bug 924651 (abhgupta@redhat.com)
+- Merge pull request #1768 from rajatchopra/master (dmcphers@redhat.com)
+- handle broken ops, and reset state of ops that failed to clear
+  (rchopra@redhat.com)
+- Fix for bug 924651 (abhgupta@redhat.com)
+
+* Thu Mar 21 2013 Adam Miller <admiller@redhat.com> 1.6.4-1
+- fix BZ923579 - no uuid for user/domain (rchopra@redhat.com)
+- Fix for bug 923176  - Handling missing or empty component_instances  -
+  Handling false positives for UID checks for districts (abhgupta@redhat.com)
+- Merge pull request #1708 from brenton/BZ923070
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1707 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 923070 - Removing duplicate warning from oo-admin-broker-auth
+  (bleanhar@redhat.com)
+- fix for bug918947, remove gear called on non-existent gear of an app
+  (rchopra@redhat.com)
+- Bug 923070 - removing duplicate mongo call in oo-admin-broker-auth
+  (bleanhar@redhat.com)
+- Merge pull request #1692 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- spec file fixed for analytics utilities (rchopra@redhat.com)
+- analytics data export/import (rchopra@redhat.com)
+- Merge pull request #1679 from abhgupta/abhgupta-dev
+  (dmcphers+openshiftbot@redhat.com)
+- Modifying the man page and usage details for oo-admin-chk
+  (abhgupta@redhat.com)
+
+* Mon Mar 18 2013 Adam Miller <admiller@redhat.com> 1.6.3-1
+- Reporting errors for gears that aren't found (bleanhar@redhat.com)
+- Bug 922678 - Fixing oo-admin-broker-auth's --rekey option
+  (bleanhar@redhat.com)
+- Bug 922677 - Warning if --find-gears can't locate all nodes
+  (bleanhar@redhat.com)
+- Merge pull request #1633 from lnader/revert_pull_request_1486
+  (dmcphers+openshiftbot@redhat.com)
+- Changed private_certificate to private_ssl_certificate (lnader@redhat.com)
+- Add SNI upload support to API (lnader@redhat.com)
+- Improving efficiency of checks and fixing empty gear check Additional fixes
+  for oo-admin-chk (abhgupta@redhat.com)
+- Merge pull request #1660 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- improve clear-pending-ops to handle new failures as shown in prod
+  (rchopra@redhat.com)
+- Adding additional checks to oo-admin-chk script (abhgupta@redhat.com)
+
 * Thu Mar 14 2013 Adam Miller <admiller@redhat.com> 1.6.2-1
 - Merge pull request #1637 from brenton/BZ921257 (dmcphers@redhat.com)
 - Lots of oo-accept-broker fixes (bleanhar@redhat.com)

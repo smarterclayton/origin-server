@@ -1,0 +1,8 @@
+#!/bin/bash -e
+
+mkdir -p $OPENSHIFT_10GENMMSAGENT_DIR/{logs,run,mms-agent}
+
+pushd "$OPENSHIFT_10GENMMSAGENT_DIR" > /dev/null
+  cp -r /usr/local/share/mms-agent/* $OPENSHIFT_10GENMMSAGENT_DIR/mms-agent/
+  ln -s agent.py $OPENSHIFT_10GENMMSAGENT_DIR/mms-agent/"$OPENSHIFT_GEAR_UUID"_agent.py
+popd > /dev/null

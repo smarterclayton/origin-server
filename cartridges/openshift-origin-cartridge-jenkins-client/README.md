@@ -1,8 +1,7 @@
-- [ ] Document usage
+# OpenShift Jenkins Client Cartridge
 
-# Mock Cartridge using for testing Node Platform
+The `jenkins-client` cartridge works with the [OpenShift Jenkins Cartridge](https://github.com/openshift/origin-server/tree/master/cartridges/openshift-origin-cartridge-jenkins)
+to provide Jenkins integration for OpenShift applications.
 
-This is a mock implementation of the cartridge API which is used to test the 
-OpenShift node platform functionality.  The mock cartridges maintains a store
-of what actions have been performed and provides methods to test for those actions.  
-
+Consult the [Jenkins cartridge documentation](https://github.com/openshift/origin-server/tree/master/cartridges/openshift-origin-cartridge-jenkins/README.md)
+for more information.

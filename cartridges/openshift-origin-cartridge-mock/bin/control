@@ -1,22 +1,54 @@
-#!/bin/bash -e
+#!/bin/bash -eu
 
-PATH=/bin/:/usr/bin:$PATH
+source $OPENSHIFT_CARTRIDGE_SDK_BASH
+source $OPENSHIFT_MOCK_DIR/mock.conf
 
-#source /usr/libexec/openshift/cartridges/v2/mock/mock.conf
+function start {
+  touch $MOCK_STATE/control_start
+  touch $MOCK_STATE/mock_process
+}
 
-cartridge_instance_dir=RedHat-mock
-source $cartridge_instance_dir/mock.conf
+function stop {
+  touch $MOCK_STATE/control_stop
+  rm -f $MOCK_STATE/mock_process
+}
+
+function restart {
+  touch $MOCK_STATE/control_restart
+  stop
+  start
+}
+
+function status {
+  client_message "This is client status output from the mock cartridge"
+  touch $MOCK_STATE/control_status
+  [ -f $MOCK_STATE/mock_process ]
+}
+
+function build {
+  echo "Mock building..."
+  touch $MOCK_STATE/control_build
+  echo "Mock successfully built."
+}
 
 case "$1" in
-  start)     touch $MOCK_STATE/control_start ;;
-  stop)      touch $MOCK_STATE/control_stop ;;
-  restart)   touch $MOCK_STATE/control_restart ;;
-  status)    touch $MOCK_STATE/control_status ;;
-  reload)    touch $MOCK_STATE/control_reload ;;
-  tidy)      touch $MOCK_STATE/control_tidy ;;
-  build)     touch $MOCK_STATE/control_build;;
-  deploy)    touch $MOCK_STATE/control_deploy;;
-  *)         exit 0
+  start)         start ;;
+  stop)          stop ;;
+  restart)       restart ;;
+  status)        status ;;
+  reload)        touch $MOCK_STATE/control_reload ;;
+  tidy)          touch $MOCK_STATE/control_tidy ;;
+  pre-build)     touch $MOCK_STATE/control_pre_build ;;
+  build)         build ;;
+  deploy)        touch $MOCK_STATE/control_deploy ;;
+  post-deploy)   touch $MOCK_STATE/control_post_deploy ;;
+  pre-snapshot)  touch $MOCK_STATE/control_pre_snapshot ;;
+  post-snapshot) touch $MOCK_STATE/control_post_snapshot ;;
+  pre-restore)   touch $MOCK_STATE/control_pre_restore ;;
+  post-restore)  touch $MOCK_STATE/control_post_restore ;;
+  pre-receive)   touch $MOCK_STATE/control_pre_receive ;;
+  process-version) touch $MOCK_STATE/control_process_version ;;
+  *)           exit 0
 esac
 
 exit 0

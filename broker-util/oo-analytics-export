@@ -1,0 +1,34 @@
+#!/usr/bin/oo-ruby
+
+# Utiltity to export the mongo database into json documents containing analytics data for applications
+outfile = nil
+if ARGV.include? "--outfile"
+  index = ARGV.index("--outfile")
+  outfile = ARGV[index+1]
+end
+
+if outfile.nil? 
+  puts "Usage :"
+  puts "  #{__FILE__} --outfile <filename>" 
+  exit 1
+end
+
+
+require '/var/www/openshift/broker/config/environment'
+
+u = Rails.application.config.datastore[:user]
+p = Rails.application.config.datastore[:password]
+hp = Rails.application.config.datastore[:host_port]
+db = Rails.application.config.datastore[:db]
+
+`mkdir -p /tmp/analytics`
+
+`mongoexport --username #{u} --password #{p} --host #{hp} --db #{db} --collection applications --out /tmp/analytics/analytics.apps.json --fields _id,uuid,aliases,analytics,init_git_url,created_at,updated_at,domain_id,default_gear_size,group_instances,component_instances`
+`mongoexport --username #{u} --password #{p} --host #{hp} --db #{db} --collection domains --out /tmp/analytics/analytics.domains.json --fields _id,owner_id,user_ids,namespace`
+`mongoexport --username #{u} --password #{p} --host #{hp} --db #{db} --collection usage --out /tmp/analytics/analytics.usage.json`
+`mongoexport --username #{u} --password #{p} --host #{hp} --db #{db} --collection cloud_users --out /tmp/analytics/analytics.users.json --fields _id,consumed_gears,capabilities,plan_id`
+`tar cvzf #{outfile} /tmp/analytics >& /dev/null`
+`rm -rf /tmp/analytics`
+
+puts 
+puts "Export complete to '#{outfile}'."

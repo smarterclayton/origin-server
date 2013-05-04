@@ -17,11 +17,109 @@ module OpenShift
     def get_cartridge(cart_name)
       begin
         manifest_path = File.join(@config.get('CARTRIDGE_BASE_PATH'), cart_name, 'info', 'manifest.yml')
-        return OpenShift::Runtime::Cartridge.new(manifest_path)
+        return OpenShift::Runtime::Manifest.new(manifest_path)
       rescue => e
         logger.error(e.backtrace)
         raise "Failed to load cart manifest from #{manifest_path} for cart #{cart_name} in gear #{@user.uuid}: #{e.message}"
       end
+    end
+
+    def stop_lock(cartridge_name=nil)
+      if cartridge_name.nil?
+        # Return a cartridge in the gear; the primary if there is one.
+        each_cartridge do |cartridge|
+          cartridge_name = cartridge.name
+          break if cartridge.primary?
+        end
+      end
+      if cartridge_name.nil?
+        raise "Partial gear with no cartridges: #{@user.uuid}"
+      end
+      File.join(@user.homedir, cartridge_name, 'run', 'stop_lock')
+    end
+
+    def stop_lock?(cartridge_name=nil)
+      File.exists?(stop_lock(cartridge_name))
+    end
+
+    ##
+    # Writes the +stop_lock+ file and changes its ownership to the gear user.
+    def create_stop_lock
+      unless stop_lock?
+        mcs_label = Utils::SELinux.get_mcs_label(@user.uid)
+        File.new(stop_lock, File::CREAT|File::TRUNC|File::WRONLY, 0644).close()
+        PathUtils.oo_chown(@user.uid, @user.gid, stop_lock)
+        Utils::SELinux.set_mcs_label(mcs_label, stop_lock)
+      end
+    end
+
+    ##
+    # Yields a +Cartridge+ instance for each cartridge in the gear.
+    def each_cartridge
+      Dir[PathUtils.join(@user.homedir, "*")].each do |cart_dir|
+        next if cart_dir.end_with?('app-root')
+        next if cart_dir.end_with?('git')
+        next if not File.directory? cart_dir
+
+        cartridge = get_cartridge(File.basename(cart_dir))
+        yield cartridge
+      end
+    end
+
+    ##
+    # Returns the +Cartridge+ in the gear whose +primary+ flag is set to true,
+    #
+    # Raises an exception if no such cartridge is present.
+    def primary_cartridge
+      cart = nil
+      each_cartridge do |cartridge|
+        cart = cartridge
+        break if cartridge.primary?
+      end
+
+      if cart.nil?
+        raise "No primary cartridge found on gear #{@user.uuid}"
+      end
+
+      cart
+    end
+
+    def stop_gear(options={})
+      options[:user_initiated] = true if not options.has_key?(:user_initiated)
+
+      stop_cartridge(primary_cartridge.name, options)
+    end
+
+    def start_gear(options={})
+      options[:user_initiated] = true if not options.has_key?(:user_initiated)
+
+      start_cartridge('start', primary_cartridge.name, options)
+    end
+
+    def start_cartridge(type, cartridge, options={})
+      options[:user_initiated] = true if not options.has_key?(:user_initiated)
+
+      if not options[:user_initiated] and stop_lock?(cartridge)
+        return "Not starting cartridge #{cartridge} because the application was explicitly stopped by the user"
+      end
+
+      do_control(type, cartridge)
+    end
+
+    def stop_cartridge(cartridge, options={})
+      options[:user_initiated] = true if not options.has_key?(:user_initiated)
+
+      if not options[:user_initiated] and stop_lock?(cartridge)
+        return "Not stopping cartridge #{cartridge} because the application was explicitly stopped by the user"
+      end
+
+      buffer = do_control('stop', cartridge)
+
+      if not options[:user_initiated] and stop_lock?(cartridge)
+        File.unlink(stop_lock(cartridge))
+      end
+
+      buffer
     end
 
     def destroy(skip_hooks = false)
@@ -80,7 +178,7 @@ module OpenShift
       cart_tidy_timeout = 30
       Dir.entries(@user.homedir).each do |gear_subdir|
         tidy_script = File.join(@config.get("CARTRIDGE_BASE_PATH"), gear_subdir, "info", "hooks", "tidy")
-          
+
         next unless File.exists?(tidy_script)
 
         begin
@@ -97,12 +195,21 @@ module OpenShift
       do_control('update-namespace', cart_name, "#{@user.container_name} #{new_namespace} #{old_namespace} #{@user.container_uuid}")
     end
 
-    def configure(cart_name, template_git_url)
+    def configure(cart_name, template_git_url, manifest)
+      raise "Personal cartridges are not supported" if manifest
+
       do_control('configure', cart_name, "#{@user.container_name} #{@user.namespace} #{@user.container_uuid} #{template_git_url}")
+    end
+    
+    def resolve_application_dependencies(cart_name)    
+      do_control('resolve-application-dependencies', 'abstract', "#{@user.container_name} #{@user.namespace} #{@user.container_uuid}")
     end
 
     def deconfigure(cart_name)
       do_control('deconfigure', cart_name)
+    end
+
+    def unsubscribe(cart_name, pub_cart_name)
     end
 
     def deploy_httpd_proxy(cart_name)
@@ -121,22 +228,8 @@ module OpenShift
       do_control('restart-httpd-proxy', cart_name)
     end
 
-    def move(cart_name, idle)
-      args = idle ? "#{@user.container_name} #{@user.namespace} #{@user.container_uuid} --idle"
-        : "#{@user.container_name} #{@user.namespace} #{@user.container_uuid}"
-
-      do_control('move', cart_name, args)
-    end
-
-    def pre_move(cart_name)
-      do_control('pre-move', cart_name)
-    end
-
-    def post_move(cart_name)
-      do_control('post-move', cart_name)
-    end
-
-    def connector_execute(cart_name, connector, args)
+    def connector_execute(cart_name, pub_cart_name, connection_type, connector, args)
+      # pub_cart_name and connection_type unused in v1.
       do_control(connector, cart_name, args, "connection-hooks")
     end
 
@@ -182,19 +275,20 @@ module OpenShift
 
     def complete_process_gracefully(pid, stdin, stdout)
       stdin.close
-      ignored, status = Process::waitpid2 pid
-      exitcode = status.exitstatus
-      # Do this to avoid cartridges that might hold open stdout
       output = ""
       begin
-        Timeout::timeout(5) do
+        Timeout::timeout(120) do
           while (line = stdout.gets)
             output << line
           end
         end
       rescue Timeout::Error
-        logger.info("WARNING: stdout read timed out")
+        logger.info("WARNING: stdout read timed out, killing #{pid} and its child processes")
+        OpenShift::Utils::ShellExec.kill_process_tree(pid)
       end
+
+      ignored, status = Process::waitpid2 pid
+      exitcode = status.exitstatus
 
       if exitcode == 0
         logger.info("(#{exitcode})\n------\n#{cleanpwd(output)}\n------)")
@@ -208,5 +302,28 @@ module OpenShift
       arg.gsub(/(passwo?r?d\s*[:=]+\s*)\S+/i, '\\1[HIDDEN]').gsub(/(usern?a?m?e?\s*[:=]+\s*)\S+/i,'\\1[HIDDEN]')
     end
 
+    def snapshot
+      raise NotImplementedError.new('V1 snapshot is not implemented via ApplicationContainer')
+    end
+
+    def lock_files(cartridge)
+      raise NotImplementedError.new('V1 lock_files is not implemented via ApplicationContainer')
+    end
+
+    def snapshot_exclusions(cartridge)
+      raise NotImplementedError.new('V1 snapshot_exclusions is not implemented via ApplicationContainer')
+    end
+
+    def setup_rewritten(cartridge)
+      raise NotImplementedError.new('V1 setup_rewritten is not implemented via ApplicationContainer')
+    end
+
+    def restore_transforms(cartridge)
+      raise NotImplementedError.new('V1 restore_transforms is not implemented via ApplicationContainer')
+    end
+
+    def process_templates(cartridge)
+      raise NotImplementedError.new('V1 process_templates is not implemented via ApplicationContainer')
+    end
   end
 end

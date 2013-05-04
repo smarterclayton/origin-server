@@ -23,7 +23,7 @@ end
 class ConsoleAuthRemoteUserControllerTest < ActionController::TestCase
   uses_http_mock :sometimes
 
-  setup{ Console::Engine.routes.draw{ match ':action' => ConsoleAuthRemoteUserController } }
+  setup{ Rails.application.routes.draw{ match ':action' => 'console/console_auth_remote_user' } }
   teardown{ Rails.application.reload_routes! }
 
   setup{ Console.config.expects(:remote_user_header).at_least_once.returns('HTTP_X_REMOTE_USER') }

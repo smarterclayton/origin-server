@@ -4,34 +4,15 @@
 = flashes
 
 :css
-  #new_application.form-horizontal .control-group { margin-bottom: 14px; }
-  #new_application.form-horizontal .controls { margin-left: 140px; }
-  #new_application.form-horizontal input.expand { width: auto; max-width: -moz-available; }
-  #new_application.form-horizontal input.narrow { width: 140px; }
-  #new_application.form-horizontal .controls > h3 { margin-top: 5px; margin-bottom: 0; color: #FAFBFC; }
-  #new_application.form-horizontal .controls > h3 > small { margin-left: 10px; vertical-align: middle; display: inline-block; }
-  #new_application.form-horizontal .controls > h3 > select { margin-top: -5px; }
-  #new_application.form-horizontal .control-label { margin-left: 15px; width: 120px; text-align: left; color: #949494; }
-  #new_application.form-horizontal .error > .control-label { color: #CD1E25; }
-  #new_application.form-horizontal .help-block { color: #949494; max-width: 500px; -moz-transition: 0.2s; overflow: hidden; text-overflow: ellipsis; }
-  #new_application.form-horizontal .alert { max-width: 500px; }
-  #new_application.form-horizontal .form-actions { padding-left: 140px; }
   #new_application.collapse-help .help-block { white-space: nowrap; opacity: 0.5; margin-top: 0; }
   #new_application.collapse-help .help-block:hover { opacity: 1; cursor: pointer; }
-  @media (max-width: 767px) {
-    #new_application.form-horizontal .control-label { margin-left: 0; }
-    #new_application.form-horizontal .controls { margin-left: 0; }
-    #new_application.form-horizontal .help-block { max-width: inherit; white-space: normal; }
-    #new_application.form-horizontal .alert { max-width: inherit; }
-    #new_application.form-horizontal .controls > h3 { display: inline-block; margin-top: 0; }
-    #new_application.form-horizontal .form-actions { padding-left: 10px; }
-  }
 
 - advanced_path = application_type_path(@application_type.id, @application_type.to_params.merge(:advanced => true))
 - focus = params[:focus]
 
-= semantic_form_for @application, :url => applications_path, :html => {:class => "form-horizontal #{@compact ? 'collapse-help' : ''}"} do |f|
+= semantic_form_for @application, :url => applications_path, :html => {:class => "form-horizontal form-important #{@compact ? 'collapse-help' : ''}"} do |f|
   = hidden_field_tag :advanced, @advanced
+  = hidden_field_tag :unlock, @unlock_cartridges
   - if @application_type.persisted?
     = f.hidden_field :application_type, :value => @application_type.id
   - else
@@ -52,23 +33,43 @@
       .controls.first
         %h3
           #{@application_type.display_name} #{@application_type.source.to_s.humanize}
+
           - if @application_type.usage_rates?
-            %span.label.label-premium{:title => 'Premium'}> $
+            = usage_rate_indicator
+
+          - if @application_type.cartridge?
+            %span.font-icon.font-icon-size-16.font-icon-grey{"aria-hidden" => "true", "data-icon" => "\ue021", "title" => "Cartridge"}
+          - elsif @application_type.quickstart?
+            %span.font-icon.font-icon-size-16.font-icon-grey{"aria-hidden" => "true", "data-icon" => "\ue029", "title" => "QuickStart"}
 
       .controls
         - if @application_type.persisted?
           = show_description(@application_type.description, :class => 'help-block')
 
-          - if @application_type.website
-            %p.help-block= link_to @application_type.website, @application_type.website
           - if @application_type.learn_more_url
             %p.help-block= link_to "Learn more", @application_type.learn_more_url
+          - elsif @application_type.website
+            %p.help-block= link_to @application_type.website, @application_type.website
+
+          %p.help-block
+            - case @application_type.support_type
+            - when :openshift
+              %span.label-support.label-support-openshift{:title => 'Updated and maintained by the OpenShift team'} OpenShift maintained
+            - when :partner
+              %span.label-support.label-support-openshift{:title => 'Updated and maintained by a partner'} Partner created
+            - else
+              %span.label-support.label-support-community.text-warning{:title => 'Created by a community member and not maintained by OpenShift'} Community created
+
+            - unless @application_type.automatic_updates?
+              %span.text-warning{:title => 'When you create a QuickStart or a community cartridge, you are copying code from another repository. You are responsible for applying security fixes and updates.'}
+                =" / Does not receive automatic security updates"
+
 
           %p.help-block.label-tags= application_type_tags(@application_type.tags)
 
         - else
           %p.help-block 
-            This application is based on a link.
+            This application is based on a URL.
             -# If you want others to see this application, #{link_to "create a quickstart in our community", create_quickstart_url}.
           %p.help-block= link_to "Share this link", application_type_url(@application_type.id, @application_type.to_params)
 
@@ -144,14 +145,20 @@
     = control_group(e.has_key?(:cartridges), :important => true) do
       %h3.control-label Cartridges
       .controls.first
-        - if @cartridges.present?
+        - if @unlock_cartridges
+          = text_field_tag 'application_type[cartridges]', @application_type.cartridge_specs, :class => 'expand', :placeholder => 'URL to a downloadable cartridge'
+        - elsif @cartridges.present?
           %h3
             = map_to_sentence(@cartridges) do |(name, carts)|
               - if carts.length > 1
                 = select_tag 'application[cartridges][]', options_for_select(carts.sort.map{ |c| [c.display_name, c.name] }, [carts.map(&:name) & @application.cartridge_names].first ), :title => "Choose a cartridge that matches '#{name}'"
               - elsif carts.length == 1
-                = hidden_field_tag 'application[cartridges][]', [carts.first.name]
-                = carts.first.display_name
+                - if carts.first.url
+                  = hidden_field_tag('application[cartridges][][url]', [carts.first.url])
+                  = link_to carts.first.display_name, carts.first.url
+                - else
+                  = hidden_field_tag('application[cartridges][]', [carts.first.name])
+                  = carts.first.display_name
               - else
                 %span.text-warning #{name}
         - else
@@ -163,6 +170,9 @@
         %p.help-block
           Applications are composed of cartridges - each of which exposes a service or 
           capability to your code.  All applications must have a web cartridge.
+
+        - if @unlock_cartridges or (@cartridges and @cartridges.any?{ |(name, carts)| carts.any?{ |c| c.url } })
+          %span.text-warning Personal cartridges do not receive updates automatically.
 
     .control-group.control-group-important
       %h3.control-label Scaling

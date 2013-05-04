@@ -11,7 +11,7 @@ module AppHelper
     DEFPASSWD = "xyz123"
 
     # attributes to represent the general information of the application
-    attr_accessor :name, :namespace, :login, :password, :type, :hostname, :repo, :file, :embed, :snapshot, :uid, :git_url, :owner
+    attr_accessor :name, :namespace, :login, :password, :type, :hostname, :repo, :file, :embed, :snapshot, :uid, :git_url, :owner, :scalable
 
     # attributes to represent the state of the rhc_create_* commands
     attr_accessor :create_domain_code, :create_app_code
@@ -26,21 +26,22 @@ module AppHelper
     attr_accessor :jenkins_url, :jenkins_job_url, :jenkins_user, :jenkins_password, :jenkins_build
 
     # Create the data structure for a test application
-    def initialize(namespace, login, type, name, password, owner)
+    def initialize(namespace, login, type, name, password, owner, scalable = false)
       @name, @namespace, @login, @type, @password, @owner = name, namespace, login, type, password, owner
       @hostname = "#{name}-#{namespace}.#{$domain}"
       @repo = "#{$temp}/#{namespace}_#{name}_repo"
       @file = "#{$temp}/#{namespace}.json"
       @embed = []
+      @scalable = scalable
     end
 
-    def self.create_unique(type, name="test")
+    def self.create_unique(type, name="test", scalable=false)
       loop do
         # Generate a random username
         chars = ("1".."9").to_a
         namespace = "ci" + Array.new(8, '').collect{chars[rand(chars.size)]}.join
         login = "cucumber-test_#{namespace}@example.com"
-        app = TestApp.new(namespace, login, type, name, DEFPASSWD, Process.pid)
+        app = TestApp.new(namespace, login, type, name, DEFPASSWD, Process.pid, scalable)
         unless app.reserved?
           app.persist
           return app
@@ -67,19 +68,25 @@ module AppHelper
     end
 
     def update_jenkins_info
-      @jenkins_user = `source /var/lib/openshift/#{@uid}/.env/JENKINS_USERNAME;echo $JENKINS_USERNAME`.chomp!
-      @jenkins_password = `source /var/lib/openshift/#{@uid}/.env/JENKINS_PASSWORD;echo $JENKINS_PASSWORD`.chomp!
-      @jenkins_url = `source /var/lib/openshift/#{@uid}/.env/JENKINS_URL;echo $JENKINS_URL`.chomp!
+      if File.exists?("/var/lib/openshift/#{@uid}/.env/CARTRIDGE_VERSION_2")
+        @jenkins_user     = IO.read("/var/lib/openshift/#{@uid}/.env/JENKINS_USERNAME").chomp
+        @jenkins_password = IO.read("/var/lib/openshift/#{@uid}/.env/JENKINS_PASSWORD").chomp
+        @jenkins_url      = IO.read("/var/lib/openshift/#{@uid}/.env/JENKINS_URL").chomp
+      else
+        @jenkins_user     = `source /var/lib/openshift/#{@uid}/.env/JENKINS_USERNAME;echo $JENKINS_USERNAME`.chomp!
+        @jenkins_password = `source /var/lib/openshift/#{@uid}/.env/JENKINS_PASSWORD;echo $JENKINS_PASSWORD`.chomp!
+        @jenkins_url      = `source /var/lib/openshift/#{@uid}/.env/JENKINS_URL;echo $JENKINS_URL`.chomp!
+      end
 
       @jenkins_job_url = "#{@jenkins_url}job/#{@name}-build/"
-      @jenkins_build = "curl -ksS -X GET #{@jenkins_job_url}api/json --user '#{@jenkins_user}:#{@jenkins_password}'"
+      @jenkins_build   = "curl -ksS -X GET #{@jenkins_job_url}api/json --user '#{@jenkins_user}:#{@jenkins_password}'"
 
       $logger.debug %Q{
-jenkins_url = #{@jenkins_url}
-jenkins_user = #{@jenkins_user}
+jenkins_url      = #{@jenkins_url}
+jenkins_user     = #{@jenkins_user}
 jenkins_password = #{@jenkins_password}
-jenkins_build = #{@jenkins_build}
-}
+jenkins_build    = #{@jenkins_build}
+                    }
     end
 
     def update_uid(std_output)
@@ -243,6 +250,42 @@ jenkins_build = #{@jenkins_build}
       end
 
       return nil
+    end
+
+    def ssh_command(command)
+      cmd = "ssh 2>/dev/null -o BatchMode=yes -o StrictHostKeyChecking=no -tt #{uid}@#{name}-#{namespace}.#{$domain} " + command
+
+      $logger.debug "Running #{cmd}"
+
+      output = `#{cmd}`
+      $logger.debug "Output: #{output}"
+
+      output.strip
+    end
+
+    def scp_file(src, dest='/tmp/')
+      if dest.end_with?("/")
+        dest = File.join(dest,File.basename(src))
+      end
+      cmd = "scp 2>/dev/null -o StrictHostKeyChecking=no #{src} #{uid}@#{name}-#{namespace}.#{$domain}:#{dest}"
+
+      $logger.debug "Running #{cmd}"
+
+      output = `#{cmd}`
+      $logger.debug "Output: #{output}"
+
+      dest
+    end
+
+    def scp_content(content, dest = "/tmp/")
+      tmpfile = Tempfile.new('')
+      File.open(tmpfile,'w') do |f|
+        f.write(content)
+      end
+      tmpfile.close
+      scp_file(tmpfile.path, dest)
+    ensure
+      tmpfile.unlink
     end
   end
 end

@@ -89,7 +89,18 @@ then
             mvn --version
             mvn $MAVEN_ARGS
         fi
+        
         popd > /dev/null
+        
+        CART_NAME=jbosseap-6.0
+        if [ ! -h ${OPENSHIFT_REPO_DIR}/deployments ] && [ ! -h ${OPENSHIFT_HOMEDIR}/${CART_NAME}/${CART_NAME}/standalone/deployments ]
+		then
+		    if [ "$(ls ${OPENSHIFT_REPO_DIR}/deployments)" ]; then
+  				rsync -r --delete-after --exclude=".*" --exclude='*.deployed' --exclude='*.deploying' --exclude='*.isundeploying' ${OPENSHIFT_REPO_DIR}/deployments/ ${OPENSHIFT_HOMEDIR}/${CART_NAME}/${CART_NAME}/standalone/deployments/
+  			else
+    			rm -rf ${OPENSHIFT_HOMEDIR}/${CART_NAME}/${CART_NAME}/standalone/deployments/*
+    		fi
+		fi
     fi
 else
     export OPENSHIFT_MAVEN_MIRROR

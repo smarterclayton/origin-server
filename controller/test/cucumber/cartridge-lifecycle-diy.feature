@@ -1,10 +1,9 @@
+#@runtime_extended_other3
 @runtime_extended
 @runtime_extended3
-@runtime_extended_other3
 Feature: Cartridge Lifecycle DIY Verification Tests
   Scenario: Application Creation
     Given the libra client tools
-    And an accepted node
     When 1 diy-0.1 applications are created
     Then the applications should be accessible
 

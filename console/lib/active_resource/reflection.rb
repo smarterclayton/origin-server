@@ -74,9 +74,9 @@ module ActiveResource
 
         def derive_class_name
           if options[:class_name]
-            options[:class_name].to_s.classify
+            options[:class_name].to_s
           else
-            "#{parent ? "#{parent.name}::" : nil}#{name.to_s.classify}"
+            "#{parent}::#{name.to_s.classify}"
           end
         end
     end

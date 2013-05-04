@@ -6,11 +6,17 @@ class ConsoleController < Console.config.parent_controller.constantize
   include SshkeyAware
   include CommunityAware
 
+
   layout 'console'
 
   before_filter :authenticate_user!
 
   protected
+    def active_tab
+      nil
+    end
+    helper_method :active_tab
+
     def to_boolean(param)
       ['1','on','true'].include?(param.to_s.downcase) if param
     end

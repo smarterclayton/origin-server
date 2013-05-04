@@ -68,7 +68,7 @@ module OpenShift
   # UUID for the application is automatically generated upon init.
   class TestApplication
     attr_reader :name, :uuid, :account, :gears
-    attr_accessor :hot_deploy_enabled
+    attr_accessor :hot_deploy_enabled, :git_repo
 
     def initialize(account)
       @name = gen_unique_app_name
@@ -112,6 +112,30 @@ module OpenShift
       @gears.each do |gear|
         gear.destroy
       end
+    end
+
+    def start
+      default_gear.container.start_gear
+    end
+
+    def stop
+      default_gear.container.stop_gear
+    end
+
+    def tidy
+      default_gear.container.tidy
+    end
+
+    def restart
+      default_gear.container.restart(default_gear.default_cart.name)
+    end
+
+    def status
+      default_gear.container.status(default_gear.default_cart.name)
+    end
+
+    def reload
+      default_gear.container.reload(default_gear.default_cart.name)
     end
 
     # Collects and returns the PIDs for every cartridge associated
@@ -173,7 +197,12 @@ module OpenShift
       end
 
       # Create the container object for use in the event listener later
-      @container = OpenShift::ApplicationContainer.new(@app.uuid, @uuid, nil, @app.name, @app.name, @app.account.domain, nil, nil, $logger)
+      begin
+        @container = OpenShift::ApplicationContainer.new(@app.uuid, @uuid, nil, @app.name, @app.name, @app.account.domain, nil, nil, $logger)
+      rescue Exception => e
+        $logger.error("#{e.message}\n#{e.backtrace}")
+        raise
+      end
       
       unless cli
         @container.create
@@ -252,8 +281,9 @@ module OpenShift
       if cli
         output = `oo-cartridge -a add -c #{@gear.uuid} -n #{@name} -v`
       else
-        with_ex_handling do
-          output = @gear.container.configure(@name)
+        with_container do |container|
+          output = container.configure(@name)
+          output << container.post_configure(@name)
         end
       end
 
@@ -267,48 +297,51 @@ module OpenShift
     end
 
     def deconfigure
-      with_ex_handling do
-        @gear.container.deconfigure(@name)
+      with_container do |container|
+        container.deconfigure(@name)
       end
     end
 
     def start
-      with_ex_handling do
-        @gear.container.start(@name)
+      with_container do |container|
+        container.start(@name)
       end
     end
 
     def stop
-      with_ex_handling do
-        @gear.container.stop(@name)
+      with_container do |container|
+        container.stop(@name)
       end
     end
 
     def status()
-      with_ex_handling do
-        @gear.container.status(@name)
+      with_container do |container|
+        container.status(@name)
       end
     end
 
     def restart()
-      with_ex_handling do
-        @gear.container.restart(@name)
+      with_container do |container|
+        container.restart(@name)
       end
     end
 
     def tidy()
-      with_ex_handling do 
-        @gear.container.tidy
+      with_container do |container|
+        container.tidy
       end
     end
 
-    def with_ex_handling
+    def with_container
       begin
-        yield
+        yield @gear.container
       rescue Utils::ShellExecutionException => e
-        $logger.error("Caught ShellExecutionException (#{e.rc}): #{e.message}; output: #{e.stdout} #{e.stderr}")
+        $logger.error "Caught ShellExecutionException (#{e.rc}): #{e.message}; output: #{e.stdout} #{e.stderr}"
+        $logger.error e.backtrace.join("\n")
         raise
-      rescue Exception => e
+      rescue => e
+        $logger.error "Caught an Exception, #{e.message}"
+        $logger.error e.backtrace.join("\n")
         raise
       end
     end

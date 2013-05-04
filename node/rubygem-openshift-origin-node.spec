@@ -16,11 +16,11 @@
 
 Summary:       Cloud Development Node
 Name:          rubygem-%{gem_name}
-Version:       1.6.3
+Version: 1.8.6
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
-URL:           http://openshift.redhat.com
+URL:           http://www.openshift.com
 Source0:       http://mirror.openshift.com/pub/openshift-origin/source/%{name}/rubygem-%{gem_name}-%{version}.tar.gz
 %if 0%{?fedora} >= 19
 Requires:      ruby(release)
@@ -28,11 +28,15 @@ Requires:      ruby(release)
 Requires:      %{?scl:%scl_prefix}ruby(abi) >= %{rubyabi}
 %endif
 Requires:      %{?scl:%scl_prefix}rubygems
+Requires:      %{?scl:%scl_prefix}rubygem(commander)
 Requires:      %{?scl:%scl_prefix}rubygem(json)
 Requires:      %{?scl:%scl_prefix}rubygem(parseconfig)
 Requires:      %{?scl:%scl_prefix}rubygem(mocha)
 Requires:      %{?scl:%scl_prefix}rubygem(rspec)
 Requires:      rubygem(openshift-origin-common)
+# non-scl open4 required for oo-cgroup-read bug 924556 until selinux fix for bug 912215 is available
+Requires:      rubygem(open4)
+Requires:      %{?scl:%scl_prefix}ruby(selinux)
 Requires:      python
 Requires:      libselinux-python
 Requires:      mercurial
@@ -45,6 +49,9 @@ Requires:      libcgroup-tools
 Requires:      libcgroup-pam
 Requires:      pam_openshift
 Requires:      quota
+Requires:      cronie
+Requires:      crontabs
+Requires:      openshift-origin-node-proxy
 %if 0%{?fedora} >= 18
 Requires:      httpd-tools
 BuildRequires: httpd-tools
@@ -108,7 +115,7 @@ do
     %{httxt2dbm} -f DB -i "${mapf}.txt" -o "${mapf}.db"
 done
 
-for map in routes
+for map in routes geardb
 do
     mapf="%{buildroot}%{appdir}/.httpd.d/${map}"
     echo '{}' > "${mapf}.json"
@@ -117,12 +124,19 @@ done
 
 # Move the gem configs to the standard filesystem location
 mkdir -p %{buildroot}/etc/openshift
+rm -rf %{buildroot}%{gem_instdir}/conf/plugins.d/README
 mv %{buildroot}%{gem_instdir}/conf/* %{buildroot}/etc/openshift
 
 #move pam limit binaries to proper location
 mkdir -p %{buildroot}/usr/libexec/openshift/lib
-mv %{buildroot}%{gem_instdir}/misc/lib/teardown_pam_fs_limits.sh %{buildroot}/usr/libexec/openshift/lib
-mv %{buildroot}%{gem_instdir}/misc/lib/setup_pam_fs_limits.sh %{buildroot}/usr/libexec/openshift/lib
+mv %{buildroot}%{gem_instdir}/misc/libexec/lib/teardown_pam_fs_limits.sh %{buildroot}/usr/libexec/openshift/lib
+mv %{buildroot}%{gem_instdir}/misc/libexec/lib/setup_pam_fs_limits.sh %{buildroot}/usr/libexec/openshift/lib
+
+# Install the cartridge SDK files and environment variables for each
+mkdir -p %{buildroot}/usr/lib/openshift/cartridge_sdk
+mv %{buildroot}%{gem_instdir}/misc/usr/lib/cartridge_sdk/* %{buildroot}/usr/lib/openshift/cartridge_sdk
+echo '/usr/lib/openshift/cartridge_sdk/bash/sdk' > %{buildroot}/etc/openshift/env/OPENSHIFT_CARTRIDGE_SDK_BASH
+echo '/usr/lib/openshift/cartridge_sdk/ruby/sdk.rb' > %{buildroot}/etc/openshift/env/OPENSHIFT_CARTRIDGE_SDK_RUBY
 
 #move the shell binaries into proper location
 mv %{buildroot}%{gem_instdir}/misc/bin/* %{buildroot}/usr/bin/
@@ -135,9 +149,9 @@ mv %{buildroot}%{gem_instdir}/misc/etc/openshift-run.conf %{buildroot}/etc/tmpfi
 %endif
 mkdir -p %{buildroot}%{apprundir}
 
-# place an example file
-mkdir -p %{buildroot}%{_docdir}/%{name}-%{version}/
-mv %{buildroot}%{gem_instdir}/misc/doc/cgconfig.conf %{buildroot}%{_docdir}/%{name}-%{version}/cgconfig.conf
+# place an example file.  It _must_ be placed in the gem_docdir because of how
+# the %doc directive works and how we're using it in the files section.
+mv %{buildroot}%{gem_instdir}/misc/doc/cgconfig.conf %{buildroot}%{gem_docdir}/cgconfig.conf
 
 %if 0%{?fedora} >= 18
   #patch for apache 2.4
@@ -163,7 +177,26 @@ rm -rf %{buildroot}%{gem_instdir}/misc
 rm -rf %{buildroot}%{gem_instdir}/.yardoc
 chmod 755 %{buildroot}%{gem_instdir}/test/unit/*.rb
 
+# Cron configuration that enables running each gear's cron jobs
+mkdir -p %{buildroot}/etc/cron.d
+mkdir -p %{buildroot}/etc/cron.minutely
+mkdir -p %{buildroot}/etc/cron.hourly
+mkdir -p %{buildroot}/etc/cron.daily
+mkdir -p %{buildroot}/etc/cron.weekly
+mkdir -p %{buildroot}/etc/cron.monthly
+mkdir -p %{buildroot}/usr/lib/openshift/node/jobs
+
+mv %{buildroot}%{gem_instdir}/jobs/* %{buildroot}/usr/lib/openshift/node/jobs/
+ln -s /usr/lib/openshift/node/jobs/1minutely %{buildroot}/etc/cron.d/
+ln -s /usr/lib/openshift/node/jobs/openshift-origin-cron-minutely %{buildroot}/etc/cron.minutely/
+ln -s /usr/lib/openshift/node/jobs/openshift-origin-cron-hourly %{buildroot}/etc/cron.hourly/
+ln -s /usr/lib/openshift/node/jobs/openshift-origin-cron-daily %{buildroot}/etc/cron.daily/
+ln -s /usr/lib/openshift/node/jobs/openshift-origin-cron-weekly %{buildroot}/etc/cron.weekly/
+ln -s /usr/lib/openshift/node/jobs/openshift-origin-cron-monthly %{buildroot}/etc/cron.monthly/
+
 %post
+/bin/rm -f /etc/openshift/env/*.rpmnew
+
 echo "/usr/bin/oo-trap-user" >> /etc/shells
 
 # Enable cgroups on ssh logins
@@ -177,11 +210,12 @@ else
    logger -t rpm-post "cannot add pam_cgroup.so to /etc/pamd./sshd: file not found"
 fi
 
-# copying this file in the post hook so that this file can be replaced by rhc-node
-# copy this file only if it doesn't already exist
-if ! [ -f /etc/openshift/resource_limits.conf ]; then
-  cp -f /etc/openshift/resource_limits.template /etc/openshift/resource_limits.conf
-fi
+# Start the cron service so that each gear gets its cron job run, if they're enabled
+%if 0%{?fedora} >= 16 || 0%{?rhel} >= 7
+  systemctl restart  crond.service || :
+%else
+  service crond restart || :
+%endif
 
 %preun
 # Check to make sure we uninstalling instead of updating
@@ -200,9 +234,15 @@ fi
 %attr(0755,-,-) /usr/bin/*
 /usr/libexec/openshift/lib/setup_pam_fs_limits.sh
 /usr/libexec/openshift/lib/teardown_pam_fs_limits.sh
+%attr(0755,-,-) /usr/lib/openshift/cartridge_sdk
+%attr(0755,-,-) /usr/lib/openshift/cartridge_sdk/bash
+%attr(0744,-,-) /usr/lib/openshift/cartridge_sdk/bash/*
+%attr(0755,-,-) /usr/lib/openshift/cartridge_sdk/ruby
+%attr(0744,-,-) /usr/lib/openshift/cartridge_sdk/ruby/*
 %dir /etc/openshift
 %config(noreplace) /etc/openshift/node.conf
-%config /etc/openshift/resource_limits.template
+%config(noreplace) /etc/openshift/env/*
+%config(noreplace) /etc/openshift/resource_limits.conf
 %attr(0750,-,-) /etc/httpd/conf.d/openshift
 %config(noreplace) /etc/httpd/conf.d/000001_openshift_origin_node.conf
 %config(noreplace) /etc/httpd/conf.d/000001_openshift_origin_node_servername.conf
@@ -210,6 +250,7 @@ fi
 %dir %attr(0755,-,-) %{appdir}
 %dir %attr(0750,root,apache) %{appdir}/.httpd.d
 %attr(0640,root,apache) %config(noreplace) %{appdir}/.httpd.d/routes.json
+%attr(0640,root,apache) %config(noreplace) %{appdir}/.httpd.d/geardb.json
 %attr(0640,root,apache) %config(noreplace) %{appdir}/.httpd.d/nodes.txt
 %attr(0640,root,apache) %config(noreplace) %{appdir}/.httpd.d/aliases.txt
 %attr(0640,root,apache) %config(noreplace) %{appdir}/.httpd.d/idler.txt
@@ -230,8 +271,689 @@ fi
 %endif
 # upstart files
 %attr(0755,-,-) %{_var}/run/openshift
+%dir %attr(0755,-,-) /usr/lib/openshift/node/jobs
+%config(noreplace) %attr(0644,-,-) /usr/lib/openshift/node/jobs/1minutely
+%attr(0755,-,-) /usr/lib/openshift/node/jobs/openshift-origin-cron-minutely
+%attr(0755,-,-) /usr/lib/openshift/node/jobs/openshift-origin-cron-hourly
+%attr(0755,-,-) /usr/lib/openshift/node/jobs/openshift-origin-cron-daily
+%attr(0755,-,-) /usr/lib/openshift/node/jobs/openshift-origin-cron-weekly
+%attr(0755,-,-) /usr/lib/openshift/node/jobs/openshift-origin-cron-monthly
+%dir /etc/cron.minutely
+%config(noreplace) %attr(0644,-,-) /etc/cron.d/1minutely
+%attr(0755,-,-) /etc/cron.minutely/openshift-origin-cron-minutely
+%attr(0755,-,-) /etc/cron.hourly/openshift-origin-cron-hourly
+%attr(0755,-,-) /etc/cron.daily/openshift-origin-cron-daily
+%attr(0755,-,-) /etc/cron.weekly/openshift-origin-cron-weekly
+%attr(0755,-,-) /etc/cron.monthly/openshift-origin-cron-monthly
 
 %changelog
+* Fri May 03 2013 Adam Miller <admiller@redhat.com> 1.8.6-1
+- Ensure cart doesn't try to do_lock on deconfigure (fotios@redhat.com)
+- Ensure that lock_files entries have the proper trailing slash and updated
+  test for it (fotios@redhat.com)
+- Uncommenting out tests (fotios@redhat.com)
+- Ensure paths with slashes are tested (fotios@redhat.com)
+- Ensure root contains a slash (fotios@redhat.com)
+- Fix testS (fotios@redhat.com)
+- Add root for all calls of managed_files functions (fotios@redhat.com)
+- Use managed_files version of restore_transforms (fotios@redhat.com)
+- Fix paths being returned with leading slash (fotios@redhat.com)
+- fix tests (dmcphers@redhat.com)
+- Fixed missing managed_files.yml (fotios@redhat.com)
+- Commented out failing tests (fotios@redhat.com)
+- Special file processing (fotios@redhat.com)
+- Bugs 958709, 958744, 958757 (dmcphers@redhat.com)
+- Using post-configure to deploy quickstarts for v1 (dmcphers@redhat.com)
+- Merge pull request #2333 from ironcladlou/bz/949232
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2322 from rmillner/ctl_gears
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 949232: Make rhc-list-port compatible with both v1/v2 cartridges
+  (ironcladlou@gmail.com)
+- Bug 957453 - The v2 builder needs to do a complete unidle.
+  (rmillner@redhat.com)
+- Validate cartridge and vendor names under certain conditions
+  (asari.ruby@gmail.com)
+
+* Thu May 02 2013 Adam Miller <admiller@redhat.com> 1.8.5-1
+- Merge pull request #2232 from smarterclayton/support_external_cartridges
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2318 from mrunalp/dev/web_proxy_remote_deploy
+  (dmcphers+openshiftbot@redhat.com)
+- Merge remote-tracking branch 'origin/master' into support_external_cartridges
+  (ccoleman@redhat.com)
+- Rename "external cartridge" to "downloaded cartridge".  UI should call them
+  "personal" cartridges (ccoleman@redhat.com)
+- Add init option to remote deploy. (mrunalp@gmail.com)
+
+* Wed May 01 2013 Adam Miller <admiller@redhat.com> 1.8.4-1
+- fixed node test to include new cartridge attributes Versions and Cartridge-
+  Vendor (lnader@redhat.com)
+- Merge pull request #2293 from ironcladlou/dev/v2carts/cartridge-common
+  (dmcphers+openshiftbot@redhat.com)
+- Move Runtime::Cartridge to openshift-origin-common (ironcladlou@gmail.com)
+- Card online_runtime_266 - Support for LD_LIBRARY_PATH (jhonce@redhat.com)
+
+* Tue Apr 30 2013 Adam Miller <admiller@redhat.com> 1.8.3-1
+- Merge pull request #2283 from rmillner/BZ957883
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2280 from mrunalp/dev/auto_env_vars
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 957883 - git clone was getting stuck asking for a password in remote
+  repository and no amount of redirecting or closing stdin prevented a
+  deadlock. (rmillner@redhat.com)
+- Merge pull request #2276 from ironcladlou/bz/956967
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2277 from danmcp/master
+  (dmcphers+openshiftbot@redhat.com)
+- Env var WIP. (mrunalp@gmail.com)
+- Merge pull request #2275 from jwhonce/wip/cartridge_path
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2274 from rmillner/v2_misc_fixes
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 956964: Collect teardown output on cart deconfigure
+  (ironcladlou@gmail.com)
+- minor fixes (dmcphers@redhat.com)
+- Merge pull request #2201 from BanzaiMan/dev/hasari/c276
+  (dmcphers+openshiftbot@redhat.com)
+- Fix v2 model unit tests. (rmillner@redhat.com)
+- origin_runtime_127: Add X-Request-Start header. (rmillner@redhat.com)
+- Bug 957257 - use an internal function to get the MCS label.
+  (rmillner@redhat.com)
+- The teardown hook needs gear unlock. (rmillner@redhat.com)
+- Make this call less chatty. (rmillner@redhat.com)
+- Card online_runtime_266 - Renamed OPENSHIFT_<short name>_PATH to
+  OPENSHIFT_<short name>_PATH_ELEMENT (jhonce@redhat.com)
+- Card 276 (asari.ruby@gmail.com)
+
+* Mon Apr 29 2013 Adam Miller <admiller@redhat.com> 1.8.2-1
+- Merge pull request #2267 from jwhonce/bug/957095
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 957095 - V2 support in rhcsh broke USER_VARS (jhonce@redhat.com)
+- Card online_runtime_239 - Remove env required directory (jhonce@redhat.com)
+- Merge pull request #2255 from brenton/oo-accept-systems
+  (dmcphers+openshiftbot@redhat.com)
+- Card online_runtime_239 - Download cartridge from URL (jhonce@redhat.com)
+- Card online_runtime_287 - Bug fix (jhonce@redhat.com)
+- Merge pull request #2251 from pmorie/dev/v1_stop_lock
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 957045 - fixing oo-accept-systems for v2 cartridges (bleanhar@redhat.com)
+- Fix issues w/ V1 stop lock (pmorie@gmail.com)
+- Add process-version control action (ironcladlou@gmail.com)
+
+* Thu Apr 25 2013 Adam Miller <admiller@redhat.com> 1.8.1-1
+- Merge pull request #2249 from rmillner/online_runtime_264
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2245 from rmillner/v2_namespace
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2248 from mrunalp/bug/haproxy_fixes
+  (dmcphers+openshiftbot@redhat.com)
+- Add health check option to front-end for v2 carts. (rmillner@redhat.com)
+- The sandbox directory is owned by the gear user in v2. (rmillner@redhat.com)
+- Move haproxy shared scripts into /usr/bin. (mrunalp@gmail.com)
+- Add a class for accessing cgroups parameters for a gear and reproduce the v1
+  behavior. (rmillner@redhat.com)
+- Merge pull request #2228 from jwhonce/wip/card287
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2211 from jwhonce/wip/cartridge_path
+  (dmcphers+openshiftbot@redhat.com)
+- Missed a step in teardown (jhonce@redhat.com)
+- Card online_runtime_287 - Add cartridge/usr/template locations
+  (jhonce@redhat.com)
+- Merge pull request #2225 from rmillner/BZ928621
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2223 from ironcladlou/bz/955463
+  (dmcphers+openshiftbot@redhat.com)
+- Card online_runtime_266 - Fix issue with cartridge overrides
+  (jhonce@redhat.com)
+- Card online_runtime_266 - Build PATH from
+  CARTRIDGE_<CARTRIDGE_SHORT_NAME>_PATH (jhonce@redhat.com)
+- Merge pull request #2227 from ironcladlou/bz/955538
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 928621 - needed more information on why the flow does what it does.
+  (rmillner@redhat.com)
+- Bug 955463: Move hot deploy logic into the v2 model (ironcladlou@gmail.com)
+- Merge pull request #2214 from rmillner/TC222
+  (dmcphers+openshiftbot@redhat.com)
+- Combine stderr/stdout for cartridge actions (ironcladlou@gmail.com)
+- Postgres V2 fixes (fotios@redhat.com)
+- Feature complete v2 oo-admin-ctl-gears script with integrated idler.
+  (rmillner@redhat.com)
+- Switch back to native SELinux calls. (rmillner@redhat.com)
+- Creating fixer mechanism for replacing all ssh keys for an app
+  (abhgupta@redhat.com)
+- updating cart guide with install/post-install/post-setup
+  (dmcphers@redhat.com)
+- Adding install/post-setup/post-install (dmcphers@redhat.com)
+- Merge pull request #2204 from pmorie/dev/env_var
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2208 from ironcladlou/dev/v2carts/post-configure
+  (dmcphers+openshiftbot@redhat.com)
+- Split v2 configure into configure/post-configure (ironcladlou@gmail.com)
+- Write namespace/primary cart dir correctly for v2 (pmorie@gmail.com)
+- running oo-cartridge-list stacktrace without any v2 cartridges
+  (calfonso@redhat.com)
+- more install/post-install scripts (dmcphers@redhat.com)
+- Merge pull request #2187 from danmcp/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2189 from rmillner/accept-node
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2188 from ironcladlou/dev/v2carts/hot-deploy
+  (dmcphers+openshiftbot@redhat.com)
+- Adding install and post setup steps (dmcphers@redhat.com)
+- Resolve fqdn to uuid when reporting frontend issues and check the selinux
+  context of mcollective. (rmillner@redhat.com)
+- Implement hot deployment for V2 cartridges (ironcladlou@gmail.com)
+- Merge pull request #2183 from jwhonce/wip/raw_envvar
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 954317 - rhcsh test for V1 vs V2 failed (jhonce@redhat.com)
+- Merge pull request #2062 from Miciah/move-plugins.d-README-from-node-to-
+  broker (dmcphers+openshiftbot@redhat.com)
+- WIP Cartridge Refactor - Update extended tests for raw environment variables
+  (jhonce@redhat.com)
+- Merge pull request #2174 from mscherer/patch-1
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2171 from mscherer/fix/doc_cartridge_syntax
+  (dmcphers+openshiftbot@redhat.com)
+- Fix typo on miscategorized (misc@zarb.org)
+- fix inclusion of the example manifest (misc@zarb.org)
+- WIP Cartridge Refactor - Change environment variable files to contain just
+  value (jhonce@redhat.com)
+- Clean up test executions (ironcladlou@gmail.com)
+- Merge pull request #2159 from ironcladlou/bz/953401
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2094 from BanzaiMan/dev/hasari/bz928675
+  (dmcphers@redhat.com)
+- Bug 953401: Run v1 tidy in the correct user context (ironcladlou@gmail.com)
+- Merge pull request #2157 from mrunalp/dev/websocket_port
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 928675 (asari.ruby@gmail.com)
+- Add support for specifying websocket port in the manifest.
+  (mrunalp@gmail.com)
+- Bug 953357 - Check to make sure the server alias is passed as an argument.
+  (rmillner@redhat.com)
+- Merge pull request #2148 from brenton/node1
+  (dmcphers+openshiftbot@redhat.com)
+- /usr/bin/gear relies on the commander gem (bleanhar@redhat.com)
+- Add missing bash SDK function (ironcladlou@gmail.com)
+- Bug 950984: Implement stop_lock for force stop (ironcladlou@gmail.com)
+- Merge pull request #2134 from jwhonce/bug/953002
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2131 from ironcladlou/dev/v2carts/jbossbugs
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 953002 - Legal URL wrong in Welcome message (jhonce@redhat.com)
+- Bug 952044 and 952043: JBoss v2 cart tidy fixes (ironcladlou@gmail.com)
+- Sending the snapshot/restore messages stderr (calfonso@redhat.com)
+- Merge pull request #2115 from rmillner/fix_primary
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2109 from jwhonce/bug/953002
+  (dmcphers+openshiftbot@redhat.com)
+- Do not fail on gears without a primary cartridge. (rmillner@redhat.com)
+- Merge pull request #2080 from brenton/specs2
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 953002 - Legal URL wrong in Welcome message (jhonce@redhat.com)
+- V2 cartridge documentation updates (ironcladlou@gmail.com)
+- Fix the frontend unit tests. (rmillner@redhat.com)
+- The .ssh directory was not getting the correct MCS label.
+  (rmillner@redhat.com)
+- Bug 928621 - Save gear information in a look-aside database and only go to
+  the gear as a last resort. (rmillner@redhat.com)
+- bump_minor_versions for sprint 2.0.26 (tdawson@redhat.com)
+- Adding the example cgconfig.conf back to the node spec (bleanhar@redhat.com)
+- Move plugins.d/README from the node to the broker (miciah.masters@gmail.com)
+
+* Tue Apr 16 2013 Troy Dawson <tdawson@redhat.com> 1.7.28-1
+- Merge pull request #2091 from rmillner/fixselinux
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2095 from jwhonce/bug/952408
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2096 from pmorie/bugs/949425
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 951994 - Underlying ruby selinux library appears to be unstable.  Rewrite
+  to call the command line. (rmillner@redhat.com)
+- Fix bug 949425 949426 952096 (pmorie@gmail.com)
+- Add more information to the EINVAL errors. (rmillner@redhat.com)
+- WIP Cartridge Refactor - V2 support for reading .uservars (jhonce@redhat.com)
+- Merge pull request #2084 from pmorie/dev/trap_user
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 952408 - Node filters threaddump calls (jhonce@redhat.com)
+- Merge pull request #2077 from ironcladlou/dev/profiling (dmcphers@redhat.com)
+- Merge pull request #2005 from dvusboy/master
+  (dmcphers+openshiftbot@redhat.com)
+- Add uservars directory to Environ.for_gear (pmorie@gmail.com)
+- Optimize private endpoint creation (ironcladlou@gmail.com)
+- provision for supplementary groups (sakrishnamurthy@corp.ebay.com)
+
+* Mon Apr 15 2013 Adam Miller <admiller@redhat.com> 1.7.27-1
+- doc updates (dmcphers@redhat.com)
+- Ruby admin-ctl-gears-script to more efficiently manage dependency loading.
+  (rmillner@redhat.com)
+
+* Sat Apr 13 2013 Krishna Raman <kraman@gmail.com> 1.7.26-1
+- Merge pull request #2068 from jwhonce/wip/path
+  (dmcphers+openshiftbot@redhat.com)
+- WIP Cartridge Refactor - Move PATH to /etc/openshift/env (jhonce@redhat.com)
+
+* Sat Apr 13 2013 Krishna Raman <kraman@gmail.com> 1.7.25-1
+- WIP: scalable snapshot/restore (pmorie@gmail.com)
+- Merge pull request #2066 from sosiouxme/nodescripts20130413
+  (dmcphers+openshiftbot@redhat.com)
+- <node> fixing some minor inconsistencies in node scripts (lmeyer@redhat.com)
+- Undo comment change so postgres_v2 merges (fotios@redhat.com)
+- Fixed set_env_var (fotios@redhat.com)
+- Added helpers to sdk (fotios@redhat.com)
+- Merge pull request #2044 from jwhonce/wip/oo_trap_user (dmcphers@redhat.com)
+- Bug 951368 - V2 support broke reading .uservars (jhonce@redhat.com)
+
+* Fri Apr 12 2013 Adam Miller <admiller@redhat.com> 1.7.24-1
+- Merge pull request #2037 from ironcladlou/dev/v2cart/mock
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2028 from brenton/misc5
+  (dmcphers+openshiftbot@redhat.com)
+- Fix cart-scoped action hook executions (ironcladlou@gmail.com)
+- Merge pull request #2029 from rmillner/TC222
+  (dmcphers+openshiftbot@redhat.com)
+- SELinux, ApplicationContainer and UnixUser model changes to support oo-admin-
+  ctl-gears operating on v1 and v2 cartridges. (rmillner@redhat.com)
+- WIP Cartridge Refactor - Process manifest overrides for Broker
+  (jhonce@redhat.com)
+- Merge pull request #2031 from jwhonce/wip/restart_reload
+  (dmcphers@redhat.com)
+- Merge pull request #2020 from danmcp/master (dmcphers@redhat.com)
+- phpmyadmin WIP (dmcphers@redhat.com)
+- WIP Cartridge Refactor - Skip reload actions on cartridge unless gear started
+  (jhonce@redhat.com)
+- WIP Cartridge Refactor - Support skip_hooks when destroying gear
+  (jhonce@redhat.com)
+- Merge pull request #2015 from ironcladlou/dev/v2carts/build-system
+  (dmcphers@redhat.com)
+- We don't want the installation of the node-proxy to auto launch the service
+  (bleanhar@redhat.com)
+- Merge pull request #2019 from jwhonce/wip/restart_reload
+  (dmcphers@redhat.com)
+- Merge pull request #2016 from pmorie/dev/platform_ssh (dmcphers@redhat.com)
+- Merge pull request #2024 from ironcladlou/dev/v2carts/documentation
+  (dmcphers@redhat.com)
+- Application author documentation (ironcladlou@gmail.com)
+- Bug 950451 - Add stop_lock support to scaled cartridge restart/reload
+  (jhonce@redhat.com)
+- Generate ssh key for web proxy cartridges (pmorie@gmail.com)
+- Call cart pre-receive hook during default build lifecycle
+  (ironcladlou@gmail.com)
+
+* Thu Apr 11 2013 Adam Miller <admiller@redhat.com> 1.7.23-1
+- Moving openshift_origin_users out of sdk (calfonso@redhat.com)
+- Merge pull request #2010 from jwhonce/wip/v2_cart_model
+  (dmcphers+openshiftbot@redhat.com)
+- WIP Cartridge Refactor - Move range for uid in tests (jhonce@redhat.com)
+- Merge pull request #2007 from jwhonce/wip/oo_trap_user (dmcphers@redhat.com)
+- Merge pull request #2006 from jwhonce/wip/manifest_overrides
+  (dmcphers@redhat.com)
+- Merge pull request #1993 from lnader/patch-2 (dmcphers@redhat.com)
+- WIP Cartridge Refactor - Finish context checking (jhonce@redhat.com)
+- WIP Cartridge Refactor - update versions in manifest to be strings
+  (jhonce@redhat.com)
+- WIP Cartridge Refactor - Support for version overrides in manifest
+  (ironcladlou@gmail.com)
+- Update README.writing_cartridges.md (lnader@redhat.com)
+
+* Wed Apr 10 2013 Adam Miller <admiller@redhat.com> 1.7.22-1
+- Anchor locked_files.txt entries at the cart directory (ironcladlou@gmail.com)
+- Merge pull request #1984 from jwhonce/wip/v2_cart_model (dmcphers@redhat.com)
+- Merge pull request #1982 from danmcp/master (dmcphers@redhat.com)
+- Merge pull request #1979 from pmorie/dev/snapshot_cuke
+  (dmcphers+openshiftbot@redhat.com)
+- WIP Cartridge Refactor - Fix for processing dot file ERB's
+  (jhonce@redhat.com)
+- jenkins WIP (dmcphers@redhat.com)
+- Merge pull request #1959 from pravisankar/dev/ravi/card-537
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1978 from sosiouxme/bz949543 (dmcphers@redhat.com)
+- Add core platform test for v2 snapshot/restore (pmorie@gmail.com)
+- Merge pull request #1973 from dobbymoodge/BZ920477 (dmcphers@redhat.com)
+- Delete move/pre-move/post-move hooks, these hooks are no longer needed.
+  (rpenta@redhat.com)
+- node scripts Bug 920477 - replace -? short option with documented -h
+  (jolamb@redhat.com)
+- <node spec> bug 949543 use resource_limits.template directly as .conf in RPM
+  (lmeyer@redhat.com)
+
+* Tue Apr 09 2013 Adam Miller <admiller@redhat.com> 1.7.21-1
+- Merge pull request #1952 from calfonso/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1962 from danmcp/master (dmcphers@redhat.com)
+- Merge pull request #1958 from rajatchopra/master (dmcphers@redhat.com)
+- Merge pull request #1951 from jwhonce/wip/git_submodules
+  (dmcphers@redhat.com)
+- Merge pull request #1950 from mrunalp/dev/remotedeploy (dmcphers@redhat.com)
+- jenkins WIP (dmcphers@redhat.com)
+- delete all calls to remove_ssh_key, and remove_domain_env_vars
+  (rchopra@redhat.com)
+- Merge pull request #1946 from jwhonce/wip/oo_trap_user (dmcphers@redhat.com)
+- Bug 949266 - failed to initialize variable (jhonce@redhat.com)
+- Rename cideploy to geardeploy. (mrunalp@gmail.com)
+- %%{_var}/run/openshift is needed, adding it back (calfonso@redhat.com)
+- Merge pull request #1942 from ironcladlou/dev/v2carts/vendor-changes
+  (dmcphers+openshiftbot@redhat.com)
+- WIP Cartridge Refactor - Add support to oo-trap-user for V2 gear env's
+  (jhonce@redhat.com)
+- Remove vendor name from installed V2 cartridge path (ironcladlou@gmail.com)
+
+* Mon Apr 08 2013 Adam Miller <admiller@redhat.com> 1.7.20-1
+- Merge pull request #1941 from jwhonce/wip/v2_cart_model
+  (dmcphers+openshiftbot@redhat.com)
+- WIP Cartridge Refactor - Use gear combined env when calling hooks
+  (jhonce@redhat.com)
+- Cartridge Bash SDK cleanups (ironcladlou@gmail.com)
+- 10gen-mms-agent WIP (dmcphers@redhat.com)
+- Merge pull request #1932 from pmorie/dev/v2_mysql (dmcphers@redhat.com)
+- Add v2 mysql snapshot (pmorie@gmail.com)
+- HAProxy deploy wip. (mrunalp@gmail.com)
+- Set sync on STDOUT/STDERR in gear script (ironcladlou@gmail.com)
+- cleanup (dmcphers@redhat.com)
+- Merge pull request #1903 from fotioslindiakos/cart_utils
+  (dmcphers@redhat.com)
+- Merge pull request #1914 from pmorie/dev/mock_hooks
+  (dmcphers+openshiftbot@redhat.com)
+- Added helper function to set env vars (fotios@redhat.com)
+- Merge pull request #1912 from calfonso/master (dmcphers@redhat.com)
+- Merge pull request #1898 from jwhonce/wip/rhcsh
+  (dmcphers+openshiftbot@redhat.com)
+- Refactor mock and mock-plugin connection hooks (pmorie@gmail.com)
+- Moving root cron configuration out of cartridges and into node
+  (calfonso@redhat.com)
+- Build lifecycle fixes and tests (ironcladlou@gmail.com)
+- Fix unit/functional test isolation (ironcladlou@gmail.com)
+- Refactor v2 cartridge SDK location and accessibility (ironcladlou@gmail.com)
+- Merge pull request #1899 from pmorie/dev/connector_docs (dmcphers@redhat.com)
+- Recover pub/sub docs (pmorie@gmail.com)
+- WIP Cartridge Refactor - rhcsh support of v2 applications (jhonce@redhat.com)
+- WIP Cartridge Refactor - support for git submodules and template url
+  (jhonce@redhat.com)
+- Merge pull request #1890 from mrunalp/dev/web_proxy_deploy
+  (dmcphers@redhat.com)
+- Merge pull request #1882 from ironcladlou/dev/v2carts/build-system
+  (dmcphers+openshiftbot@redhat.com)
+- Deploy for web proxy. (mrunalp@gmail.com)
+- adding to the sdk (dmcphers@redhat.com)
+- General client message streaming support (ironcladlou@gmail.com)
+- Fix how erb binary is resolved. Using util/util-scl packages instead of doing
+  it dynamically in code. Separating manifest into RHEL and Fedora versions
+  instead of using sed to set version. (kraman@gmail.com)
+- WIP: v2 snapshot/restore (pmorie@gmail.com)
+- Merge pull request #1872 from pmorie/dev/gear
+  (dmcphers+openshiftbot@redhat.com)
+- Suppress NodeLogger calls in the context of gear script (pmorie@gmail.com)
+- Fix v2 ERB processing (ironcladlou@gmail.com)
+- V2 cart state management implementation (ironcladlou@gmail.com)
+- Merge pull request #1837 from kraman/php_v2
+  (dmcphers+openshiftbot@redhat.com)
+- Adding Apache 2.4 and PHP 5.4 support to PHP v2 cartridge Fix Path to erb
+  executable (kraman@gmail.com)
+- Better rescue for Errno (fotios@redhat.com)
+- Added application_state tests (fotios@redhat.com)
+- Fixing environ tests (fotios@redhat.com)
+- Fixing frontend_proxy_test (fotios@redhat.com)
+
+* Thu Apr 04 2013 Unknown name 1.7.19-1
+- fixing (root@ip-10-110-255-166.ec2.internal)
+
+* Thu Apr 04 2013 Unknown name 1.7.18-1
+- Moving root cron configuration out of cartridges and into node
+  (calfonso@redhat.com)
+- Refactor v2 cartridge SDK location and accessibility (ironcladlou@gmail.com)
+- Merge pull request #1899 from pmorie/dev/connector_docs (dmcphers@redhat.com)
+- Recover pub/sub docs (pmorie@gmail.com)
+- WIP Cartridge Refactor - support for git submodules and template url
+  (jhonce@redhat.com)
+- Merge pull request #1890 from mrunalp/dev/web_proxy_deploy
+  (dmcphers@redhat.com)
+- Merge pull request #1882 from ironcladlou/dev/v2carts/build-system
+  (dmcphers+openshiftbot@redhat.com)
+- Deploy for web proxy. (mrunalp@gmail.com)
+- adding to the sdk (dmcphers@redhat.com)
+- General client message streaming support (ironcladlou@gmail.com)
+- Fix how erb binary is resolved. Using util/util-scl packages instead of doing
+  it dynamically in code. Separating manifest into RHEL and Fedora versions
+  instead of using sed to set version. (kraman@gmail.com)
+- WIP: v2 snapshot/restore (pmorie@gmail.com)
+- Merge pull request #1872 from pmorie/dev/gear
+  (dmcphers+openshiftbot@redhat.com)
+- Suppress NodeLogger calls in the context of gear script (pmorie@gmail.com)
+- Fix v2 ERB processing (ironcladlou@gmail.com)
+- V2 cart state management implementation (ironcladlou@gmail.com)
+- Merge pull request #1837 from kraman/php_v2
+  (dmcphers+openshiftbot@redhat.com)
+- Adding Apache 2.4 and PHP 5.4 support to PHP v2 cartridge Fix Path to erb
+  executable (kraman@gmail.com)
+- Better rescue for Errno (fotios@redhat.com)
+- Added application_state tests (fotios@redhat.com)
+- Fixing environ tests (fotios@redhat.com)
+- Fixing frontend_proxy_test (fotios@redhat.com)
+
+* Wed Apr 03 2013 Unknown name 1.7.17-1
+- Automatic commit of package [rubygem-openshift-origin-node] release
+  [1.7.16-1]. (root@ip-10-114-31-128.ec2.internal)
+
+* Wed Apr 03 2013 Unknown name 1.7.16-1
+- Automatic commit of package [rubygem-openshift-origin-node] release
+  [1.7.15-1]. (root@ip-10-114-31-128.ec2.internal)
+
+* Wed Apr 03 2013 Unknown name 1.7.15-1
+- Automatic commit of package [rubygem-openshift-origin-node] release
+  [1.7.14-1]. (root@ip-10-114-31-128.ec2.internal)
+
+* Wed Apr 03 2013 Unknown name 1.7.14-1
+- Automatic commit of package [rubygem-openshift-origin-node] release
+  [1.7.13-1]. (root@ip-10-114-31-128.ec2.internal)
+
+* Wed Apr 03 2013 Unknown name 1.7.13-1
+- Automatic commit of package [rubygem-openshift-origin-node] release
+  [1.7.12-1]. (root@ip-10-114-31-128.ec2.internal)
+
+* Wed Apr 03 2013 Unknown name 1.7.12-1
+- Automatic commit of package [rubygem-openshift-origin-node] release
+  [1.7.11-1]. (root@ip-10-114-31-128.ec2.internal)
+
+* Wed Apr 03 2013 Unknown name 1.7.11-1
+- Automatic commit of package [rubygem-openshift-origin-node] release
+  [1.7.10-1]. (root@ip-10-114-31-128.ec2.internal)
+
+* Wed Apr 03 2013 Unknown name 1.7.10-1
+- Automatic commit of package [rubygem-openshift-origin-node] release
+  [1.7.9-1]. (root@ip-10-114-31-128.ec2.internal)
+
+* Wed Apr 03 2013 Unknown name 1.7.9-1
+- Automatic commit of package [rubygem-openshift-origin-node] release
+  [1.7.8-1]. (root@ip-10-114-31-128.ec2.internal)
+
+* Wed Apr 03 2013 Unknown name 1.7.8-1
+- Automatic commit of package [rubygem-openshift-origin-node] release
+  [1.7.7-1]. (root@ip-10-114-31-128.ec2.internal)
+
+* Wed Apr 03 2013 Unknown name 1.7.7-1
+- Automatic commit of package [rubygem-openshift-origin-node] release
+  [1.7.6-1]. (root@ip-10-114-31-128.ec2.internal)
+
+* Wed Apr 03 2013 Unknown name 1.7.6-1
+- Automatic commit of package [rubygem-openshift-origin-node] release
+  [1.7.5-1]. (root@ip-10-114-31-128.ec2.internal)
+
+* Wed Apr 03 2013 Unknown name 1.7.5-1
+- Automatic commit of package [rubygem-openshift-origin-node] release
+  [1.7.4-1]. (root@ip-10-114-31-128.ec2.internal)
+
+* Wed Apr 03 2013 Unknown name 1.7.4-1
+- Automatic commit of package [rubygem-openshift-origin-node] release
+  [1.7.3-1]. (root@ip-10-114-31-128.ec2.internal)
+
+* Wed Apr 03 2013 Unknown name 1.7.3-1
+- test fix (root@ip-10-114-31-128.ec2.internal)
+
+* Wed Apr 03 2013 Unknown name 1.7.2-1
+- Moving root cron configuration out of cartridges and into node
+  (calfonso@redhat.com)
+- WIP Cartridge Refactor - support for git submodules and template url
+  (jhonce@redhat.com)
+- Merge pull request #1890 from mrunalp/dev/web_proxy_deploy
+  (dmcphers@redhat.com)
+- Merge pull request #1882 from ironcladlou/dev/v2carts/build-system
+  (dmcphers+openshiftbot@redhat.com)
+- Deploy for web proxy. (mrunalp@gmail.com)
+- adding to the sdk (dmcphers@redhat.com)
+- General client message streaming support (ironcladlou@gmail.com)
+- Fix how erb binary is resolved. Using util/util-scl packages instead of doing
+  it dynamically in code. Separating manifest into RHEL and Fedora versions
+  instead of using sed to set version. (kraman@gmail.com)
+- WIP: v2 snapshot/restore (pmorie@gmail.com)
+- Merge pull request #1872 from pmorie/dev/gear
+  (dmcphers+openshiftbot@redhat.com)
+- Suppress NodeLogger calls in the context of gear script (pmorie@gmail.com)
+- Fix v2 ERB processing (ironcladlou@gmail.com)
+- V2 cart state management implementation (ironcladlou@gmail.com)
+- Merge pull request #1837 from kraman/php_v2
+  (dmcphers+openshiftbot@redhat.com)
+- Adding Apache 2.4 and PHP 5.4 support to PHP v2 cartridge Fix Path to erb
+  executable (kraman@gmail.com)
+- Better rescue for Errno (fotios@redhat.com)
+- Added application_state tests (fotios@redhat.com)
+- Fixing environ tests (fotios@redhat.com)
+- Fixing frontend_proxy_test (fotios@redhat.com)
+
+* Thu Mar 28 2013 Adam Miller <admiller@redhat.com> 1.7.1-1
+- bump_minor_versions for sprint 26 (admiller@redhat.com)
+- Merge pull request #1836 from rmillner/fix_ssh_keys
+  (dmcphers+openshiftbot@redhat.com)
+- No longer matching the comment on ssh_key_remove.  Matching all keys which
+  the actual key payload is the same instead. (rmillner@redhat.com)
+
+* Wed Mar 27 2013 Adam Miller <admiller@redhat.com> 1.6.9-1
+- Merge pull request #1821 from jwhonce/wip/threaddump
+  (dmcphers+openshiftbot@redhat.com)
+- WIP Cartridge Refactor - Roll out old threaddump support (jhonce@redhat.com)
+- Merge pull request #1817 from jwhonce/wip/threaddump (dmcphers@redhat.com)
+- Merge pull request #1818 from mrunalp/dev/haproxy_wip (dmcphers@redhat.com)
+- Merge pull request #1809 from ironcladlou/dev/v2carts/build-system
+  (dmcphers+openshiftbot@redhat.com)
+- remove rpmnew env vars (dmcphers@redhat.com)
+- Merge pull request #1811 from kraman/gen_docs (dmcphers@redhat.com)
+- WIP Cartridge Refactor - Add PHP support for threaddump (jhonce@redhat.com)
+- Merge pull request #1804 from jwhonce/wip/connectors
+  (dmcphers+openshiftbot@redhat.com)
+- Update docs generation and add node/cartridge guides [WIP]
+  https://trello.com/c/yUMBZ0P9 (kraman@gmail.com)
+- HAProxy WIP. (mrunalp@gmail.com)
+- Bug 927614: Fix action hook execution during v2 control ops
+  (ironcladlou@gmail.com)
+- fixing test cases (dmcphers@redhat.com)
+- WIP Cartridge Refactor - Refactor V2 connector_execute to use V1 contract
+  (jhonce@redhat.com)
+
+* Tue Mar 26 2013 Adam Miller <admiller@redhat.com> 1.6.8-1
+- error handling in gear script (dmcphers@redhat.com)
+- Getting jenkins working (dmcphers@redhat.com)
+- Merge pull request #1797 from rmillner/BZ924110
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1795 from jwhonce/wip/streaming
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1787 from ironcladlou/oo-delete-endpoints-fix
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 924110 - ssl certs need to update with namespace updates.
+  (rmillner@redhat.com)
+- WIP Cartridge Refactor - Add missing slash (jhonce@redhat.com)
+- WIP Cartridge Refactor - Stream stdin/stdout/stderr from oo_spawn
+  (jhonce@redhat.com)
+- Merge pull request #1784 from jwhonce/wip/v2_cart_model
+  (dmcphers+openshiftbot@redhat.com)
+- Fix public endpoint delete call typo (ironcladlou@gmail.com)
+- WIP Cartridge Refactor - Move OPENSHIFT_NAMESPACE to v2 code path
+  (jhonce@redhat.com)
+
+* Mon Mar 25 2013 Adam Miller <admiller@redhat.com> 1.6.7-1
+- <oo-cgroup-read> bug 924556 pull in native rubygem-open4 (lmeyer@redhat.com)
+- Merge pull request #1769 from calfonso/master (dmcphers@redhat.com)
+- Clean up bin/control documentation (ironcladlou@gmail.com)
+- Cron and DIY v2 cartridge fixes (calfonso@redhat.com)
+
+* Fri Mar 22 2013 Adam Miller <admiller@redhat.com> 1.6.6-1
+- Merge pull request #1766 from ironcladlou/dev/v2carts/documentation
+  (dmcphers@redhat.com)
+- Documentation updates (ironcladlou@gmail.com)
+- adding openshift node util (dmcphers@redhat.com)
+- More v2 jenkins-client progress (ironcladlou@gmail.com)
+- implementing builder_cartridge based on cart categories (dmcphers@redhat.com)
+- gearctl -> gear and using dmace's default builder (dmcphers@redhat.com)
+- More builds WIP (ironcladlou@gmail.com)
+- add gearctl (dmcphers@redhat.com)
+- Merge pull request #1758 from jwhonce/wip/clean_cartridge_repo
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1757 from ironcladlou/wip/connectors
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1754 from rmillner/better_key_parsing
+  (dmcphers@redhat.com)
+- WIP Cartridge Refactor - clean cartridge repository on re-install
+  (jhonce@redhat.com)
+- WIP Cartridge Refactor - Add support for connection hooks (jhonce@redhat.com)
+- Merge pull request #1749 from ironcladlou/dev/v2carts/build-system
+  (dmcphers@redhat.com)
+- More resiliant to arbitrary spaces elsewhere in the line.
+  (rmillner@redhat.com)
+- Fix all incorrect occurrences of 'who's'. (asari.ruby@gmail.com)
+- Reimplement the v2 build process (ironcladlou@gmail.com)
+
+* Thu Mar 21 2013 Adam Miller <admiller@redhat.com> 1.6.5-1
+- Merge pull request #1743 from jwhonce/wip/cartridge_ident
+  (dmcphers+openshiftbot@redhat.com)
+- WIP Cartridge Refactor - Add new environment variables (jhonce@redhat.com)
+- Merge pull request #1740 from ironcladlou/dev/v2carts/build-system
+  (dmcphers+openshiftbot@redhat.com)
+- WIP Cartridge Refactor - Add new environment variables (jhonce@redhat.com)
+- Merge pull request #1739 from rmillner/lock_ssh (dmcphers@redhat.com)
+- Improve build output to client (ironcladlou@gmail.com)
+- Protect ssh key edits with a mutex and lock file. (rmillner@redhat.com)
+- Fix mixed case if inferring FQDN from gear information. (rmillner@redhat.com)
+- Improve logging/client output during build (ironcladlou@gmail.com)
+- Merge pull request #1714 from pmorie/dev/v2_mysql (admiller@redhat.com)
+- Cart V2 build implementation WIP (ironcladlou@gmail.com)
+- Merge pull request #1717 from jwhonce/wip/setup_version
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1704 from sosiouxme/bz919619
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1706 from jwhonce/wip/setup_dot_files
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1719 from jwhonce/wip/documentation (dmcphers@redhat.com)
+- WIP Cartridge Refactor - update documentation (jhonce@redhat.com)
+- WIP Cartridge Refactor -- restore --version to setup calls
+  (jhonce@redhat.com)
+- WIP: v2 mysql (pmorie@gmail.com)
+- <ApplicationContainer> bug 919619 move git gc later in tidy process.
+  (lmeyer@redhat.com)
+- WIP Cartridge Refactor - glob dot files from CartridgeRepository
+  (jhonce@redhat.com)
+- Updating rest-client and rake gem versions to match F18 (kraman@gmail.com)
+- Merge pull request #1695 from jwhonce/wip/coverage
+  (dmcphers+openshiftbot@redhat.com)
+- WIP Cartridge Refactor - Work on tests and coverage (jhonce@redhat.com)
+- WIP Cartridge Refactor - Mung cartridge-vendor omit spaces and downcase
+  (jhonce@redhat.com)
+- Merge pull request #1683 from jwhonce/wip/mock_updated (dmcphers@redhat.com)
+- WIP Cartridge Refactor - missed commit (jhonce@redhat.com)
+- WIP Cartridge Refactor - Fix node_test.rb (jhonce@redhat.com)
+- WIP Cartridge Refactor - cucumber test refactor (jhonce@redhat.com)
+
+* Mon Mar 18 2013 Adam Miller <admiller@redhat.com> 1.6.4-1
+- Add SNI upload support to API (lnader@redhat.com)
+- WIP Cartridge Refactor - Fix v2_cart_model_test (jhonce@redhat.com)
+- WIP Cartridge Refactor - Mock plugin installed from CartridgeRepository
+  (jhonce@redhat.com)
+- WIP Cartridge Refactor - Refactor V2CartridgeModel to use CartridgeRepository
+  (jhonce@redhat.com)
+- WIP Cartridge Refactor - Introduce oo-admin-cartridge command
+  (jhonce@redhat.com)
+- WIP Cartridge Refactor - Refactor V2CartridgeModel to use CartridgeRepository
+  (jhonce@redhat.com)
+- Update Endpoint documentation (ironcladlou@gmail.com)
+
 * Thu Mar 14 2013 Adam Miller <admiller@redhat.com> 1.6.3-1
 - merge with latest pulls (tdawson@redhat.com)
 

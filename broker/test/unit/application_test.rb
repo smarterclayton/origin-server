@@ -1,3 +1,4 @@
+ENV["TEST_NAME"] = "unit_application_test"
 require 'test_helper'
 require 'openshift-origin-controller'
 
@@ -49,11 +50,23 @@ class ApplicationsTest < ActionDispatch::IntegrationTest #ActiveSupport::TestCas
     app.stop
     app.start
     app.tidy
+    assert_raise(OpenShift::UserException){app.threaddump}
+
+    as = "as#{gen_uuid[0..9]}"
+    app.add_alias(as)
+    app.remove_alias(as)
+    # updating the application namespace is no longer supported
+    #@domain.update_namespace("new_namespace")
+    #@domain.update_namespace(@namespace)
+
+    app.destroy_app
+  end
+  
+  test "threaddump application events" do
+    @appname = "test"
+    app = Application.create_app(@appname, ["ruby-1.9", "mysql-5.1"], @domain, "small", true)
+    app = Application.find_by(name: @appname, domain_id: @domain._id) rescue nil
     app.threaddump
-    app.add_alias("www.example.com")
-    app.remove_alias("www.example.com")
-    @domain.update_namespace("new_namespace")
-    @domain.update_namespace(@namespace)
     app.destroy_app
   end
 
@@ -62,7 +75,7 @@ class ApplicationsTest < ActionDispatch::IntegrationTest #ActiveSupport::TestCas
     app = Application.create_app(@appname, ["php-5.3", "mysql-5.1"], @domain, "small", true)
     app = Application.find_by(name: @appname, domain_id: @domain._id) rescue nil
 
-    @user.capabilities["max_storage_per_gear"] = 10
+    @user.capabilities["max_untracked_addtl_storage_per_gear"] = 5
     @user.save
     app.reload
     component_instance = app.component_instances.find_by(cartridge_name: "php-5.3")
@@ -90,16 +103,16 @@ class ApplicationsTest < ActionDispatch::IntegrationTest #ActiveSupport::TestCas
 
   test "application events through internal rest" do
     @appname = "test"
-    app = Application.create_app(@appname, ["php-5.3", "mysql-5.1"], @domain, "small", true)
+    app = Application.create_app(@appname, ["ruby-1.9", "mysql-5.1"], @domain, "small", true)
     app = Application.find_by(name: @appname, domain_id: @domain._id) rescue nil
 
     resp = rest_check(:get, "", {})
     assert_equal resp.status, 200
 
-    resp = rest_check(:put, "/cartridges/php-5.3", { "scales_from" => 2, "scales_to" => 2})
+    resp = rest_check(:put, "/cartridges/ruby-1.9", { "scales_from" => 2, "scales_to" => 2})
     assert_equal resp.status, 200
 
-    resp = rest_check(:put, "/cartridges/php-5.3", {})
+    resp = rest_check(:put, "/cartridges/ruby-1.9", {})
     assert_equal resp.status, 422
 
     resp = rest_check(:get, "/cartridges", {})
@@ -114,7 +127,7 @@ class ApplicationsTest < ActionDispatch::IntegrationTest #ActiveSupport::TestCas
     resp = rest_check(:post, "/events", { "event" => "tidy" })
     assert_equal resp.status, 200
 
-    component_instance = app.component_instances.find_by(cartridge_name: "php-5.3")
+    component_instance = app.component_instances.find_by(cartridge_name: "ruby-1.9")
     group_instance = app.group_instances_with_scale.select{ |go| go.all_component_instances.include? component_instance }[0]
     resp = rest_check(:get, "/gear_groups/#{group_instance._id.to_s}", { })
     assert_equal resp.status, 200

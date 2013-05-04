@@ -103,8 +103,7 @@ function start_app() {
 function stop_app() {
     set_app_state stopped
     if ! isrunning; then
-        jbpid=$(cat $JBOSS_PID_FILE);
-        echo "Application($jbpid) is already stopped" 1>&2
+        echo "Application is already stopped" 1>&2
     elif [ -f "$JBOSS_PID_FILE" ]; then
         src_user_hook pre_stop_${cartridge_type}
         pid=$(cat $JBOSS_PID_FILE);
@@ -122,7 +121,8 @@ function threaddump() {
         exit 1
     elif [ -f "$JBOSS_PID_FILE" ]; then
         pid=$(cat $JBOSS_PID_FILE);
-        kill -3 $pid
+        java_pid=`ps h --ppid $pid -o '%p'`
+        kill -3 $java_pid
     else 
         echo "Failed to locate JBOSS PID File"
     fi

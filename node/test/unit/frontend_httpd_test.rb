@@ -17,13 +17,8 @@
 #
 # Test the OpenShift frontend_httpd model
 #
-require 'test_helper'
-require 'openshift-origin-node/utils/shell_exec'
-require 'openshift-origin-node/utils/environ'
-require 'openshift-origin-node/model/frontend_httpd'
-require 'test/unit'
+require_relative '../test_helper'
 require 'fileutils'
-require 'mocha'
 
 class FrontendHttpServerModelTest < Test::Unit::TestCase
 
@@ -81,6 +76,7 @@ class FrontendHttpServerModelTest < Test::Unit::TestCase
     Syslog.stubs(:new).returns(syslog_mock)
 
     @config_mock = mock('OpenShift::Config')
+    @config_mock.stubs(:get).returns(nil)
     @config_mock.stubs(:get).with("GEAR_BASE_DIR").returns(@gear_base_dir)
     @config_mock.stubs(:get).with("OPENSHIFT_HTTP_CONF_DIR").returns(@http_conf_dir)
     @config_mock.stubs(:get).with("CLOUD_DOMAIN").returns(@cloud_domain)
@@ -101,6 +97,10 @@ class FrontendHttpServerModelTest < Test::Unit::TestCase
     @apache_db_sts = FauxApacheDB.new
     @apache_db_sts_full = { @fqdn => @sts_max_age }
     OpenShift::ApacheDBSTS.stubs(:open).yields(@apache_db_sts)
+
+    @gear_db = FauxApacheDB.new
+    @gear_db_full = {@container_uuid => {'fqdn' => @fqdn, 'container_name' => @container_name, 'namespace' => @namespace}}
+    OpenShift::GearDB.stubs(:open).yields(@gear_db)
 
     @nodejs_db_routes = FauxApacheDB.new
     @nodejs_db_routes_full = {
@@ -129,6 +129,7 @@ class FrontendHttpServerModelTest < Test::Unit::TestCase
     @apache_db_idler.replace({})
     @apache_db_sts.replace({})
     @nodejs_db_routes.replace({})
+    @gear_db.replace({})
   end
 
   def check_dbs_empty
@@ -137,6 +138,7 @@ class FrontendHttpServerModelTest < Test::Unit::TestCase
     assert @apache_db_idler.empty?, "ApacheDBIdler not empty"
     assert @apache_db_sts.empty?, "ApacheDBSTS not empty"
     assert @nodejs_db_routes.empty?, "NodeJSDBRoutes not empty"
+    assert @gear_db.empty?, "GearDB not empty"
   end
 
   def check_dbs_not_empty
@@ -145,6 +147,7 @@ class FrontendHttpServerModelTest < Test::Unit::TestCase
     assert (not @apache_db_idler.empty?), "ApacheDBIdler empty"
     assert (not @apache_db_sts.empty?), "ApacheDBSTS empty"
     assert (not @nodejs_db_routes.empty?), "NodeJSDBRoutes empty"
+    assert (not @gear_db.empty?), "GearDB empty"
   end
 
   def set_dbs_full
@@ -153,6 +156,7 @@ class FrontendHttpServerModelTest < Test::Unit::TestCase
     @apache_db_idler.replace(@apache_db_idler_full)
     @apache_db_sts.replace(@apache_db_sts_full)
     @nodejs_db_routes.replace(@nodejs_db_routes_full)
+    @gear_db.replace(@gear_db_full)
   end
 
   def check_dbs_full
@@ -161,6 +165,7 @@ class FrontendHttpServerModelTest < Test::Unit::TestCase
     assert_equal @apache_db_idler_full, @apache_db_idler, "ApacheDBIdler not properly set"
     assert_equal @apache_db_sts_full, @apache_db_sts, "ApacheDBSTS not properly set"
     assert_equal @nodejs_db_routes_full, @nodejs_db_routes, "NodeJSDBRoutes not properly set"
+    assert_equal @gear_db_full, @gear_db, "GearDB not properly set"
   end
 
   def test_clean_server_name
@@ -184,6 +189,21 @@ class FrontendHttpServerModelTest < Test::Unit::TestCase
 
   def test_create_initialized
     set_dbs_full
+
+    t_environ = { 'OPENSHIFT_GEAR_NAME' => @container_name, 'OPENSHIFT_GEAR_DNS' => @fqdn }
+    OpenShift::Utils::Environ.stubs(:for_gear).returns(t_environ).never
+
+    frontend = nil
+    assert_nothing_raised do
+      frontend = OpenShift::FrontendHttpServer.new(@container_uuid)
+    end
+
+    assert_equal @container_name, frontend.container_name
+    assert_equal @namespace, frontend.namespace
+  end
+
+  def test_create_from_env
+    set_dbs_empty
 
     t_environ = { 'OPENSHIFT_GEAR_NAME' => @container_name, 'OPENSHIFT_GEAR_DNS' => @fqdn }
     OpenShift::Utils::Environ.stubs(:for_gear).returns(t_environ).once
@@ -246,6 +266,7 @@ class FrontendHttpServerModelTest < Test::Unit::TestCase
 
     assert_equal @nodejs_db_routes_full[@fqdn], @nodejs_db_routes[new_fqdn]
 
+    assert_equal @gear_db[@container_uuid]['fqdn'], new_fqdn
   end
 
   def test_connections
@@ -264,6 +285,7 @@ class FrontendHttpServerModelTest < Test::Unit::TestCase
     frontend.create
     frontend.connect(connections)
 
+    assert (not @gear_db.empty?), "GearDB empty"
     assert (not @apache_db_nodes.empty?), "ApacheDBNodes empty"
     assert (not @nodejs_db_routes.empty?), "NodeJSDBRoutes empty"
 
@@ -418,6 +440,7 @@ class FrontendHttpServerModelTest < Test::Unit::TestCase
     assert @nodejs_db_routes.has_key?(@fqdn)
     assert_equal ["#{@ip}:#{@port}"], @nodejs_db_routes[@fqdn]["endpoints"]
 
+    assert @gear_db.has_key?(@container_uuid)
     assert @nodejs_db_routes.has_key?(@fqdn)
     assert @nodejs_db_routes.has_key?(@test_alias)
     assert (not @nodejs_db_routes[@fqdn].nil?)
@@ -443,6 +466,7 @@ class TestApacheDB < Test::Unit::TestCase
     @http_conf_dir = "/tmp/apachedb_test/.httpd.d"
     
     @config_mock = mock('OpenShift::Config')
+    @config_mock.stubs(:get).returns(nil)
     @config_mock.stubs(:get).with("GEAR_BASE_DIR").returns(@gear_base_dir)
     @config_mock.stubs(:get).with("OPENSHIFT_HTTP_CONF_DIR").returns(@http_conf_dir)
     OpenShift::Config.stubs(:new).returns(@config_mock)

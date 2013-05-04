@@ -10,13 +10,26 @@ $hostname = "localhost"
 begin
   if File.exists?("/etc/openshift/node.conf")
     config = ParseConfig.new("/etc/openshift/node.conf")
-    val = config["PUBLIC_HOSTNAME"].gsub!(/[ \t]*#[^\n]*/,"")
+    val = config["PUBLIC_HOSTNAME"].gsub(/[ \t]*#[^\n]*/,"")
     val = val[1..-2] if val.start_with? "\""
     $hostname = val
   end
 rescue
-  puts "Unable to determine hostname. Defaulting to localhost\n"
+  puts "Unable to determine hostname. Defaulting to #{$hostname}\n"
 end
+
+$cloud_domain = "example.com"
+begin
+  if File.exists?("/etc/openshift/node.conf")
+    config = ParseConfig.new("/etc/openshift/node.conf")
+    val = config["CLOUD_DOMAIN"].gsub(/[ \t]*#[^\n]*/,"")
+    val = val[1..-2] if val.start_with? "\""
+    $cloud_domain = val
+  end
+rescue
+  puts "Unable to determine cloud domain. Defaulting to #{$cloud_domain}\n"
+end
+
 
 @random = nil
 Before do
@@ -24,11 +37,59 @@ Before do
 end
 
 After do |scenario|
-  #domains = ["api#{@random}", "apiX#{@random}", "apiY#{@random}", "app-api#{@random}"]
+  #domains = ["api#{@random}", "apix#{@random}", "apiY#{@random}", "app-api#{@random}"]
   @random = nil
   (@undo_config || []).each do |(main, secondary, value)|
     Rails.configuration[main.to_sym][secondary.to_sym] = value
   end
+end
+
+Given /^a new user, verify updating a domain with an php-([^ ]+) application in it over ([^ ]+) format$/ do |php_version, format|
+  steps %{
+    Given a new user
+    And I accept "#{format}"
+    When I send a POST request to "/domains" with the following:"id=api<random>"
+    Then the response should be "201"
+    When I send a POST request to "/domains/api<random>/applications" with the following:"name=app&cartridge=php-#{php_version}"
+    Then the response should be "201"
+    When I send a PUT request to "/domains/api<random>" with the following:"id=apix<random>"
+    Then the response should be "422"
+    And the error message should have "severity=error&exit_code=128"
+    When I send a DELETE request to "/domains/api<random>/applications/app"
+    Then the response should be "204"
+    When I send a PUT request to "/domains/api<random>" with the following:"id=apix<random>"
+    Then the response should be "200"
+    And the response should be a "domain" with attributes "id=apix<random>"
+  }
+end
+
+Given /^a new user, verify deleting a domain with an php-([^ ]+) application in it over ([^ ]+) format$/ do |php_version, format|
+  steps %{
+    Given a new user
+    And I accept "#{format}"
+    When I send a POST request to "/domains" with the following:"id=api<random>"
+    Then the response should be "201"
+    When I send a POST request to "/domains/api<random>/applications" with the following:"name=app&cartridge=php-#{php_version}"
+    Then the response should be "201"
+    When I send a DELETE request to "/domains/api<random>"
+    Then the response should be "422"
+    And the error message should have "severity=error&exit_code=128"
+    When I send a DELETE request to "/domains/api<random>/applications/app"
+    Then the response should be "204"
+  }
+end
+
+Given /^a new user, verify force deleting a domain with an php-([^ ]+) application in it over ([^ ]+) format$/ do |php_version, format|
+  steps %{
+    Given a new user
+    And I accept "#{format}"
+    When I send a POST request to "/domains" with the following:"id=api<random>"
+    Then the response should be "201"
+    When I send a POST request to "/domains/api<random>/applications" with the following:"name=app&cartridge=php-#{php_version}"
+    Then the response should be "201"
+    When I send a DELETE request to "/domains/api<random>?force=true"
+    Then the response should be "204"
+  }
 end
 
 Given /^a new user, verify typical REST interactios with a ([^ ]+) application over ([^ ]+) format$/ do |cart_name, format|
@@ -74,15 +135,17 @@ Given /^a new user, verify typical REST interactios with a ([^ ]+) application o
     When I send a POST request to "/domains/api<random>/applications/app/cartridges/mysql-5.1/events" with the following:"event=restart"
     Then the response should be "200"
     When I send a DELETE request to "/domains/api<random>/applications/app/cartridges/mysql-5.1"
-    Then the response should be "200"
-    When I send a PUT request to "/domains/api<random>" with the following:"id=apiX<random>"
-    Then the response should be "200"
-    And the response should be a "domain" with attributes "id=apiX<random>"
-    When I send a DELETE request to "/domains/apiX<random>/applications/app"
     Then the response should be "204"
-    When I send a GET request to "/domains/apiX<random>/applications/app"
+    When I send a PUT request to "/domains/api<random>" with the following:"id=apix<random>"
+    Then the response should be "422"
+    When I send a DELETE request to "/domains/api<random>/applications/app"
+    Then the response should be "204"
+    When I send a PUT request to "/domains/api<random>" with the following:"id=apix<random>"
+    Then the response should be "200"
+    And the response should be a "domain" with attributes "id=apix<random>"
+    When I send a GET request to "/domains/apix<random>/applications/app"
     Then the response should be "404"
-    When I send a DELETE request to "/domains/apiX<random>"
+    When I send a DELETE request to "/domains/apix<random>"
     Then the response should be "204"
     When I send a DELETE request to "/user/keys/api"
     Then the response should be "204"
@@ -346,8 +409,10 @@ When /^I send a GET request to "([^\"]*)"$/ do |path|
   :user => @username, :password => @password, :headers => @headers)
   begin
     @response = @request.execute()
-  rescue => e
-  @response = e.response
+  rescue Timeout::Error, RestClient::RequestTimeout => e
+    raise Exception.new("#{e.message}: #{@request.method} #{@request.url} timed out")
+  rescue RestClient::ExceptionWithResponse => e
+    @response = e.response
   end
 end
 
@@ -357,8 +422,10 @@ When /^I send an unauthenticated GET request to "([^\"]*)"$/ do |path|
   @request = RestClient::Request.new(:method => :get, :url => url, :headers => @headers)
   begin
     @response = @request.execute()
-  rescue => e
-  @response = e.response
+  rescue Timeout::Error, RestClient::RequestTimeout => e
+    raise Exception.new("#{e.message}: #{@request.method} #{@request.url} timed out")
+  rescue RestClient::ExceptionWithResponse => e
+    @response = e.response
   end
 end
 
@@ -381,11 +448,14 @@ When /^I send a POST request to "([^\"]*)" with the following:"([^\"]*)"$/ do |p
   url = @base_url + path.to_s
   @request = RestClient::Request.new(:method => :post, :url => url,
   :user => @username, :password => @password, :headers => @headers,
-  :payload => payload)
+  :payload => payload, :timeout => 180)
   begin
     @response = @request.execute()
-  rescue => e
-  @response = e.response
+  rescue Timeout::Error, RestClient::RequestTimeout => e
+    @request.inspect
+    raise Exception.new("#{e.message}: #{@request.method} #{@request.url} with payload #{@request.payload} timed out")
+  rescue RestClient::ExceptionWithResponse => e
+    @response = e.response
   end
 end
 
@@ -403,11 +473,14 @@ When /^I send a PUT request to "([^\"]*)" with the following:"([^\"]*)"$/ do |pa
   url = @base_url + path.to_s
   @request = RestClient::Request.new(:method => :put, :url => url,
   :user => @username, :password => @password, :headers => @headers,
-  :payload => payload)
+  :payload => payload, :timeout => 180)
   begin
     @response = @request.execute()
-  rescue => e
-  @response = e.response
+  rescue Timeout::Error, RestClient::RequestTimeout => e
+    @request.inspect
+    raise Exception.new("#{e.message}: #{@request.method} #{@request.url} with payload #{@request.payload} timed out")
+  rescue RestClient::ExceptionWithResponse => e
+    @response = e.response
   end
 end
 
@@ -420,7 +493,9 @@ When /^I send a DELETE request to "([^\"]*)"$/ do |path|
   :user => @username, :password => @password, :headers => @headers)
   begin
     @response = @request.execute()
-  rescue => e
+  rescue Timeout::Error, RestClient::RequestTimeout => e
+    raise Exception.new("#{e.message}: #{@request.method} #{@request.url} timed out")
+  rescue RestClient::ExceptionWithResponse => e
     @response = e.response
   end
 end

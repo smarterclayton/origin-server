@@ -10,6 +10,7 @@ import commands
 import re
 import selinux
 import subprocess
+import itertools
 
 EXT_LIB = "/usr/libexec/openshift/lib/util"
 
@@ -40,40 +41,71 @@ comment_re = re.compile("#.*$")
 # These should come from somewhere, not be hard coded - MAL
 openshift_cgroup_subsystems="cpu,cpuacct,memory,net_cls,freezer"
 
-#
-# Read in uservars variables.
-#
-def _set_env_uservars(uservars_dir):
-    for env in os.listdir(uservars_dir):
-        fp = open(os.path.join(uservars_dir, env), 'r')
-        env_var = fp.readlines()[0].strip().strip('\'"')
-        fp.close()
-        os.putenv(env, env_var)
-    pass
+def load_env(directory):
+    for entry in glob.glob(os.path.expanduser(os.path.join(directory, '*'))):
+        syslog.syslog("DEBUG: var entry %s" % entry)
+        env = os.path.basename(entry)
+        if os.path.isdir(entry):
+            load_env(os.path.join(directory, entry))
+            continue
 
-#
-# Read in environment variables
-#
-def read_env_vars():
-#    os.putenv
-    envdir = os.path.expanduser('~/.env/')
-    for env in os.listdir(envdir):
-        if env in ['USER_VARS', 'TYPELESS_TRANSLATED_VARS']:
-           continue
-        elif os.path.isdir(envdir + env):
-           if '.uservars' == env:
-              _set_env_uservars(envdir + env)
-           continue
+        with open(entry, 'r') as file:
+            contents = file.read().rstrip()
 
-        fp = open(os.path.expanduser('~/.env/') + env, 'r')
-        env_var = fp.readlines()[0].strip().split('=')[1].strip('\'"')
-        fp.close()
-        os.putenv(env, env_var)
+            if contents.startswith('export '):
+                value = contents.split('=')[1].strip('\'"')
+                os.environ[env] = value
+            else:
+                os.environ[env] = contents
 
+
+def gear_env():
+    load_env('/etc/openshift/env')
+    system_path = os.environ['PATH']
+
+    load_env('~/.env/.uservars')
+    load_env('~/.env')
+    load_env('~/*/env/')
+
+    primary = ''
+    if 'OPENSHIFT_PRIMARY_CARTRIDGE_DIR' in os.environ:
+        primary = os.path.basename(os.environ['OPENSHIFT_PRIMARY_CARTRIDGE_DIR'].rstrip('/'))
+        load_env(os.path.join(os.environ['OPENSHIFT_PRIMARY_CARTRIDGE_DIR'], 'env'))
+
+    primary_path = "OPENSHIFT_%s_PATH_ELEMENT" % primary
+    matcher = re.compile('^OPENSHIFT_.*_PATH_ELEMENT$')
+    path_elements = [key for key in os.environ if matcher.match(key)]
+
+    if primary_path in path_elements:
+        path_elements.remove(primary_path)
+    elements = [os.environ[key] for key in path_elements]
+
+    if primary_path in os.environ:
+        elements.insert(0, os.environ[primary_path])
+
+    if 'PATH' in os.environ:
+        elements.append(os.environ['PATH'])
+    elements.append(system_path)
+
+    os.environ['PATH'] = ':'.join(elements)
+
+
+# Calling oo-get-mcs-level gets into trouble due to BZ 957257.  Use an
+# internal call which produces the same logic.
 def get_mcs_level(uid):
-    cmd = "/usr/bin/oo-get-mcs-level %s" % (uid)
-    ret = commands.getstatusoutput(cmd)
-    return ret[1]
+    set_size = 1024
+    group_size = 2
+    uid_offset = 0
+    mls_num = 0
+
+    mcs_set = [ "c%d" % n for n in xrange(set_size) ]
+    iuid = uid_offset
+
+    for mcs_col in itertools.combinations(mcs_set, 2):
+        iuid+=1
+        if iuid == uid:
+            return "s%d:%s" % ( mls_num, ",".join(mcs_col) )
+
 
 def read_config():
   config = {}
@@ -119,8 +151,8 @@ def join_cgroup():
 if __name__ == '__main__':
     # first self-apply restrictions
     # join_cgroup()
-    read_env_vars()
     config = read_config()
+    gear_env()
 
     orig_cmd = os.environ.get('SSH_ORIGINAL_COMMAND', "rhcsh")
     syslog.syslog(orig_cmd)
@@ -135,14 +167,14 @@ if __name__ == '__main__':
         allargs = ['-c', str]
     if basecmd in ('snapshot',):
         # This gets called with "snapshot"
-        allargs = ['snapshot.sh']
+        allargs = ['oo-snapshot']
     if basecmd in ('restore',):
         # This gets called with "restore <INCLUDE_GIT>"
         include_git = False
         if len(allargs) > 1 and allargs[1] == 'INCLUDE_GIT':
             include_git = True
 
-        allargs = ['restore.sh']
+        allargs = ['oo-restore']
         if include_git:
             allargs.append('INCLUDE_GIT')
     elif basecmd in ('rhcsh',):

@@ -1,0 +1,50 @@
+#!/usr/bin/env oo-ruby
+
+require 'rubygems'
+require 'json'
+require 'pp'
+require 'erb'
+require 'fileutils'
+
+STDOUT.sync = true
+STDERR.sync = true
+
+@hostname = ENV['JENKINS_URL'].split("/")[-1].downcase
+@data_dir = ENV['OPENSHIFT_DATA_DIR']
+@job_name = "#{ENV['OPENSHIFT_APP_NAME']}-build"
+@job_url = "/job/#{@job_name}"
+@app_name = ENV['OPENSHIFT_APP_NAME']
+@uuid = ENV['OPENSHIFT_GEAR_UUID']
+@namespace = ENV['OPENSHIFT_NAMESPACE']
+@openshift_domain = ARGV[0]
+@job_erb = "#{ENV['OPENSHIFT_JENKINS_CLIENT_DIR']}/configuration/jenkins_job_template.xml.erb"
+@builder_type = ARGV[1]
+## https://bugzilla.redhat.com/show_bug.cgi?id=952161
+# Encode XML entites in jenkins_shell_command.erb template *after*
+# processing ERB directives.
+shell_command_erb = ERB.new( File.open(ARGV[2], "rb").read)
+@shell_command = shell_command_erb.result(binding).encode(:xml => :text)
+file = File.open(ARGV[3], "rb")
+@artifacts = file.read
+
+def create_job
+  erb = ERB.new(File.open(@job_erb, "rb").read)
+  job_template_xml = "#{ENV['OPENSHIFT_JENKINS_CLIENT_DIR']}/configuration/jenkins_job_template.xml"
+  File.open(job_template_xml, 'w') {|f| f.write(erb.result(binding)) }
+  FileUtils.rm @job_erb
+
+status_code = `/bin/sed -e "s,UPSTREAM_SSH,#{@uuid}@#{@app_name}-\\${OPENSHIFT_NAMESPACE}.#{@openshift_domain},g" #{job_template_xml} \
+  | curl -s  -X POST -H "Content-Type: application/xml" -H "Expect: " --data-binary @- --insecure https://${JENKINS_USERNAME}:${JENKINS_PASSWORD}@#{@hostname}/createItem?name=#{@job_name}`
+
+  puts "create_job status: #{status_code}"
+  if not File.exists? File.join(@data_dir, 'jobs', @app_name, 'config.xml')
+    puts  'build config does not exist'
+    exit 1
+  end
+
+  if status_code != '200'
+    exit 1
+  end
+end
+
+create_job

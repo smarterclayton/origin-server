@@ -1,20 +1,20 @@
 #!/bin/bash -e
+
+case "$1" in
+  -v|--version)
+    version="$2"
+esac
+
+# Parse arguments
+source "${OPENSHIFT_RUBY_DIR}/lib/util"
+parse_args $@
+
+# Don't set -u until after the above arg parsing is complete
 set -u
-set -x
-
-PATH=/bin:/usr/bin:$PATH
-
-version=1.9
-ls -lZa $OPENSHIFT_HOMEDIR/ruby
-id
 
 # Copy the version specific files to ruby directory
-OPENSHIFT_RUBY_DIR="$OPENSHIFT_HOMEDIR/ruby"
-cp -r $OPENSHIFT_RUBY_DIR/versions/$version/etc/* $OPENSHIFT_RUBY_DIR/etc
-cp -r $OPENSHIFT_RUBY_DIR/versions/$version/metadata/* $OPENSHIFT_RUBY_DIR/metadata
-cp -r $OPENSHIFT_RUBY_DIR/versions/$version/template/* $OPENSHIFT_RUBY_DIR/template
-
-# Create additional directories required by RUBY and httpd
-ln -s /usr/lib64/httpd/modules $OPENSHIFT_RUBY_DIR
-ln -s /etc/httpd/conf/magic $OPENSHIFT_RUBY_DIR/etc/magic
-
+shopt -s dotglob
+for dir in etc; do
+    mkdir -p $OPENSHIFT_RUBY_DIR/$dir
+    cp -Lr $OPENSHIFT_RUBY_DIR/versions/$version/$dir/* $OPENSHIFT_RUBY_DIR/$dir 
+done

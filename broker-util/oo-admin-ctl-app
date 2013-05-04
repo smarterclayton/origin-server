@@ -68,7 +68,7 @@ Rails.configuration.analytics[:enabled] = false
 
 user = nil
 begin
-  user = CloudUser.find_by(login: login)
+  user = CloudUser.with(consistency: :eventual).find_by(login: login)
 rescue Mongoid::Errors::DocumentNotFound
 end
 unless user
@@ -147,7 +147,34 @@ begin
       puts "Gear uuid is required to remove-gear"
       exit 1
     end
-    app.remove_gear(gear_uuid)
+
+    group_instance = nil
+    gear_id = nil
+    found = false
+
+    app.group_instances.each do |gi|
+      gi.gears.each do |g|
+        if g._id.to_s == gear_uuid or g.uuid == gear_uuid
+          if g.host_singletons
+            puts "Gear #{gear_uuid} hosts singleton components within its group instance. You cannot remove it."
+            puts "You can either remove the cartridge or delete the application."
+            exit 1
+          else  
+            group_instance = gi
+            gear_id = g._id.to_s
+            found = true
+            break
+          end
+        end
+      end
+      break if found
+    end
+
+    unless found
+      puts "Gear #{gear_uuid} not found in #{app.name}"
+      exit 1
+    end
+    app.remove_gear(gear_id)
   else
     puts "Command must be one of: #{CTL_APP_COMMANDS}"
     usage

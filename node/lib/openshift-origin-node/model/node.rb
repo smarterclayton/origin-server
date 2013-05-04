@@ -14,7 +14,9 @@
 # limitations under the License.
 #++
 
-require 'openshift-origin-node'
+require 'openshift-origin-node/utils/sdk'
+require 'openshift-origin-common/models/manifest'
+require 'openshift-origin-node/model/cartridge_repository'
 require 'openshift-origin-common'
 require 'systemu'
 
@@ -29,7 +31,7 @@ module OpenShift
 
       if (OpenShift::Utils::Sdk.node_default_model(config) == :v1)
         Dir.foreach(cartridge_path) do |cart_dir|
-          next if [".", "..", "embedded", "abstract", "abstract-httpd", "abstract-jboss"].include? cart_dir
+          next if [".", "..", "v2", "embedded", "abstract", "abstract-httpd", "abstract-jboss"].include? cart_dir
           path = File.join(cartridge_path, cart_dir, "info", "manifest.yml")
           begin
             print "Loading #{cart_dir}..." if oo_debug
@@ -41,19 +43,21 @@ module OpenShift
           end
         end
       else
-        # TODO: encapsulate concerns re: v1/v2 cartridges on disk into 
-        #       utility classes?
-        cartridge_path = File.join(cartridge_path, 'v2')
-        Dir.foreach(cartridge_path) do |cart_dir|
-          next if [".", ".."].include? cart_dir
-          path = File.join(cartridge_path, cart_dir, "metadata", "manifest.yml")
-          begin
-            print "Loading #{cart_dir}..." if oo_debug
-            carts.push OpenShift::Cartridge.new.from_descriptor(YAML.load(File.open(path)))
-            print "OK\n" if oo_debug
-          rescue Exception => e
-            print "ERROR\n" if oo_debug
-            print "#{e.message}\n#{e.backtrace.inspect}\n" unless porcelain
+        CartridgeRepository.instance.each do |cartridge|
+          cartridge.versions.each do |version|
+            begin
+              cooked = Runtime::Manifest.new(cartridge.manifest_path, version, cartridge.repository_path)
+              print "Loading #{cooked.name}-#{cooked.version}..." if oo_debug
+
+              v1_manifest            = Marshal.load(Marshal.dump(cooked.manifest))
+              v1_manifest['Name']    = "#{cooked.name}-#{cooked.version}"
+              v1_manifest['Version'] = cooked.version
+              carts.push OpenShift::Cartridge.new.from_descriptor(v1_manifest)
+              print "OK\n" if oo_debug
+            rescue Exception => e
+              print "ERROR\n" if oo_debug
+              print "#{e.message}\n#{e.backtrace.inspect}\n" unless porcelain
+            end
           end
         end
       end

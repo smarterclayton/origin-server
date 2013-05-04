@@ -18,6 +18,7 @@ require 'rubygems'
 require 'etc'
 require 'openshift-origin-common'
 require 'openshift-origin-node/utils/shell_exec'
+require 'openshift-origin-node/utils/node_logger'
 
 module OpenShift
 
@@ -61,11 +62,9 @@ module OpenShift
           file.write "#{new_state_val}\n"
         }
 
-        parent = File.dirname(@state_file)
-        OpenShift::Utils.oo_spawn(
-            "chown --reference #{parent} #@state_file;
-             chcon --reference #{parent} #@state_file"
-        )
+        PathUtils.oo_chown(@uuid, @uuid, @state_file)
+        mcs_label = Utils::SELinux.get_mcs_label(@uuid)
+        Utils::SELinux.set_mcs_label(mcs_label, @state_file)
         self
       end
 
@@ -76,7 +75,18 @@ module OpenShift
       def value
         begin
           File.open(@state_file) { |input| input.read.chomp }
-        rescue
+        rescue => e
+          msg = "Failed to get state: #{@uuid} [#{@state_file}]: "
+          case e
+          when SystemCallError
+            # This catches filesystem level errors
+            # We split the message because it contains the filename
+            msg << e.message.split(' - ').first
+          else
+            msg << e.message
+          end
+          NodeLogger.logger.info( msg )
+
           State::UNKNOWN
         end
       end

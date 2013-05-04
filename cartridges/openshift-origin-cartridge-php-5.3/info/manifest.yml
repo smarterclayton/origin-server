@@ -1,5 +1,6 @@
 Name: php-5.3
 Cartridge-Short-Name: PHP
+Cartridge-Vendor: redhat
 Display-Name: PHP 5.3
 Description: "PHP is a general-purpose server-side scripting language originally designed for Web development to produce dynamic Web pages. Popular development frameworks include: CakePHP, Zend, Symfony, and Code Igniter."
 Version: 5.3
@@ -12,7 +13,7 @@ Categories:
   - web_framework
 Website: http://www.php.net
 Help-Topics:
-  "Developer Center": https://openshift.redhat.com/community/developers
+  "Developer Center": https://www.openshift.com/developers
 Cart-Data:
   - Key: OPENSHIFT_TMP_DIR
     Type: environment

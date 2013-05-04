@@ -83,12 +83,19 @@ class Domain
   # == Returns:
   #   The domain operation which tracks the first step of the update.
   def update_namespace(new_namespace)
+    if Application.with(consistency: :strong).where(domain_id: self._id).count > 0
+      raise OpenShift::UserException.new("Domain contains applications. Delete applications first before changing the domain namespace.", 128)
+    end
+    if Domain.with(consistency: :strong).where(canonical_namespace: new_namespace).count > 0 
+      raise OpenShift::UserException.new("Namespace '#{new_namespace}' is already in use. Please choose another.", 103, nil, "id") 
+    end
     old_ns = namespace
     self.namespace = new_namespace
     self.save
-    pending_op = PendingDomainOps.new(op_type: :update_namespace, arguments: {"old_ns" => old_ns, "new_ns" => new_namespace}, parent_op: nil, on_apps: applications, on_completion_method: :complete_namespace_update, state: "init")
-    self.pending_ops.push pending_op
-    self.run_jobs
+    notify_observers(:domain_update_success)
+    #pending_op = PendingDomainOps.new(op_type: :update_namespace, arguments: {"old_ns" => old_ns, "new_ns" => new_namespace}, parent_op: nil, on_apps: applications, on_completion_method: :complete_namespace_update, state: "init")
+    #self.pending_ops.push pending_op
+    #self.run_jobs
   end
 
   # Completes the second step of the namespace update. See {#update_namespace}
@@ -151,10 +158,10 @@ class Domain
   #
   # == Returns:
   #  The domain operation which tracks the sshkey addition
-  def add_ssh_key(user_id, key_attr, pending_parent_op)
+  def add_ssh_key(user_id, ssh_key, pending_parent_op)
     return if pending_ops.where(parent_op_id: pending_parent_op._id).count > 0
     if((owner._id == user_id || user_ids.include?(user_id)) && self.applications.count > 0)
-      self.pending_ops.push(PendingDomainOps.new(op_type: :add_ssh_key, arguments: { "user_id" => user_id, "key_attrs" => [key_attr] }, parent_op_id: pending_parent_op._id, on_apps: self.applications, state: "init"))
+      self.pending_ops.push(PendingDomainOps.new(op_type: :add_ssh_key, arguments: { "user_id" => user_id, "key_attrs" => [ssh_key.attributes] }, parent_op_id: pending_parent_op._id, on_apps: self.applications, state: "init"))
       self.run_jobs
     else
       pending_parent_op.child_completed(self) if pending_parent_op
@@ -173,10 +180,10 @@ class Domain
   #
   # == Returns:
   #  The domain operation which tracks the sshkey removal
-  def remove_ssh_key(user_id, key_attr, pending_parent_op)
+  def remove_ssh_key(user_id, ssh_key, pending_parent_op)
     return if pending_ops.where(parent_op_id: pending_parent_op._id).count > 0    
     if(self.applications.count > 0)
-      self.pending_ops.push PendingDomainOps.new(op_type: :delete_ssh_key, arguments: { "user_id" => user_id, "key_attrs" => [key_attr] }, parent_op_id: pending_parent_op._id, on_apps: self.applications, state: "init")
+      self.pending_ops.push PendingDomainOps.new(op_type: :delete_ssh_key, arguments: { "user_id" => user_id, "key_attrs" => [ssh_key.attributes] }, parent_op_id: pending_parent_op._id, on_apps: self.applications, state: "init")
       self.run_jobs
     else
       pending_parent_op.child_completed(self) if pending_parent_op
@@ -189,7 +196,14 @@ class Domain
     Domain.where(_id: self.id).update_all({ "$push" => { pending_ops: pending_op.serializable_hash }, "$pushAll" => { system_ssh_keys: keys_attrs }})
   end
 
-  def remove_system_ssh_keys(ssh_keys)
+  def remove_system_ssh_keys(remove_key)
+    if remove_key.is_a? Array
+      ssh_keys = remove_key
+    else
+      ssh_keys = self.system_ssh_keys.find_by(component_id: remove_key) rescue []
+      ssh_keys = [ssh_keys].flatten
+    end
+    return if ssh_keys.empty?
     keys_attrs = ssh_keys.map{|k| k.attributes.dup}
     pending_op = PendingDomainOps.new(op_type: :delete_domain_ssh_keys, arguments: {"keys_attrs" => keys_attrs}, on_apps: applications, created_at: Time.now, state: "init")
     Domain.where(_id: self.id).update_all({ "$push" => { pending_ops: pending_op.serializable_hash }, "$pullAll" => { system_ssh_keys: keys_attrs }})
@@ -212,7 +226,13 @@ class Domain
     Domain.where(_id: self.id).update_all({ "$pullAll" => { env_vars: env_vars_to_rm }}) unless env_vars_to_rm.empty?
   end
 
-  def remove_env_variables(variables)
+  def remove_env_variables(remove_key)
+    if remove_key.is_a? Array
+      variables = remove_key
+    else
+      variables = self.env_vars.select { |env| env["component_id"]==remove_key }
+    end
+    return if variables.empty?
     pending_op = PendingDomainOps.new(op_type: :remove_env_variables, arguments: {"variables" => variables}, on_apps: applications, created_at: Time.now, state: "init")
     Domain.where(_id: self.id).update_all({ "$push" => { pending_ops: pending_op.serializable_hash }, "$pullAll" => { env_vars: variables }})
   end
@@ -226,9 +246,10 @@ class Domain
       while self.pending_ops.where(state: "init").count > 0
         op = self.pending_ops.where(state: "init").first
         
-        # get the op based on _id so that a reload does not replace it with another one based on position
-        op = self.pending_ops.find_by(_id: op._id)
-        
+        # store the op._id to load it later after a reload
+        # this is required to prevent a reload from replacing it with another one based on position
+        op_id = op._id
+
         # try to do an update on the pending_op state and continue ONLY if successful
         op_index = self.pending_ops.index(op) 
         retval = Domain.with(consistency: :strong).where({ "_id" => self._id, "pending_ops.#{op_index}._id" => op._id, "pending_ops.#{op_index}.state" => "init" }).update({"$set" => { "pending_ops.#{op_index}.state" => "queued" }})
@@ -246,7 +267,7 @@ class Domain
           rescue Mongoid::Errors::DocumentNotFound
             #ignore
           end
-          op.pending_apps.each { |app| app.add_ssh_keys(user, user.ssh_keys, op) } if user
+          op.pending_apps.each { |app| app.add_ssh_keys(user._id, user.ssh_keys, op) } if user
         when :remove_user
           user = nil
           begin
@@ -254,15 +275,19 @@ class Domain
           rescue Mongoid::Errors::DocumentNotFound
             #ignore
           end
-          op.pending_apps.each { |app| app.remove_ssh_keys(user, user.ssh_keys, op) } if user
+          op.pending_apps.each { |app| app.remove_ssh_keys(user._id, user.ssh_keys, op) } if user
         when :add_ssh_key
-          op.pending_apps.each { |app| app.add_ssh_keys(op.arguments["user_id"], op.arguments["key_attrs"], op) }
+          ssh_keys = op.arguments["key_attrs"].map{|k| UserSshKey.new.to_obj(k)}
+          op.pending_apps.each { |app| app.add_ssh_keys(op.arguments["user_id"], ssh_keys, op) }
         when :delete_ssh_key
-          op.pending_apps.each { |app| app.remove_ssh_keys(op.arguments["user_id"], op.arguments["key_attrs"], op) }
+          ssh_keys = op.arguments["key_attrs"].map{|k| UserSshKey.new.to_obj(k)}
+          op.pending_apps.each { |app| app.remove_ssh_keys(op.arguments["user_id"], ssh_keys, op) }
         when :add_domain_ssh_keys
-          op.pending_apps.each { |app| app.add_ssh_keys(nil, op.arguments["keys_attrs"], op) }
+          ssh_keys = op.arguments["keys_attrs"].map{|k| SystemSshKey.new.to_obj(k)}
+          op.pending_apps.each { |app| app.add_ssh_keys(nil, ssh_keys, op) }
         when :delete_domain_ssh_keys
-          op.pending_apps.each { |app| app.remove_ssh_keys(nil, op.arguments["keys_attrs"], op) }
+          ssh_keys = op.arguments["keys_attrs"].map{|k| SystemSshKey.new.to_obj(k)}
+          op.pending_apps.each { |app| app.remove_ssh_keys(nil, ssh_keys, op) }
         when :add_env_variables
           op.pending_apps.each { |app| app.add_env_variables(op.arguments["variables"], op) }
         when :remove_env_variables
@@ -277,9 +302,9 @@ class Domain
 
         # reloading the op reloads the domain and then incorrectly reloads (potentially)
         # the op based on its position within the pending_ops list
-        # hence, reloading the domain, and then fetching the op using the _id
+        # hence, reloading the domain, and then fetching the op using the op_id stored earlier
         self.with(consistency: :strong).reload
-        op = self.pending_ops.find_by(_id: op._id)
+        op = self.pending_ops.find_by(_id: op_id)
         
         op.close_op
         op.delete if op.completed?

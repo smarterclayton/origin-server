@@ -13,141 +13,138 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #++
-
-require_relative '../../lib/openshift-origin-node/model/cartridge_repository'
-require 'test/unit'
-require 'mocha'
+require_relative '../test_helper'
+require 'fakefs/safe'
 require 'yaml'
 require 'pp'
 
 class CartridgeRepositoryTest < Test::Unit::TestCase
+  include FakeFS
+
   def setup
+    FakeFS.activate!
+    FileSystem.clear
+
     @path = '/var/lib/openshift/.cartridge_repository'
+    OpenShift::CartridgeRepository.instance.clear
+  end
+
+  def teardown
+    FakeFS.deactivate!
+  end
+
+  def populate_manifest(manifests = [])
+    manifests.each_with_index do |m, i|
+      FileUtils.mkpath File.dirname(m)
+      File.open(m, 'w') {|file| file << MANIFESTS[i]}
+    end
   end
 
   def test_one_manifest
-    YAML.stubs(:load_file).
-        returns(YAML.load(MANIFESTS[0]))
-
-    OpenShift::CartridgeRepository.
-        any_instance.
-        stubs(:find_manifests).
-        with(@path).
-        yields("#{@path}/RedHat-CRTEST/1.0/metadata/manifest.yml")
+    populate_manifest(%W(#{@path}/redhat-crtest/1.0/metadata/manifest.yml))
 
     cr = OpenShift::CartridgeRepository.instance
-    cr.clear
-    cr.load(@path)
-
+    cr.load
     refute_nil cr
-    e = cr.select('CRTest', '0.1', '1.0')
+
+    e = cr.select('crtest', '0.1', '1.0')
     refute_nil e
     assert_equal '0.1', e.version
-    assert_equal "#{@path}/RedHat-CRTest/1.0", e.repository_path
-    assert_equal 'RedHat', e.cartridge_vendor
+    assert_equal "#{@path}/redhat-crtest/1.0", e.repository_path
+    assert_equal 'redhat', e.cartridge_vendor
 
-    e = cr.select('CRTest', '0.1')
-    refute_nil e
-    assert_equal '0.1', e.version
-
-    e = cr.select('CRTest')
+    e = cr.select('crtest', '0.1')
     refute_nil e
     assert_equal '0.1', e.version
 
-    assert_equal 'RedHat-CRTest', e.directory
+    e = cr.select('crtest')
+    refute_nil e
+    assert_equal '0.1', e.version
+
+    assert_equal "#{@path}/redhat-crtest/1.0", e.repository_path
+  end
+
+  def test_each
+    populate_manifest(["#{@path}/redhat-crtest/1.0/metadata/manifest.yml",
+                       "#{@path}/redhat-crtest/1.1/metadata/manifest.yml",
+                       "#{@path}/redhat-crtest/1.2/metadata/manifest.yml"])
+
+    cr = OpenShift::CartridgeRepository.instance
+    cr.load
+
+    assert_equal 3, cr.count
   end
 
   def test_three_manifest
-
-    YAML.stubs(:load_file).
-        returns(YAML.load(MANIFESTS[0])).
-        then.returns(YAML.load(MANIFESTS[1])).
-        then.returns(YAML.load(MANIFESTS[2]))
-
-    OpenShift::CartridgeRepository.
-        any_instance.
-        stubs(:find_manifests).
-        with(@path).
-        multiple_yields(["#{@path}/RedHat-CRTest/1.0/metadata/manifest.yml"],
-                        ["#{@path}/RedHat-CRTest/1.1/metadata/manifest.yml"],
-                        ["#{@path}/RedHat-CRTest/1.2/metadata/manifest.yml"],)
+    populate_manifest(["#{@path}/redhat-crtest/1.0/metadata/manifest.yml",
+                       "#{@path}/redhat-crtest/1.1/metadata/manifest.yml",
+                       "#{@path}/redhat-crtest/1.2/metadata/manifest.yml"])
 
     cr = OpenShift::CartridgeRepository.instance
-    cr.clear
-    cr.load(@path)
+    cr.load
 
-    e = cr.select('CRTest')
+    e = cr.select('crtest')
     refute_nil e
     assert_equal '0.3', e.version
     assert_equal '1.2', e.cartridge_version
 
     cr = OpenShift::CartridgeRepository.instance
-    e  = cr.select('CRTest', '0.3')
+    e  = cr.select('crtest', '0.3')
     refute_nil e
     assert_equal '0.3', e.version
     assert_equal '1.2', e.cartridge_version
 
-    e = cr['CRTest']
+    e = cr['crtest']
     refute_nil e
     assert_equal '0.3', e.version
     assert_equal '1.2', e.cartridge_version
 
     cr = OpenShift::CartridgeRepository.instance
-    e  = cr['CRTest', '0.3']
+    e  = cr['crtest', '0.3']
     refute_nil e
     assert_equal '0.3', e.version
     assert_equal '1.2', e.cartridge_version
   end
 
   def test_not_found
-    YAML.stubs(:load_file).
-        returns(YAML.load(MANIFESTS[0])).
-        then.returns(YAML.load(MANIFESTS[1])).
-        then.returns(YAML.load(MANIFESTS[2]))
-
-    OpenShift::CartridgeRepository.
-        any_instance.
-        stubs(:find_manifests).
-        with(@path).
-        multiple_yields(["#{@path}/RedHat-CRTest/1.0/metadata/manifest.yml"],
-                        ["#{@path}/tests/RedHat-CRTest/1.1/metadata/manifest.yml"],
-                        ["#{@path}/tests/RedHat-CRTest/1.2/metadata/manifest.yml"],)
+    populate_manifest(["#{@path}/redhat-crtest/1.0/metadata/manifest.yml",
+                       "#{@path}/redhat-crtest/1.1/metadata/manifest.yml",
+                       "#{@path}/redhat-crtest/1.2/metadata/manifest.yml"])
 
     cr = OpenShift::CartridgeRepository.instance
-    cr.clear
-    cr.load(@path)
+    cr.load
 
     assert_raise(KeyError) do
-      cr.select('CRTest', '0.4')
+      cr.select('crtest', '0.4')
     end
   end
 
   MANIFESTS = [
       %q{#
-        Name: CRTest
-        Cartridge-Short-Name: CRTEST
-        Version: 0.1
-        Versions: [0.1]
-        Cartridge-Version: 1.0
-        Cartridge-Versions: [1.0]
-        Cartridge-Vendor: RedHat
+        Name: crtest
+        Cartridge-Short-Name: crtest
+        Version: '0.1'
+        Versions: ['0.1']
+        Cartridge-Version: '1.0'
+        Cartridge-Versions: ['1.0']
+        Cartridge-Vendor: redhat
       },
       %q{#
-        Name: CRTest
-        Cartridge-Short-Name: CRTEST
-        Version: 0.2
-        Versions: [0.1, 0.2]
-        Cartridge-Version: 1.1
-        Cartridge-Versions: [1.0, 1.1]
-        Cartridge-Vendor: RedHat
+        Name: crtest
+        Cartridge-Short-Name: crtest
+        Version: '0.2'
+        Versions: ['0.1', '0.2']
+        Cartridge-Version: '1.1'
+        Cartridge-Versions: ['1.0', '1.1']
+        Cartridge-Vendor: redhat
       },
       %q{#
-        Name: CRTest
-        Cartridge-Short-Name: CRTEST
-        Version: 0.3
-        Versions: [0.1, 0.2, 0.3]
-        Cartridge-Version: 1.2
-        Cartridge-Vendor: Red Hat
+        Name: crtest
+        Cartridge-Short-Name: crtest
+        Version: '0.3'
+        Versions: ['0.1', '0.2', '0.3']
+        Cartridge-Version: '1.2'
+        Cartridge-Vendor: redhat
       },
   ]
 end

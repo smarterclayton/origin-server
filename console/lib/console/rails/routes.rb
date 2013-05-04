@@ -13,11 +13,15 @@ module ActionDispatch::Routing
       def openshift_console_routes
         match 'help' => 'console_index#help', :via => :get, :as => 'console_help'
         match 'unauthorized' => 'console_index#unauthorized', :via => :get, :as => 'unauthorized'
+        match 'server_unavailable' => 'console_index#server_unavailable', :via => :get, :as => 'server_unavailable'
 
         # Application specific resources
         resources :application_types, :only => [:show, :index], :id => /[^\/]+/
         resources :applications do
           resources :cartridges, :only => [:show, :create, :index], :id => /[^\/]+/
+          resources :aliases, :only => [:show, :create, :index, :destroy, :update], :id => /[^\/]+/ do
+            get :delete
+          end
           resources :cartridge_types, :only => [:show, :index], :id => /[^\/]+/
           resource :restart, :only => [:show, :update], :id => /[^\/]+/
 
@@ -39,6 +43,13 @@ module ActionDispatch::Routing
             get :get_started
           end
         end
+        resource :settings, :only => :show
+
+        resource :domain, :id => /[^\/]+/, :only => [:new, :create, :edit, :update]
+        resources :keys, :id => /[^\/]+/, :only => [:new, :create, :destroy]
+
+        resources :authorizations, :id => /[^\/]+/, :except => :index
+        match 'authorizations' => 'authorizations#destroy_all', :via => :delete
       end
 
       def openshift_account_routes
@@ -46,17 +57,6 @@ module ActionDispatch::Routing
         resource :account,
                  :controller => :account,
                  :only => [:show]
-
-        scope 'account' do
-          openshift_account_resource_routes
-        end
-      end
-
-      def openshift_account_resource_routes
-        resource :domain, :only => [:new, :create, :edit, :update]
-        resources :keys, :only => [:new, :create, :destroy]
-        resources :authorizations, :except => [:index]
-        match 'authorizations' => 'authorizations#destroy_all', :via => :delete
       end
   end
 end

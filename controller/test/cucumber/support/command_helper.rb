@@ -5,8 +5,24 @@ require 'open4'
 require 'benchmark'
 
 module CommandHelper
-  def getenv(uuid, var)
-    run_stdout("source /var/lib/openshift/#{uuid}/.env/#{var};echo $#{var}").chomp!
+  def getenv(uuid, var, cart=nil)
+    result = ''
+
+    if $v2_node
+      if cart
+        result = IO.read("/var/lib/openshift/#{uuid}/#{cart}/env/#{var}").chomp
+      else
+        result = IO.read("/var/lib/openshift/#{uuid}/.env/#{var}").chomp
+      end
+    else
+      result = run_stdout("source /var/lib/openshift/#{uuid}/.env/#{var};echo $#{var}").chomp
+    end
+
+    result
+  end
+
+  def getenv_uservar(uuid, var)
+    IO.read("/var/lib/openshift/#{uuid}/.env/.uservars/#{var}").chomp!
   end
 
   def run_stdout(cmd)
@@ -137,31 +153,34 @@ module CommandHelper
   end
 
   def rhc_update_namespace(app)
+    ########### Note: the update of application namespace is no longer supported ##################
     rhc_do('rhc_update_namespace') do
       old_namespace = app.namespace
       if old_namespace.end_with?('new')
-        app.namespace = new_namespace = old_namespace[0..-4]
+        #app.namespace = new_namespace = old_namespace[0..-4]
+        new_namespace = old_namespace[0..-4]
       else
-        app.namespace = new_namespace = old_namespace + "new"
+        #app.namespace = new_namespace = old_namespace + "new"
+        new_namespace = old_namespace + "new"
       end
-      old_hostname = app.hostname
-      app.hostname = "#{app.name}-#{new_namespace}.#{$domain}"
-      old_repo = app.repo
-      app.repo = "#{$temp}/#{new_namespace}_#{app.name}_repo"
-      FileUtils.mv old_repo, app.repo
+      #old_hostname = app.hostname
+      #app.hostname = "#{app.name}-#{new_namespace}.#{$domain}"
+      #old_repo = app.repo
+      #app.repo = "#{$temp}/#{new_namespace}_#{app.name}_repo"
+      #FileUtils.mv old_repo, app.repo
       
-      if run("grep '#{old_hostname}' #{app.repo}/.git/config") == 0
-        run("sed -i 's,#{old_hostname},#{app.hostname},g' #{app.repo}/.git/config")
-      end
+      #if run("grep '#{old_hostname}' #{app.repo}/.git/config") == 0
+      #  run("sed -i 's,#{old_hostname},#{app.hostname},g' #{app.repo}/.git/config")
+      #end
       
-      if run("grep '#{app.name}-#{old_namespace}.#{$domain}' /etc/hosts") == 0
-        run("sed -i 's,#{app.name}-#{old_namespace}.#{$domain},#{app.name}-#{new_namespace}.#{$domain},g' /etc/hosts")
-      end
-      old_file = app.file
-      app.file = "#{$temp}/#{new_namespace}.json"
-      FileUtils.mv old_file, app.file
+      #if run("grep '#{app.name}-#{old_namespace}.#{$domain}' /etc/hosts") == 0
+      #  run("sed -i 's,#{app.name}-#{old_namespace}.#{$domain},#{app.name}-#{new_namespace}.#{$domain},g' /etc/hosts")
+      #end
+      #old_file = app.file
+      #app.file = "#{$temp}/#{new_namespace}.json"
+      #FileUtils.mv old_file, app.file
       time = Benchmark.realtime do 
-        run("#{$rhc_script} domain update #{old_namespace} #{new_namespace} #{default_args(app)}").should == 0
+        run("#{$rhc_script} domain update #{old_namespace} #{new_namespace} #{default_args(app)}").should == 1
       end
       log_event "#{time} UPDATE_DOMAIN #{new_namespace} #{app.login}"
       app.persist
@@ -200,6 +219,15 @@ module CommandHelper
         run("#{$rhc_script} app tidy -a #{app.name} #{default_args(app)}").should == 0
       end
       log_event "#{time} TIDY_APP #{app.name} #{app.login}"
+    end
+  end
+
+  def rhc_reload(app)
+    rhc_do('rhc_reload') do
+      time = Benchmark.realtime do
+        run("#{$rhc_script} app reload -a #{app.name} #{default_args(app)}").should == 0
+      end
+      log_event "#{time} RELOAD_APP #{app.name} #{app.login}"
     end
   end
 
@@ -261,15 +289,23 @@ module CommandHelper
         # directory to get the actual values to attach to the app.
 
         # Source the env var values from the gear directory
-        app.mysql_hostname = getenv(app.uid, 'OPENSHIFT_MYSQL_DB_HOST')
-        app.mysql_user     = getenv(app.uid, 'OPENSHIFT_MYSQL_DB_USERNAME')
-        app.mysql_password = getenv(app.uid, 'OPENSHIFT_MYSQL_DB_PASSWORD')
+
+        if app.scalable
+          app.mysql_hostname = getenv_uservar(app.uid, 'OPENSHIFT_MYSQL_DB_HOST')
+          app.mysql_user     = getenv_uservar(app.uid, 'OPENSHIFT_MYSQL_DB_USERNAME')
+          app.mysql_password = getenv_uservar(app.uid, 'OPENSHIFT_MYSQL_DB_PASSWORD')
+        else
+          app.mysql_hostname = getenv(app.uid, 'OPENSHIFT_MYSQL_DB_HOST')
+          app.mysql_user     = getenv(app.uid, 'OPENSHIFT_MYSQL_DB_USERNAME', 'mysql')
+          app.mysql_password = getenv(app.uid, 'OPENSHIFT_MYSQL_DB_PASSWORD', 'mysql')
+        end
+        
         app.mysql_database = getenv(app.uid, 'OPENSHIFT_APP_NAME')
 
-        app.mysql_hostname.should_not be_nil
-        app.mysql_user.should_not be_nil
-        app.mysql_password.should_not be_nil
-        app.mysql_database.should_not be_nil
+        app.mysql_hostname.should_not be_nil, 'mysql hostname should not be nil'
+        app.mysql_user.should_not be_nil, 'mysql username should not be nil'
+        app.mysql_password.should_not be_nil, 'mysql password should not be nil'
+        app.mysql_database.should_not be_nil, 'mysql database should not be nil'
       end
 
       app.embed.push(type)
@@ -377,6 +413,15 @@ module CommandHelper
       run("sed -i '/#{app.name}-#{app.namespace}.#{$domain}/d' /etc/hosts") if use_hosts
       FileUtils.rm_rf app.repo
       FileUtils.rm_rf app.file
+    end
+  end
+
+  def rhc_ctl_scale(app, min)
+    rhc_do('rhc_ctl_scale') do
+      time = Benchmark.realtime do
+        run("#{$rhc_script} cartridge scale -a #{app.name} -c #{app.type} --min #{min} #{default_args(app)}")
+      end
+      log_event "#{time} SCALE_APP #{app.name} #{app.login}"
     end
   end
 

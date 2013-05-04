@@ -5,8 +5,21 @@ require File.expand_path('../../config/environment', __FILE__)
 require 'rails/test_help'
 require 'mocha'
 
+if(File.exist?('/etc/fedora-release'))
+  PHP_VERSION = 'php-5.4'
+else
+  PHP_VERSION = 'php-5.3'
+end
+
 def gen_uuid
   %x[/usr/bin/uuidgen].gsub('-', '').strip 
+end
+
+def register_user(login, password)
+  if ENV['REGISTER_USER']
+    accnt = UserAccount.new(user: login, password: password)
+    accnt.save
+  end
 end
 
 def stubber
@@ -32,6 +45,7 @@ def stubber
   @container.stubs(:get_public_hostname).returns("node_dns")
   @container.stubs(:set_quota).returns(ResultIO.new)
   OpenShift::ApplicationContainerProxy.stubs(:execute_parallel_jobs)
+  RemoteJob.stubs(:get_parallel_run_results)
   OpenShift::ApplicationContainerProxy.stubs(:find_available).returns(@container)
   OpenShift::ApplicationContainerProxy.stubs(:find_one).returns(@container)
   dns = mock()

@@ -1,12 +1,11 @@
+#@runtime_extended_other2
 @runtime_extended
 @runtime_extended2
-@runtime_extended_other2
 @rhel-only
 @jboss
 Feature: Cartridge Lifecycle JBossEWS1.0 Verification Tests
   Scenario: Application Creation
     Given the libra client tools
-    And an accepted node
     When 1 jbossews-1.0 applications are created
     Then the applications should be accessible
 
@@ -27,11 +26,7 @@ Feature: Cartridge Lifecycle JBossEWS1.0 Verification Tests
     Then the application should be accessible
 
   Scenario: Application Snapshot
-    Given an existing jbossews-1.0 application
-    When I snapshot the application
-    Then the application should be accessible
-    When I restore the application
-    Then the application should be accessible
+    Given an existing jbossews-1.0 application, verify it can be snapshotted and restored
 
   Scenario: Application Destroying
     Given an existing jbossews-1.0 application

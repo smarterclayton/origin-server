@@ -9,11 +9,11 @@
 
 Summary:       Cloud Development Controller
 Name:          rubygem-%{gem_name}
-Version: 1.6.2
+Version: 1.8.6
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
-URL:           http://openshift.redhat.com
+URL:           http://www.openshift.com
 Source0:       http://mirror.openshift.com/pub/openshift-origin/source/%{name}/rubygem-%{gem_name}-%{version}.tar.gz
 %if 0%{?fedora} >= 19
 Requires:      ruby(release)
@@ -22,6 +22,7 @@ Requires:      %{?scl:%scl_prefix}ruby(abi) >= %{rubyabi}
 %endif
 Requires:      %{?scl:%scl_prefix}rubygems
 Requires:      %{?scl:%scl_prefix}rubygem(state_machine)
+Requires:      %{?scl:%scl_prefix}rubygem(dnsruby)
 Requires:      rubygem(openshift-origin-common)
 %if 0%{?fedora}%{?rhel} <= 6
 BuildRequires: %{?scl:%scl_prefix}build
@@ -83,6 +84,410 @@ mkdir -p %{buildroot}/etc/openshift/
 %{gem_dir}/doc/%{gem_name}-%{version}
 
 %changelog
+* Fri May 03 2013 Adam Miller <admiller@redhat.com> 1.8.6-1
+- fix version mismatch between broker/node for personal carts; some more safety
+  for yaml downloads (rchopra@redhat.com)
+
+* Thu May 02 2013 Adam Miller <admiller@redhat.com> 1.8.5-1
+- nomenclature cleanup and fix for bz958342 (rchopra@redhat.com)
+- Merge pull request #2232 from smarterclayton/support_external_cartridges
+  (dmcphers+openshiftbot@redhat.com)
+- Remove last external reference (ccoleman@redhat.com)
+- Merge remote-tracking branch 'origin/master' into support_external_cartridges
+  (ccoleman@redhat.com)
+- Rename "external cartridge" to "downloaded cartridge".  UI should call them
+  "personal" cartridges (ccoleman@redhat.com)
+- 'or true' results in external always being enabled (ccoleman@redhat.com)
+- Merge remote-tracking branch 'origin/master' into support_external_cartridges
+  (ccoleman@redhat.com)
+- Merge remote-tracking branch 'origin/master' into support_external_cartridges
+  (ccoleman@redhat.com)
+- Add broker config for external cartridges (ccoleman@redhat.com)
+
+* Wed May 01 2013 Adam Miller <admiller@redhat.com> 1.8.4-1
+- Merge pull request #2300 from pravisankar/dev/ravi/card21
+  (dmcphers+openshiftbot@redhat.com)
+- Broker changes for supporting unsubscribe connection event. Details: When one
+  of the component is removed from the app and if it has published some content
+  to other components located on different gears, we issue unsubscribe event on
+  all the subscribing gears to cleanup the published content.
+  (rpenta@redhat.com)
+- Merge pull request #2307 from lnader/master
+  (dmcphers+openshiftbot@redhat.com)
+- embedding and versions support for community carts (rchopra@redhat.com)
+- Merge pull request #2284 from lnader/551 (dmcphers+openshiftbot@redhat.com)
+- fixed broker extended by increasing timeout (lnader@redhat.com)
+- Merge pull request #2301 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- fix bug#958320 - no singleton cart's hook for scaled gears
+  (rchopra@redhat.com)
+- fixed issue with features with dashes (lnader@redhat.com)
+- Card 551 (lnader@redhat.com)
+- Card online_runtime_266 - Support for JAVA_HOME (jhonce@redhat.com)
+- Merge pull request #2287 from brenton/oo-accept-systems2
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2282 from rajatchopra/url_story
+  (dmcphers+openshiftbot@redhat.com)
+- Adding a cucumber test for oo-accept-systems (bleanhar@redhat.com)
+- support for external cartridge through urls (rchopra@redhat.com)
+
+* Tue Apr 30 2013 Adam Miller <admiller@redhat.com> 1.8.3-1
+- Merge pull request #2280 from mrunalp/dev/auto_env_vars
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2230 from pravisankar/dev/ravi/card559
+  (dmcphers+openshiftbot@redhat.com)
+- Env var WIP. (mrunalp@gmail.com)
+- Merge pull request #2273 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- fix for bug#956117 - cartname is required for start/stop and not comp_name
+  (rchopra@redhat.com)
+- Removed 'setmaxstorage' option for oo-admin-ctl-user script. Added
+  'setmaxtrackedstorage' and 'setmaxuntrackedstorage' options for oo-admin-ctl-
+  user script. Updated oo-admin-ctl-user man page. Max allowed additional fs
+  storage for user will be 'max_untracked_addtl_storage_per_gear' capability +
+  'max_tracked_addtl_storage_per_gear' capability. Don't record usage for
+  additional fs storage if it is less than
+  'max_untracked_addtl_storage_per_gear' limit. Fixed unit tests and models to
+  accommodate the above change. (rpenta@redhat.com)
+
+* Mon Apr 29 2013 Adam Miller <admiller@redhat.com> 1.8.2-1
+- Merge pull request #2254 from ironcladlou/dev/v2carts/process-version
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2243 from abhgupta/abhgupta-dev
+  (dmcphers+openshiftbot@redhat.com)
+- Add process-version control action (ironcladlou@gmail.com)
+- Maintaining configure order among components for post-configure as well
+  (abhgupta@redhat.com)
+
+* Thu Apr 25 2013 Adam Miller <admiller@redhat.com> 1.8.1-1
+- Merge pull request #2231 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- subscriber connection should know who is the publisher (rchopra@redhat.com)
+- Bug 956670 - Fix static references to small gear size (jdetiber@redhat.com)
+- Card online_runtime_266 - Cucumber test checking for removed file
+  (jhonce@redhat.com)
+- splitting up runtime_other tests (dmcphers@redhat.com)
+- Merge pull request #2220 from abhgupta/abhgupta-dev
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2217 from pmorie/dev/v2_mysql
+  (dmcphers+openshiftbot@redhat.com)
+- Splitting configure for cartridges into configure and post-configure
+  (abhgupta@redhat.com)
+- Merge pull request #2212 from danmcp/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1918 from lnader/rest_api_improvments
+  (dmcphers+openshiftbot@redhat.com)
+- Trim execution time of runtime_other tests (pmorie@gmail.com)
+- Bug 955973 (dmcphers@redhat.com)
+- Postgres V2 fixes (fotios@redhat.com)
+- Creating fixer mechanism for replacing all ssh keys for an app
+  (abhgupta@redhat.com)
+- Merge pull request #2208 from ironcladlou/dev/v2carts/post-configure
+  (dmcphers+openshiftbot@redhat.com)
+- General REST API clean up - centralizing log tags and getting common objects
+  (lnader@redhat.com)
+- Split v2 configure into configure/post-configure (ironcladlou@gmail.com)
+- add connection type to connector calls (dmcphers@redhat.com)
+- Merge pull request #2196 from pmorie/dev/v2_mysql
+  (dmcphers+openshiftbot@redhat.com)
+- WIP: test mysql in scalable app (pmorie@gmail.com)
+- Merge pull request #2187 from danmcp/master
+  (dmcphers+openshiftbot@redhat.com)
+- install and post setup tests (dmcphers@redhat.com)
+- Implement hot deployment for V2 cartridges (ironcladlou@gmail.com)
+- WIP Cartridge Refactor - Update extended tests for raw environment variables
+  (jhonce@redhat.com)
+- WIP Cartridge Refactor - Card#255 missed env var source in app_helper.rb
+  (jhonce@redhat.com)
+- WIP Cartridge Refactor - Change environment variable files to contain just
+  value (jhonce@redhat.com)
+- app_dns should belong to only one group instance (rchopra@redhat.com)
+- Bug 928675 (asari.ruby@gmail.com)
+- Merge pull request #2155 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2152 from pravisankar/dev/ravi/plan_history_cleanup
+  (dmcphers+openshiftbot@redhat.com)
+- eventual consistency is alright in some cases (rchopra@redhat.com)
+- Merge pull request #2149 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- Added pre_sync_usage, post_sync_usage operations in oo-admin-ctl-usage script
+  (rpenta@redhat.com)
+- Merge pull request #2146 from abhgupta/bug_953493
+  (dmcphers+openshiftbot@redhat.com)
+- disallow creation of scalable apps with framework carts that do not scale
+  (rchopra@redhat.com)
+- Merge pull request #2142 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- Fix for bug 953493  - Providing better error message when creating a scalable
+  application with a framework cartridge that cannot be scaled  - Validating
+  against adding more than one framework cartridge to an application
+  (abhgupta@redhat.com)
+- refix unreserve_uid when destroying gear (rchopra@redhat.com)
+- Merge pull request #2120 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- unreserve should not happen twice over (rchopra@redhat.com)
+- Fix for bug 953035 Including the links for aliases embedded in application
+  response if nolinks was not specified (abhgupta@redhat.com)
+- bump_minor_versions for sprint 2.0.26 (tdawson@redhat.com)
+- bump_minor_versions for sprint 2.0.26 (tdawson@redhat.com)
+- Merge pull request #2099 from brenton/controller1
+  (dmcphers+openshiftbot@redhat.com)
+- controller dependency fixes (bleanhar@redhat.com)
+
+* Tue Apr 16 2013 Troy Dawson <tdawson@redhat.com> 1.7.8-1
+- Merge pull request #2083 from pmorie/bugs/927850
+  (dmcphers+openshiftbot@redhat.com)
+- WIP Cartridge Refactor - V2 support for reading .uservars (jhonce@redhat.com)
+- <controller/test/cucumber> Bug 949251 - fix jboss* snapshot/restore tests
+  (jolamb@redhat.com)
+- <runtime_steps.rb> Bug 949251 - Add file check to V1 snapshot/restore test
+  (jolamb@redhat.com)
+
+* Sat Apr 13 2013 Krishna Raman <kraman@gmail.com> 1.7.7-1
+- WIP: scalable snapshot/restore (pmorie@gmail.com)
+- Merge pull request #2040 from pmorie/dev/mock_cuke (dmcphers@redhat.com)
+- Rename and break out platform features into discrete tests (pmorie@gmail.com)
+
+* Fri Apr 12 2013 Adam Miller <admiller@redhat.com> 1.7.6-1
+- Fix cart-scoped action hook executions (ironcladlou@gmail.com)
+- SELinux, ApplicationContainer and UnixUser model changes to support oo-admin-
+  ctl-gears operating on v1 and v2 cartridges. (rmillner@redhat.com)
+- phpmyadmin tests (dmcphers@redhat.com)
+- Merge pull request #2015 from ironcladlou/dev/v2carts/build-system
+  (dmcphers@redhat.com)
+- Merge pull request #2016 from pmorie/dev/platform_ssh (dmcphers@redhat.com)
+- Merge pull request #1996 from
+  smarterclayton/bug_950367_use_default_for_bad_expires_in
+  (dmcphers+openshiftbot@redhat.com)
+- Generate ssh key for web proxy cartridges (pmorie@gmail.com)
+- Call cart pre-receive hook during default build lifecycle
+  (ironcladlou@gmail.com)
+- Bug 950367 - Handle non-integer values for expires_in (ccoleman@redhat.com)
+
+* Thu Apr 11 2013 Adam Miller <admiller@redhat.com> 1.7.5-1
+- Merge pull request #2009 from abhgupta/abhgupta-dev (dmcphers@redhat.com)
+- Merge pull request #2001 from brenton/misc2 (dmcphers@redhat.com)
+- Merge pull request #1998 from pravisankar/dev/ravi/card526
+  (dmcphers@redhat.com)
+- Merge pull request #1997 from
+  smarterclayton/bug_928668_better_messages_for_storage_limits
+  (dmcphers+openshiftbot@redhat.com)
+- Specifying an invalid embedded cartridge during app creation was throwing
+  internal server error (abhgupta@redhat.com)
+- Merge pull request #1752 from BanzaiMan/ruby_v2_work (dmcphers@redhat.com)
+- Labeling a few cucumber tests as @not-enterprise (bleanhar@redhat.com)
+- Ruby v2 cartridge work (asari.ruby@gmail.com)
+- Bug 928668 - Provide better gear storage messages (ccoleman@redhat.com)
+- Add 'plan_history' to CloudUser model. oo-admin-ctl-usage will also cache
+  'plan_history' and will pass to sync_usage(). (rpenta@redhat.com)
+
+* Wed Apr 10 2013 Adam Miller <admiller@redhat.com> 1.7.4-1
+- Anchor locked_files.txt entries at the cart directory (ironcladlou@gmail.com)
+- Merge pull request #1980 from abhgupta/abhgupta-dev
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1979 from pmorie/dev/snapshot_cuke
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1959 from pravisankar/dev/ravi/card-537
+  (dmcphers+openshiftbot@redhat.com)
+- Returning the correct http status in case of unhandled exception
+  (abhgupta@redhat.com)
+- Add core platform test for v2 snapshot/restore (pmorie@gmail.com)
+- Merge pull request #1968 from pmorie/dev/v2_mysql (dmcphers@redhat.com)
+- Gear Move changes: Keep same uid for the gear When changing the gear from one
+  district to another. (rpenta@redhat.com)
+- Merge pull request #1965 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1953 from abhgupta/abhgupta-dev
+  (dmcphers+openshiftbot@redhat.com)
+- Add mysql v2 snapshot/restore tests (pmorie@gmail.com)
+- fix system_ssh_key remove case (rchopra@redhat.com)
+- Adding checks for ssh key matches (abhgupta@redhat.com)
+
+* Tue Apr 09 2013 Adam Miller <admiller@redhat.com> 1.7.3-1
+- Merge pull request #1954 from lnader/gear-ssh-url
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1957 from lnader/536 (dmcphers+openshiftbot@redhat.com)
+- Card 536 - Clean up in domain space (lnader@redhat.com)
+- delete all calls to remove_ssh_key, and remove_domain_env_vars
+  (rchopra@redhat.com)
+- Merge pull request #1934 from lnader/card-534 (dmcphers@redhat.com)
+- Add ssh_url to gear_groups for each gear (lnader@redhat.com)
+- Merge pull request #1921 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1942 from ironcladlou/dev/v2carts/vendor-changes
+  (dmcphers+openshiftbot@redhat.com)
+- Remove vendor name from installed V2 cartridge path (ironcladlou@gmail.com)
+- Card 534 (lnader@redhat.com)
+- auto-cleanup of ssh-keys/env vars on cart remove (rchopra@redhat.com)
+
+* Mon Apr 08 2013 Adam Miller <admiller@redhat.com> 1.7.2-1
+- 10gen-mms-agent WIP (dmcphers@redhat.com)
+- Remove redundant steps from nodejs feature (ironcladlou@gmail.com)
+- nodejs cucumber features modelled after ruby v2 features
+  (asari.ruby@gmail.com)
+- Part 2 of Card 536 (lnader@redhat.com)
+- Part 1 of Card 536 (lnader@redhat.com)
+- Refactor v2 cartridge SDK location and accessibility (ironcladlou@gmail.com)
+- Consolidating ssh key name manipulation in one place (abhgupta@redhat.com)
+- too much had been added to runtime_other (dmcphers@redhat.com)
+- Merge pull request #1883 from calfonso/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1880 from lnader/master
+  (dmcphers+openshiftbot@redhat.com)
+- Mongodb Cartridge V2 (calfonso@redhat.com)
+- Bug 947288 (lnader@redhat.com)
+- Merge pull request #1867 from abhgupta/abhgupta-dev (dmcphers@redhat.com)
+- Randomizing UIDs in available_uids list for district (abhgupta@redhat.com)
+- corrected broker extended test (lnader@redhat.com)
+- Merge pull request #1859 from ironcladlou/dev/v2carts/state-management
+  (dmcphers+openshiftbot@redhat.com)
+- V2 cart state management implementation (ironcladlou@gmail.com)
+- Corrected test to reflect changes in API (lnader@redhat.com)
+- Card 515 - Improve test coverage (lnader@redhat.com)
+- scale-down should ignore haproxy gear (rchopra@redhat.com)
+
+* Thu Mar 28 2013 Adam Miller <admiller@redhat.com> 1.7.1-1
+- bump_minor_versions for sprint 26 (admiller@redhat.com)
+- Improve mock/mock-plugin cartridges (ironcladlou@gmail.com)
+
+* Wed Mar 27 2013 Adam Miller <admiller@redhat.com> 1.6.8-1
+- Fixing retry logic of rest-domains.feature tests to not run F18-only tests on
+  RHEL and vice-versa https://bugzilla.redhat.com/show_bug.cgi?id=928382
+  (kraman@gmail.com)
+- Merge pull request #1815 from lnader/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1821 from jwhonce/wip/threaddump
+  (dmcphers+openshiftbot@redhat.com)
+- Corrected the incorrect fix put in for bug 915673 (lnader@redhat.com)
+- WIP Cartridge Refactor - Roll out old threaddump support (jhonce@redhat.com)
+- Merge pull request #1817 from jwhonce/wip/threaddump (dmcphers@redhat.com)
+- Merge pull request #1816 from rmillner/fix_runtime (dmcphers@redhat.com)
+- Merge pull request #1809 from ironcladlou/dev/v2carts/build-system
+  (dmcphers+openshiftbot@redhat.com)
+- Read values from node.conf for origin testing. (rmillner@redhat.com)
+- Merge pull request #1808 from lnader/master (dmcphers@redhat.com)
+- Merge pull request #1811 from kraman/gen_docs (dmcphers@redhat.com)
+- WIP Cartridge Refactor - Add PHP support for threaddump (jhonce@redhat.com)
+- don't catch Mongoid::Errors::DocumentNotFound (lnader@redhat.com)
+- Bug 915673 (lnader@redhat.com)
+- Update docs generation and add node/cartridge guides [WIP]
+  https://trello.com/c/yUMBZ0P9 (kraman@gmail.com)
+- Bug 927614: Fix action hook execution during v2 control ops
+  (ironcladlou@gmail.com)
+- fixing test cases (dmcphers@redhat.com)
+
+* Tue Mar 26 2013 Adam Miller <admiller@redhat.com> 1.6.7-1
+- Fix for bug 920016   Handling exception thrown by get_bool util method
+  (abhgupta@redhat.com)
+- Fix for bug 924479   Handling the case when component_properties is an empty
+  array instead of a Hash   This can happen if the mongo document is copied and
+  pasted back and saved using a UI tool (abhgupta@redhat.com)
+- Fixing validations for updating scaling parameters for cartridges
+  (abhgupta@redhat.com)
+- Fix for bug 927154 Fixing multiple issues in remove-gear command of admin
+  script (abhgupta@redhat.com)
+
+* Mon Mar 25 2013 Adam Miller <admiller@redhat.com> 1.6.6-1
+- Merge pull request #1762 from fabianofranz/dev/ffranz/ssl
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1775 from mmcgrath-openshift/ruby-combined
+  (dmcphers@redhat.com)
+- Merge pull request #1773 from rajatchopra/bz919379
+  (dmcphers+openshiftbot@redhat.com)
+- corrected some 1.8/1.9 issues, cucumber tests now work (mmcgrath@redhat.com)
+- do not delete app unless its really empty (rchopra@redhat.com)
+- fixed for vendor-ruby bits (mmcgrath@redhat.com)
+- removing steps (mmcgrath@redhat.com)
+- correcting to work with both versions of ruby (mmcgrath@redhat.com)
+- Changing regex (mmcgrath@redhat.com)
+- Card #239: Added support to alias creation and deletion and SSL certificate
+  upload to the web console (ffranz@redhat.com)
+
+* Fri Mar 22 2013 Adam Miller <admiller@redhat.com> 1.6.5-1
+- The larger tests do not conflict with Online and needed to be available to
+  runtime-extended. (rmillner@redhat.com)
+- Fix for bug 924479 (abhgupta@redhat.com)
+- Using relationships for on_domains and completed_domains
+  (abhgupta@redhat.com)
+- Fixing mongo query to pass correct parameters (abhgupta@redhat.com)
+- Storing the pending_op id to retrieve it after a reload (abhgupta@redhat.com)
+- Merge pull request #1746 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1749 from ironcladlou/dev/v2carts/build-system
+  (dmcphers@redhat.com)
+- Reimplement the v2 build process (ironcladlou@gmail.com)
+- dont crash user_op on missing domains (rchopra@redhat.com)
+
+* Thu Mar 21 2013 Adam Miller <admiller@redhat.com> 1.6.4-1
+- Merge pull request #1743 from jwhonce/wip/cartridge_ident
+  (dmcphers+openshiftbot@redhat.com)
+- Additional fixes to read from the primary (abhgupta@redhat.com)
+- Fixing force deletion of domain to correctly read apps from primary
+  (abhgupta@redhat.com)
+- WIP Cartridge Refactor - Add new environment variables (jhonce@redhat.com)
+- Merge pull request #1727 from kraman/embeeded_feature_fix
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1714 from pmorie/dev/v2_mysql (admiller@redhat.com)
+- Fix embedded.feature runtime extended test (kraman@gmail.com)
+- Jenkins client WIP (dmcphers@redhat.com)
+- Cart V2 build implementation WIP (ironcladlou@gmail.com)
+- Merge pull request #1717 from jwhonce/wip/setup_version
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1702 from kraman/f18_fixes
+  (dmcphers+openshiftbot@redhat.com)
+- WIP Cartridge Refactor -- restore --version to setup calls
+  (jhonce@redhat.com)
+- WIP: v2 mysql (pmorie@gmail.com)
+- US436: Add plan_state field to cloud_user mongoid model (rpenta@redhat.com)
+- Merge pull request #1696 from pravisankar/dev/ravi/us506
+  (dmcphers+openshiftbot@redhat.com)
+- Updating rest-client and rake gem versions to match F18 (kraman@gmail.com)
+- US506 : Broker rails flag to enable/disable broker in maintenance mode
+  (rpenta@redhat.com)
+- Merge pull request #1692 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1695 from jwhonce/wip/coverage
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1685 from abhgupta/bug921301
+  (dmcphers+openshiftbot@redhat.com)
+- WIP Cartridge Refactor - Work on tests and coverage (jhonce@redhat.com)
+- Merge pull request #1683 from jwhonce/wip/mock_updated (dmcphers@redhat.com)
+- Fix for bug 921301 Reading the domain from the primary (abhgupta@redhat.com)
+- analytics data export/import (rchopra@redhat.com)
+- WIP Cartridge Refactor - cucumber test refactor (jhonce@redhat.com)
+- V2 cucumber test refactor (ironcladlou@gmail.com)
+
+* Mon Mar 18 2013 Adam Miller <admiller@redhat.com> 1.6.3-1
+- Adding permission related support for cartridge-php tests (kraman@gmail.com)
+- Disable cartridge-php.feature on Fedora due to hard coded assumptions about
+  RHEL paths (kraman@gmail.com)
+- Removing hack for separating id from format in keys controller
+  (abhgupta@redhat.com)
+- Adding back the get_mcs_level function for the php cartridge tests
+  (kraman@gmail.com)
+- Merge pull request #1633 from lnader/revert_pull_request_1486
+  (dmcphers+openshiftbot@redhat.com)
+- Fixing fedora tests for php and mongodb (kraman@gmail.com)
+- Merge pull request #1663 from smarterclayton/cache_enable_origin
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 920801 (lnader@redhat.com)
+- Fixed merge conflict (lnader@redhat.com)
+- Changed private_certificate to private_ssl_certificate (lnader@redhat.com)
+- Add SNI upload support to API (lnader@redhat.com)
+- save analytics in application (rchopra@redhat.com)
+- Support cache config (ccoleman@redhat.com)
+- Merge pull request #1653 from calfonso/master
+  (dmcphers+openshiftbot@redhat.com)
+- Fix typo in runtime cuke test stepdefs (ironcladlou@gmail.com)
+- Disable check for quota over ssh on Fedora (kraman@gmail.com)
+- Fix for bug 918966 Removing constraints from routes and adding regex checks
+  in controllers (abhgupta@redhat.com)
+- Merge pull request #1651 from rmillner/build_failures
+  (dmcphers+openshiftbot@redhat.com)
+- DIY Cartridge 2.0 (chris@@hoflabs.com)
+- RHEL and Fedora have different versions of the cartridge.
+  (rmillner@redhat.com)
+
 * Thu Mar 14 2013 Adam Miller <admiller@redhat.com> 1.6.2-1
 - Merge pull request #1644 from ironcladlou/dev/v2carts/endpoint-refactor
   (dmcphers@redhat.com)

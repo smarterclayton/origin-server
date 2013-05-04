@@ -3,15 +3,12 @@
 # Mock cartridge for testing and verifying node platform code. This is
 # not an example of how to write a well-formed cartridge.
 
-source ~/.env/*
-
 case "$1" in
   -v|--version)
     version="$2"
 esac
 
-cartridge_instance_dir=RedHat-mock
-source $cartridge_instance_dir/mock.conf
+source $OPENSHIFT_MOCK_DIR/mock.conf
 
 rm -rf $MOCK_STATE/
 mkdir $MOCK_STATE
@@ -23,10 +20,12 @@ function error_exit {
   exit $2
 }
 
+mkdir -p $OPENSHIFT_MOCK_DIR/logs
+
 if [[ -n "$version" ]]; then
   echo "Creating version marker for $version"
   echo "$version" > $MOCK_STATE/setup_version
-  echo "export OPENSHIFT_MOCK_VERSION=\'$version\'" > $cartridge_instance_dir/env/OPENSHIFT_MOCK_VERSION
+  echo "$version" > $OPENSHIFT_MOCK_DIR/env/OPENSHIFT_MOCK_VERSION
 else
   echo "Skipping version creation marker."
 fi

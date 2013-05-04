@@ -1,4 +1,0 @@
-perl/metadata/
-perl/env/
-perl/etc/
-perl/template/

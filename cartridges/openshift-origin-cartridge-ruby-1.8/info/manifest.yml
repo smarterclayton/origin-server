@@ -1,5 +1,6 @@
 Name: ruby-1.8
 Cartridge-Short-Name: RUBY
+Cartridge-Vendor: redhat
 Display-Name: Ruby 1.8
 Description: "Ruby is a dynamic, reflective, general-purpose object-oriented programming language. We recommend using Ruby 1.9 for new applications."
 Version: 1.8
@@ -10,7 +11,7 @@ Categories:
   - ruby
   - web_framework
 Help-Topics:
-  "Developer Center": https://openshift.redhat.com/community/developers
+  "Developer Center": https://www.openshift.com/developers
 Cart-Data:
   - Key: OPENSHIFT_TMP_DIR
     Type: environment
@@ -72,3 +73,6 @@ Endpoints:
     Private-Port-Name: PORT
     Private-Port:      8080
     Public-Port-Name:  PROXY_PORT
+Additional-Control-Actions:
+    - threaddump
+

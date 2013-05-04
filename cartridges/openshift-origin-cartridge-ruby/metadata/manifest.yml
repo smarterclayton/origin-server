@@ -1,8 +1,9 @@
-Name: ruby-1.9
+Name: ruby
 Cartridge-Short-Name: RUBY
 Display-Name: Ruby 1.9
-Description: "Ruby is a general-purpose server-side scripting language originally designed for Web development to produce dynamic Web pages. Popular development frameworks include: CakeRuby, Zend, Symfony, and Code Igniter."
-Version: 1.9
+Description: "Ruby is a dynamic, reflective, general-purpose object-oriented programming language. Popular development frameworks include Ruby on Rails and Sinatra."
+Version: '1.9'
+Versions: ['1.9', '1.8']
 License: "Ruby BSDL"
 License-Url: http://www.ruby-lang.org/en/about/license.txt
 Vendor: ruby.org
@@ -14,7 +15,7 @@ Categories:
   - web_framework
 Website: http://www.ruby.org
 Help-Topics:
-  "Developer Center": https://openshift.redhat.com/community/developers
+  "Developer Center": https://www.openshift.com/developers
 Cart-Data:
   - Key: OPENSHIFT_TMP_DIR
     Type: environment
@@ -43,10 +44,6 @@ Cart-Data:
   - Key: OPENSHIFT_GEAR_UUID
     Type: environment
     Description: "Unique ID which identified the gear. This value changes between gears."
-Provides:
-  - ruby-1.9
-  - "ruby"
-  - "ruby(version) = 1.9"
 Publishes:
   publish-http-url:
     Type: "NET_TCP:httpd-proxy-info"
@@ -54,10 +51,7 @@ Publishes:
     Type: "NET_TCP:gear-endpoint-info"
 Subscribes:
   set-db-connection-info:
-    Type: "NET_TCP:db:connection-info"
-    Required: false
-  set-nosql-db-connection-info:
-    Type: "NET_TCP:nosqldb:connection-info"
+    Type: "ENV:NET_TCP:db:connection-info"
     Required: false
   set-mysql-connection-info:
     Type: "NET_TCP:db:mysql"
@@ -65,12 +59,19 @@ Subscribes:
   set-postgres-connection-info:
     Type: "NET_TCP:db:postgres"
     Required : false
+  set-nosql-db-connection-info:
+    Type: "ENV:NET_TCP:nosqldb:connection-info"
+    Required : false
   set-doc-url:
     Type: "STRING:urlpath"
     Required : false
 Scaling:
   Min: 1
   Max: -1
+Provides:
+  - ruby-1.9
+  - "ruby"
+  - "ruby(version) = 1.9"
 Group-Overrides:
   - components:
     - ruby-1.9
@@ -80,3 +81,24 @@ Endpoints:
     Private-Port-Name: PORT
     Private-Port:      8080
     Public-Port-Name:  PROXY_PORT
+    Mappings:
+      - Frontend:      ""
+        Backend:       ""
+        Options:       { websocket: true }
+      - Frontend:      "/health"
+        Backend:       ""
+        Options:       { health: true }
+Additional-Control-Actions:
+    - threaddump
+Version-Overrides:
+  '1.8':
+    Display-Name: Ruby 1.8
+    Provides:
+      - ruby-1.8
+      - "ruby"
+      - "ruby(version) = 1.8"
+    Group-Overrides:
+      - components:
+        - ruby-1.8
+        - web_proxy
+Install-Build-Required: false

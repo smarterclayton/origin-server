@@ -2,6 +2,7 @@ source 'http://rubygems.org'
 
 gem 'rails', '~> 3.2.8'
 gem 'json'
+gem 'json_pure'
 gem 'parseconfig'
 gem 'xml-simple'
 gem 'rack'
@@ -12,7 +13,16 @@ gem 'mongoid'
 gem 'bson'
 gem 'bson_ext'
 gem 'pry', :require => 'pry' if ENV['PRY']
-gem 'minitest', '3.2.0'
+gem 'minitest'
+
+# For performance reasons, the following scripts will not be
+# refactored to use mongoid exclusively:
+#  * broker-util/oo-admin-chk
+#  * broker-util/oo-admin-fix-sshkeys
+#  * broker-util/oo-stats
+# These scripts use the OpenShift::DataStore API, and thus depend on
+# the mongo rubygem:
+gem 'mongo'
 
 if ENV['SOURCE']
   gem 'openshift-origin-common', :path => '../common'
@@ -49,9 +59,9 @@ Dir["/etc/openshift/plugins.d/*.conf"].delete_if{ |x| x.end_with? "-dev.conf" }.
 # and rake tasks are available in development mode:
 group :development, :test do
   # The require part from http://tinyurl.com/3pf68ho
-  gem 'rest-client', '1.6.1', :require => 'rest-client'
-  gem 'mocha', '0.12.1', :require => nil
-  gem 'rake', '>= 0.8.7', '<= 0.9.2.2'
+  gem 'rest-client', '>= 1.6.1', '<= 1.6.7', :require => 'rest-client'
+  gem 'mocha', '0.12.10', :require => nil
+  gem 'rake', '>= 0.8.7', '<= 0.9.6'
   gem 'simplecov'
   gem 'cucumber'
 end

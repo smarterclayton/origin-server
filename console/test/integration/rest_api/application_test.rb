@@ -38,6 +38,30 @@ class RestApiApplicationTest < ActiveSupport::TestCase
     assert_equal prefix_options, app.prefix_options
   end
 
+  # Needs to be an accessible web cart definition on devenv or public web
+  TEST_CART_URL = 'http://test.cart'
+  TEST_CART_NAME = 'name'
+
+  def test_create_with_url
+    with_configured_user
+    setup_domain
+
+    skip "Downloadable cartridges are disabled" unless RestApi.download_cartridges_enabled?
+
+    app = Application.new({
+      :domain => @domain,
+      :name => 'test2',
+      :cartridges => [{:url => TEST_CART_URL}],
+      :as => @user,
+    })
+
+    assert !app.save, "External cartridges are now implemented, uncomment following lines"
+    #assert app.save, app.errors.inspect
+    #app = @domain.find_application('test2')
+    #assert_equal TEST_CART_URL, app.cartridges.first.url
+    #assert_equal TEST_CART_NAME, app.cartridges.first.name
+  end
+
   def test_retrieve_cartridges
     #setup_domain
     #app = Application.create :name => 'test', :domain => @domain, :cartridge => 'php-5.3', :as => @user
@@ -86,7 +110,7 @@ class RestApiApplicationTest < ActiveSupport::TestCase
 
   def assert_create_app(options, message="", &block)
     app = Application.new({:name => 'test', :domain => @domain}.merge(options))
-    assert app.save, "#{description} could not be saved, #{app.errors.to_hash.inspect}"
+    assert app.save, "#{app.name} could not be saved, #{app.errors.to_hash.inspect}"
     begin
       yield app
     ensure

@@ -35,6 +35,16 @@ class ComponentInstance
     cart = CartridgeCache.find_cartridge(cartridge_name)
     cart.is_web_proxy?
   end
+  
+  def is_web_framework?
+    cart = CartridgeCache.find_cartridge(cartridge_name)
+    cart.is_web_framework?
+  end
+
+  def get_additional_control_actions
+    cart = CartridgeCache.find_cartridge(cartridge_name)
+    cart.additional_control_actions
+  end
 
   def group_instance
     self.application.group_instances.find(self.group_instance_id)

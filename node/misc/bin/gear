@@ -1,0 +1,282 @@
+#!/usr/bin/env oo-ruby
+#--
+# Copyright 2013 Red Hat, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#++
+
+require 'pp'
+require 'rubygems'
+require 'commander/import'
+require 'openshift-origin-node/model/application_container'
+require 'openshift-origin-node/model/application_repository'
+require 'openshift-origin-node/utils/node_logger'
+
+name="#{__FILE__}"
+
+program :name, "OpenShift Gear Control"
+program :version, "1.0.0"
+program :description, "An assortment gear utilities"
+
+STDOUT.sync = true
+STDERR.sync = true
+
+HOT_DEPLOY_MARKER = '.openshift/markers/hot_deploy'
+
+module OpenShift
+  module NodeLogger
+    def self.logger
+       unless @logger
+          @logger = Logger.new(File.open(File::NULL, "w"))
+       end
+       @logger
+    end
+
+    def self.trace_logger
+       unless @trace_logger
+         @trace_logger = Logger.new(File.open(File::NULL, "w"))
+         @trace_logger.level = Logger::Severity::ERROR
+       end
+       @trace_logger
+    end
+  end
+end
+
+def gear_cartridge_names
+  cartridge_names = []
+  @container.cartridge_model.each_cartridge do |c|
+    cartridge_names << "#{c.name}-#{c.version}"
+  end
+  cartridge_names
+end
+
+def file_in_commit?(sha1, fn, status)
+  Dir.chdir(@repo.path) do
+    return (not `git show --pretty="format:" --name-only --diff-filter=[#{status}] #{sha1} -- #{fn}`.chomp.strip.empty?)
+  end
+end
+
+def file_committed?(fn)
+  Dir.chdir(@repo.path) do
+    return (not `git ls-tree master -- #{fn}`.chomp.strip.empty?)
+  end
+end
+
+@container = OpenShift::ApplicationContainer.new(ENV['OPENSHIFT_APP_UUID'], ENV['OPENSHIFT_GEAR_UUID'], Etc.getpwuid.uid, ENV['OPENSHIFT_APP_NAME'], ENV['OPENSHIFT_GEAR_NAME'], ENV['OPENSHIFT_NAMESPACE'])
+@repo = OpenShift::ApplicationRepository.new(@container.user)
+
+def do_command
+  begin
+    yield
+  rescue SystemExit, Interrupt
+    puts
+    exit 1
+  rescue OpenShift::Utils::ShellExecutionException => e
+    $stderr.puts "#{e.message}: rc(#{e.rc})"
+    $stderr.puts "stdout: #{e.stdout}\nstderr#{e.stderr}"
+    $stderr.puts e.backtrace.join("\n")
+    exit -1
+  rescue Exception => e
+    $stderr.puts e.message
+    exit -1
+  else
+    exit 0
+  end
+end
+
+command :prereceive do |c|
+  c.syntax = "#{name} prereceive"
+
+  c.description = "Run the git prereceive steps"
+  c.action do |args, options|
+    do_command do
+      marker_added     = false
+      marker_deleted   = false
+      marker_committed = file_committed?(HOT_DEPLOY_MARKER)
+
+      $stdin.each_line do |str|
+        arr  = str.split                    
+        refs = arr[2].split('/')
+
+        old_rev  = arr[0]  # SHA
+        new_rev  = arr[1]  # SHA
+        ref_type = refs[1] # tags || heads (branch)
+        ref_name = refs[2] # develop, 1.4 etc.
+
+        marker_added   = file_in_commit?(new_rev, HOT_DEPLOY_MARKER, 'A')
+        marker_deleted = file_in_commit?(new_rev, HOT_DEPLOY_MARKER, 'D')
+      end
+
+      hot_deploy = marker_added || (marker_committed && !marker_deleted)
+
+      @container.pre_receive(out: $stdout, err: $stderr, hot_deploy: hot_deploy)
+    end
+  end
+end
+
+command :postreceive do |c|
+  c.syntax = "#{name} postreceive"
+
+  c.description = "Run the git postreceive steps"
+  c.action do |args, options|
+    do_command do
+      @container.post_receive(out: $stdout, err: $stderr, hot_deploy: file_committed?(HOT_DEPLOY_MARKER))
+    end
+  end
+end
+
+command :build do |c|
+  c.syntax = "#{name} build"
+
+  c.description = "Run the build steps"
+  c.action do |args, options|
+    do_command do
+      @container.build(out: $stdout, err: $stderr)
+    end
+  end
+end
+
+command :remotedeploy do |c|
+  c.syntax = "#{name} remotedeploy [options]"
+
+  c.description = "Run the remotedeploy steps"
+  c.option "--init", "Run post-install/post-setup for new gears"
+  c.action do |args, options|
+    do_command do
+      if options.init
+        @container.remote_deploy(out: $stdout, err: $stderr, hot_deploy: file_committed?(HOT_DEPLOY_MARKER), init: true)
+      else
+        @container.remote_deploy(out: $stdout, err: $stderr, hot_deploy: file_committed?(HOT_DEPLOY_MARKER))
+      end
+    end
+  end
+end
+
+command :deploy do |c|
+  c.syntax = "#{name} deploy"
+
+  c.description = "Run the deploy steps"
+  c.action do |args, options|
+    do_command do
+      deploy
+    end
+  end
+end
+
+command :start do |c|
+  c.syntax = "#{name} start"
+  
+  c.option "--cart CART", "The cart to start"
+
+  c.description = "Start the gear/cart"
+  c.action do |args, options|
+    do_command do
+      if options.cart
+        @container.start(options.cart, out: $stdout, err: $stderr)
+      else
+        puts "Starting gear..."
+        @container.start_gear(out: $stdout, err: $stderr)
+      end
+    end
+  end
+end
+
+command :stop do |c|
+  c.syntax = "#{name} stop"
+  
+  c.option "--cart CART", "The cart to stop"
+  c.option "--conditional", "Skip the gear stop if the hot deploy marker is present in the application Git repo"
+
+  c.description = "Stop the gear/cart"
+  c.action do |args, options|
+    do_command do
+      if options.cart
+        @container.stop(options.cart, out: $stdout, err: $stderr)
+      else
+        if options.conditional && file_committed?(HOT_DEPLOY_MARKER)
+          puts "Skipping gear stop due to presence of hot deploy marker"
+        else
+          puts "Stopping gear..."
+          @container.stop_gear(out: $stdout, err: $stderr)
+        end
+      end
+    end
+  end
+end
+
+command :restart do |c|
+  c.syntax = "#{name} restart"
+  
+  c.option "--cart CART", "The cart to restart"
+
+  c.description = "Restart a cart"
+  c.action do |args, options|
+    # TODO: Should we be able to restart the gear via stop_gear / start_gear calls
+    # in addition to individual cart restarts?
+    do_command do
+      options.cart ||= choose("Cart to restart?", *gear_cartridge_names)
+      @container.restart(options.cart, out: $stdout, err: $stderr)
+    end
+  end
+end
+
+command :reload do |c|
+  c.syntax = "#{name} reload"
+  
+  c.option "--cart CART", "The cart to reload"
+
+  c.description = "Reload a cart"
+  c.action do |args, options|
+    do_command do
+      options.cart ||= choose("Cart to reload?", *gear_cartridge_names)
+      @container.reload(options.cart)
+    end
+  end
+end
+
+command :status do |c|
+  c.syntax = "#{name} status"
+  
+  c.option "--cart CART", "The cart to get the status for"
+
+  c.description = "Get the status for a cart"
+  c.action do |args, options|
+    do_command do
+      options.cart ||= choose("Cart to get the status for?", *gear_cartridge_names)
+      puts @container.status(options.cart)
+    end
+  end
+end
+
+command :snapshot do |c|
+  c.syntax = "#{name} snapshot"
+
+  c.description = "Snapshot an application"
+  c.action do |args, options|
+    @container.snapshot
+  end
+end
+
+command :restore do |c|
+  c.syntax = "#{name} restore"
+
+  c.option "--restore-git-repo", "Rebuild the appliction as part of restoration"
+
+  c.description = "Restore an application"
+  c.action do |args, options|
+    @container.restore(options.restore_git_repo)
+  end
+end
+
+
+default_command :status

@@ -1,4 +1,0 @@
-jbosseap/metadata/
-jbosseap/versions/
-jbosseap/bin/*
-jbosseap/template/

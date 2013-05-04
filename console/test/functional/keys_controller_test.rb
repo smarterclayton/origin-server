@@ -11,7 +11,6 @@ class KeysControllerTest < ActionController::TestCase
   end
 
   test "should show key creation form" do
-    binding.pry
     get :new
     assert_response :success
     assert_template :new
@@ -25,7 +24,7 @@ class KeysControllerTest < ActionController::TestCase
 
     assert key = assigns(:key)
     assert key.errors.empty?, key.errors.inspect
-    assert_redirected_to account_path
+    assert_redirected_to settings_path
     #since this is only key the user has then it cannot be deleted (because of the old client tools)
     #assert key.destroy
   end
@@ -49,7 +48,7 @@ class KeysControllerTest < ActionController::TestCase
 
     assert key = assigns(:key)
     assert key.errors.empty?, key.errors.inspect
-    assert_redirected_to account_path
+    assert_redirected_to settings_path
     assert flash[:success]
 
     #since this is only key the user has then it cannot be deleted (because of the old client tools)
@@ -61,7 +60,7 @@ class KeysControllerTest < ActionController::TestCase
 
     post :create, {:key => {:name => 'default', :raw_content => 'ssh-rsa defaultkey2'}, :first => true}
 
-    assert_redirected_to account_path
+    assert_redirected_to settings_path
     assert key = assigns(:key)
     assert_equal 'defaultkey2', key.content
     assert key.errors.empty?, key.errors.inspect
@@ -75,7 +74,7 @@ class KeysControllerTest < ActionController::TestCase
 
     post :create, {:key => {:name => 'test', :raw_content => 'ssh-rsa nameuniquekey2'}, :first => true}
 
-    assert_redirected_to account_path
+    assert_redirected_to settings_path
     assert assigns(:first)
     assert key = assigns(:key)
     assert_equal 'test2', key.name
@@ -89,13 +88,19 @@ class KeysControllerTest < ActionController::TestCase
   test "should destroy key" do
     (key = Key.new(get_post_form.merge(:as => @user))).save!
     delete :destroy, :id => key.id
-    assert_redirected_to account_path
+    assert_redirected_to settings_path
+  end
+
+  test "should destroy complex named key" do
+    (key = Key.new(get_post_form.merge(:name => 'foo@bar.com', :as => @user))).save!
+    delete :destroy, :id => key.id
+    assert_redirected_to settings_path
   end
 
   test "should destroy default key" do
     (key = Key.new(get_post_form.merge(:name => 'default', :as => @user))).save!
     delete :destroy, :id => key.id
-    assert_redirected_to account_path
+    assert_redirected_to settings_path
   end
 
   test "should assign errors on empty name" do
@@ -154,7 +159,7 @@ class KeysControllerTest < ActionController::TestCase
 
     assert key = assigns(:key)
     assert key.errors.empty?, key.errors.inspect
-    assert_redirected_to account_path
+    assert_redirected_to settings_path
     assert_nil session[:key]
   end
 

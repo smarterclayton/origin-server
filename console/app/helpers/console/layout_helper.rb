@@ -24,7 +24,7 @@ module Console::LayoutHelper
 
   def navigation_tab(name, options={})
     action = options[:action]
-    active = (name.to_s == controller_name) && (action.nil? || action.to_s == controller.action_name)
+    active = active_tab == name || (name.to_s == controller_name) && (action.nil? || action.to_s == controller.action_name)
     content_tag(
       :li,
       link_to(
@@ -217,7 +217,13 @@ module Console::LayoutHelper
 
   def breadcrumb_for_account(*args)
     breadcrumbs_for_each [
-      link_to('My Account', :account, :action => :show),
+      link_to('My Account', account_path),
+    ] + args
+  end
+
+  def breadcrumb_for_settings(*args)
+    breadcrumbs_for_each [
+      link_to('Settings', settings_path),
     ] + args
   end
 
@@ -306,5 +312,23 @@ module Console::LayoutHelper
 
   def js_required(msg = "to use this page")
     flash[:noscript_warning] = ["You need JavaScript enabled",msg].join(" ").squeeze(" ").strip
+  end
+
+
+  #
+  # Only use in content that will be generated to asset form, significant
+  # performance penalties will apply in production environments.
+  #
+  def asset_data_uri(path)
+    a = asset(path)
+    base64 = Base64.encode64(a.to_s).gsub(/\s+/, "")
+    "data:#{a.content_type};base64,#{Rack::Utils.escape(base64)}"
+  end 
+  #
+  # Only use in content that will be generated to asset form, significant
+  # performance penalties will apply in production environments.
+  #
+  def asset(path)
+    Rails.application.assets.find_asset(path)
   end
 end

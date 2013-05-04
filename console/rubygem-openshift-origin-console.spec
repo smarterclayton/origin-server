@@ -9,7 +9,7 @@
 
 Summary:       OpenShift Origin Management Console
 Name:          rubygem-%{gem_name}
-Version: 1.6.2
+Version: 1.8.6
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -38,6 +38,11 @@ Requires:      %{?scl:%scl_prefix}rubygem(simplecov)
 Requires:      %{?scl:%scl_prefix}rubygem(test-unit)
 Requires:      %{?scl:%scl_prefix}rubygem(uglifier)
 Requires:      %{?scl:%scl_prefix}rubygem(webmock)
+Requires:      %{?scl:%scl_prefix}rubygem(poltergeist)
+Requires:      %{?scl:%scl_prefix}rubygem(konacha)
+Requires:      %{?scl:%scl_prefix}rubygem(minitest)
+Requires:      %{?scl:%scl_prefix}rubygem(rspec-core)
+
 BuildRequires: %{?scl:%scl_prefix}build
 BuildRequires: scl-utils-build
 BuildRequires: %{?scl:%scl_prefix}rubygem(rails)
@@ -53,6 +58,11 @@ BuildRequires: %{?scl:%scl_prefix}rubygem(formtastic)
 BuildRequires: %{?scl:%scl_prefix}rubygem(net-http-persistent)
 BuildRequires: %{?scl:%scl_prefix}rubygem(haml)
 BuildRequires: %{?scl:%scl_prefix}rubygem(therubyracer)
+BuildRequires: %{?scl:%scl_prefix}rubygem(poltergeist)
+BuildRequires: %{?scl:%scl_prefix}rubygem(konacha)
+BuildRequires: %{?scl:%scl_prefix}rubygem(minitest)
+BuildRequires: %{?scl:%scl_prefix}rubygem(rspec-core)
+
 %endif
 BuildRequires: %{?scl:%scl_prefix}rubygems-devel
 %if 0%{?fedora} >= 19
@@ -101,6 +111,9 @@ rm -rf tmp/cache/*
 echo > %{buildroot}%{_var}/log/openshift/console/production.log
 popd
 
+find . -name .gitignore -delete
+find . -name .gitkeep -delete
+
 rm -rf %{buildroot}%{_var}/log/openshift/*
 
 rm -f Gemfile.lock
@@ -134,6 +147,285 @@ cp -a ./%{gem_dir}/* %{buildroot}%{gem_dir}/
 %{gem_dir}/doc/%{gem_name}-%{version}
 
 %changelog
+* Fri May 03 2013 Adam Miller <admiller@redhat.com> 1.8.6-1
+- Merge pull request #2334 from smarterclayton/unify_footer_header_colors
+  (dmcphers+openshiftbot@redhat.com)
+- Make the H3 and A consistent in color in the footer (ccoleman@redhat.com)
+
+* Thu May 02 2013 Adam Miller <admiller@redhat.com> 1.8.5-1
+- Merge pull request #2319 from
+  smarterclayton/rest_api_defends_against_bad_exceptions
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2320 from liggitt/bug_958278_segfault_on_int_assetss
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2232 from smarterclayton/support_external_cartridges
+  (dmcphers+openshiftbot@redhat.com)
+- Fix bug 958278 - only insert asset middleware when static asset serving is
+  enabled (jliggitt@redhat.com)
+- Rename "external cartridge" to "downloaded cartridge".  UI should call them
+  "personal" cartridges (ccoleman@redhat.com)
+- RestApi should defend against poorly formed response bodies (it's possible
+  for ActiveResource::ConnectionError#response to return a string)
+  (ccoleman@redhat.com)
+- Merge remote-tracking branch 'origin/master' into support_external_cartridges
+  (ccoleman@redhat.com)
+- Merge remote-tracking branch 'origin/master' into support_external_cartridges
+  (ccoleman@redhat.com)
+- Read the enabled state of the external cartridges feature from the broker
+  (ccoleman@redhat.com)
+- Add custom cartridges to existing apps (ccoleman@redhat.com)
+- Improve test performance by reusing cache for most tests
+  (ccoleman@redhat.com)
+- Support URL entry during app creation (ccoleman@redhat.com)
+- Extract form-important from #new-application (ccoleman@redhat.com)
+
+* Wed May 01 2013 Adam Miller <admiller@redhat.com> 1.8.4-1
+- Add host name as an option for asset generation (ccoleman@redhat.com)
+
+* Tue Apr 30 2013 Adam Miller <admiller@redhat.com> 1.8.3-1
+- Merge pull request #2281 from smarterclayton/add_link_block
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2230 from pravisankar/dev/ravi/card559
+  (dmcphers+openshiftbot@redhat.com)
+- Add a link-block class (ccoleman@redhat.com)
+- Removed 'setmaxstorage' option for oo-admin-ctl-user script. Added
+  'setmaxtrackedstorage' and 'setmaxuntrackedstorage' options for oo-admin-ctl-
+  user script. Updated oo-admin-ctl-user man page. Max allowed additional fs
+  storage for user will be 'max_untracked_addtl_storage_per_gear' capability +
+  'max_tracked_addtl_storage_per_gear' capability. Don't record usage for
+  additional fs storage if it is less than
+  'max_untracked_addtl_storage_per_gear' limit. Fixed unit tests and models to
+  accommodate the above change. (rpenta@redhat.com)
+
+* Mon Apr 29 2013 Adam Miller <admiller@redhat.com> 1.8.2-1
+- Merge pull request #2206 from fabianofranz/master
+  (dmcphers+openshiftbot@redhat.com)
+- Fixed Maintenance mode message (ffranz@redhat.com)
+- Fixed tests for Maintenance mode (ffranz@redhat.com)
+- Using a dedicated exception to handle server unavailable so we don't have to
+  check status codes more than once (ffranz@redhat.com)
+- Handling a special ConnectionError so we can put the console in maintenance
+  mode (ffranz@redhat.com)
+- Maintenance mode, changed routing (ffranz@redhat.com)
+- Tests for Maintenance mode (ffranz@redhat.com)
+- Maintenance mode will now handle login/authorization properly
+  (ffranz@redhat.com)
+- Maintenance mode page, now handling nil responses on server error
+  (ffranz@redhat.com)
+- Maintenance mode for the web console (ffranz@redhat.com)
+
+* Thu Apr 25 2013 Adam Miller <admiller@redhat.com> 1.8.1-1
+- Merge pull request #2190 from smarterclayton/extract_form_important
+  (dmcphers+openshiftbot@redhat.com)
+- Fix bug 951370 - update url for namespace user guide (jliggitt@redhat.com)
+- Merge pull request #2200 from mmahut/master
+  (dmcphers+openshiftbot@redhat.com)
+- Extract form-important from #new-application (ccoleman@redhat.com)
+- Fix find/delete command for openshift-console and console packages. Bug
+  888714. (kraman@gmail.com)
+- Merge pull request #2178 from smarterclayton/improve_memory_usage_of_rest_api
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2177 from smarterclayton/split_settings_page
+  (dmcphers+openshiftbot@redhat.com)
+- Improve console rest api memory usage by reducing copies
+  (ccoleman@redhat.com)
+- Send all settings interactions to the settings page, and fix tests.  Add a
+  few more tests around the settings page, specifically for new key and new
+  domain. (ccoleman@redhat.com)
+- Split the settings page from the my account page (ccoleman@redhat.com)
+- Using password field instead of plain text input for the certificate
+  passphrase. (mmahut@redhat.com)
+- Merge remote-tracking branch 'origin/master' into
+  separate_config_from_environments (ccoleman@redhat.com)
+- Bug 888714 - Remove .gitkeep and .gitignore (ccoleman@redhat.com)
+- Merge pull request #1770 from fotioslindiakos/plan_currency
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2112 from
+  smarterclayton/bug_953177_keys_with_periods_cannot_be_deleted
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2089 from smarterclayton/add_web_integration_tests
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 953177 - Keys with periods in their name cannot be deleted
+  (ccoleman@redhat.com)
+- Add a test case for configuration to ruby values (ccoleman@redhat.com)
+- Merge remote-tracking branch 'origin/master' into
+  separate_config_from_environments (ccoleman@redhat.com)
+- Merge pull request #2123 from smarterclayton/bug_953263_use_color_only_in_dev
+  (dmcphers+openshiftbot@redhat.com)
+- Rspec core should be in the test group (ccoleman@redhat.com)
+- Bug 953263 - Use ANSI color codes only in development (ccoleman@redhat.com)
+- Separate config from environments (ccoleman@redhat.com)
+- bump_minor_versions for sprint 2.0.26 (tdawson@redhat.com)
+- bump_minor_versions for sprint 2.0.26 (tdawson@redhat.com)
+- Add additional flexibility for running community tests (ccoleman@redhat.com)
+- Add separators in the capybara log (ccoleman@redhat.com)
+- Demonstrate web integration testing (ccoleman@redhat.com)
+- Added :autocomplete option to inputs/input (fotios@redhat.com)
+
+* Tue Apr 16 2013 Dan McPherson <dmcphers@redhat.com> 1.7.8-1
+- Add buildrequires for new test packages (ccoleman@redhat.com)
+
+* Tue Apr 16 2013 Troy Dawson <tdawson@redhat.com> 1.7.7-1
+- Merge pull request #2087 from smarterclayton/move_to_minitest
+  (dmcphers+openshiftbot@redhat.com)
+- Move to minitest 3.5.0, webmock 1.8.11, and mocha 0.12.10
+  (ccoleman@redhat.com)
+- Fix bug 950866 - highlight errors in grouped fields correctly
+  (jliggitt@redhat.com)
+
+* Fri Apr 12 2013 Adam Miller <admiller@redhat.com> 1.7.6-1
+- Bug 951367 (ffranz@redhat.com)
+- Merge pull request #2025 from smarterclayton/origin_ui_37_error_page
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2014 from liggitt/accessibility
+  (dmcphers+openshiftbot@redhat.com)
+- Add a few base URLs and helpers for fetching assets during static page
+  compilation (ccoleman@redhat.com)
+- Merge pull request #1996 from
+  smarterclayton/bug_950367_use_default_for_bad_expires_in
+  (dmcphers+openshiftbot@redhat.com)
+- Add form labels (jliggitt@redhat.com)
+- Bug 950367 - Handle non-integer values for expires_in (ccoleman@redhat.com)
+
+* Thu Apr 11 2013 Adam Miller <admiller@redhat.com> 1.7.5-1
+- Merge pull request #1995 from smarterclayton/tweaks_to_quickstarts
+  (dmcphers@redhat.com)
+- Add social sharing links (ccoleman@redhat.com)
+
+* Wed Apr 10 2013 Adam Miller <admiller@redhat.com> 1.7.4-1
+- Merge pull request #1992 from smarterclayton/fix_account_settings_breadcrumb
+  (dmcphers+openshiftbot@redhat.com)
+- Fix account settings breadcrumb to point to the correct URL
+  (ccoleman@redhat.com)
+- Merge pull request #1969 from liggitt/currency_display (dmcphers@redhat.com)
+- Separate currency symbol into helper method (jliggitt@redhat.com)
+
+* Tue Apr 09 2013 Adam Miller <admiller@redhat.com> 1.7.3-1
+- Merge pull request #1944 from sg00dwin/408dev (dmcphers@redhat.com)
+- Changes for: (sgoodwin@redhat.com)
+
+* Mon Apr 08 2013 Adam Miller <admiller@redhat.com> 1.7.2-1
+- Changes to apply the correct the default input.btn:focus background color in
+  the console. (sgoodwin@redhat.com)
+- Bug 917492 - The error message overlapped with the original content in
+  scaling page of jbosseap apps on Iphone4S (sgoodwin@redhat.com)
+- Changes: (sgoodwin@redhat.com)
+- Bug 947098 fix - add margin to h3 so icon doesn't overlap at narrow
+  resolutions (sgoodwin@redhat.com)
+- Moving openshift-icon to a partial and including in common so that mixin can
+  be applied Created a mixin for text-overflow .truncate and used with aliases
+  list Created markup for header button usage of add/create function Switched
+  individual application page from using sprite images to icon font Swiched
+  application list to use right arrow icon instead of sprite Removed bottom
+  positioning of icons with h1,h2 b/c when used with truncate the
+  overflow:hidden cut the tops off. A couple of variables added for colors
+  (sgoodwin@redhat.com)
+- Merge pull request #1843 from smarterclayton/bug_928669_load_error_in_async
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1845 from sg00dwin/0325dev
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 928669 - Async errors in development mode (ccoleman@redhat.com)
+- Merge branch 'master' of github.com:openshift/origin-server into 0325dev
+  (sgoodwin@redhat.com)
+- Merge branch 'master' of github.com:openshift/origin-server into 0325dev
+  (sgoodwin@redhat.com)
+- Merge branch 'master' of github.com:openshift/origin-server into 0325dev
+  (sgoodwin@redhat.com)
+- Fix for Bug 927208 Multiple edits needed because of the issues involved with
+  the problem of styling input[type="file"] that are also disabled. In a
+  nutshell, it's nearly impossible to present input type=file in a consistant
+  manner across browsers platforms. Further complicated by the way Firefox
+  handles those inputs when disabled - text and background-color are given
+  opacity and inherit the parent background color which caused the text to be
+  unreadable on our dark background. So created the .platform class, which is
+  inverse of well. (sgoodwin@redhat.com)
+
+* Thu Mar 28 2013 Adam Miller <admiller@redhat.com> 1.7.1-1
+- bump_minor_versions for sprint 26 (admiller@redhat.com)
+
+* Wed Mar 27 2013 Adam Miller <admiller@redhat.com> 1.6.7-1
+- Minor wording and styling bug fixes, improved tests for SSL certificates
+  (ffranz@redhat.com)
+- Minor visual tweaks on the web console, alias list (ffranz@redhat.com)
+- Merge pull request #1813 from fotioslindiakos/BZ922689 (dmcphers@redhat.com)
+- Merge pull request #1812 from liggitt/invoice_styles (dmcphers@redhat.com)
+- Fix for not showing proper cartridge errors (fotios@redhat.com)
+- Add placeholder styles for usage graph types (jliggitt@redhat.com)
+- Bug 923746 - Tax exempt link should point to public page
+  (ccoleman@redhat.com)
+
+* Tue Mar 26 2013 Adam Miller <admiller@redhat.com> 1.6.6-1
+- Merge pull request #1785 from sg00dwin/0325dev
+  (dmcphers+openshiftbot@redhat.com)
+- switch to existing variable (sgoodwin@redhat.com)
+- Bug 921453 fix - webkit rendering of multi gylph icons needs top:0
+  (sgoodwin@redhat.com)
+- Make console alert link color $linkColorBlue since it's on a lighter
+  background, with exception for alert-error. (sgoodwin@redhat.com)
+
+* Mon Mar 25 2013 Adam Miller <admiller@redhat.com> 1.6.5-1
+- Review comments - missed search page, needed to reintroduce link to
+  quickstart page (ccoleman@redhat.com)
+- Clean up premium cart indicators (ccoleman@redhat.com)
+- Add provider data to the UI that is exposed by the server
+  (ccoleman@redhat.com)
+- Add icon to app config page (sgoodwin@redhat.com)
+- Addition of icon denotion for cartridge or quickstart on application creation
+  step (sgoodwin@redhat.com)
+- add usage rules for alert headings w/ icons (sgoodwin@redhat.com)
+- Merge pull request #1762 from fabianofranz/dev/ffranz/ssl
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #1763 from smarterclayton/aria_dashboard
+  (dmcphers+openshiftbot@redhat.com)
+- Web console now using api v. 1.4 (ffranz@redhat.com)
+- Card #239: Added support to alias creation and deletion and SSL certificate
+  upload to the web console (ffranz@redhat.com)
+- Fix test failures (ccoleman@redhat.com)
+- Merge remote-tracking branch 'origin/master' into aria_dashboard
+  (ccoleman@redhat.com)
+- Merge branch 'aria_dashboard' of github.com:smarterclayton/origin-server into
+  aria_dashboard (ccoleman@redhat.com)
+- Reformat resource_not_found checking (jliggitt@redhat.com)
+- Don't assume exceptions have a model (jliggitt@redhat.com)
+- Add billing_date_no_year (jliggitt@redhat.com)
+- Tweak graph line height, style table captions (jliggitt@redhat.com)
+- Remove extraneous pry (ccoleman@redhat.com)
+- Merge remote-tracking branch 'origin/master' into aria_dashboard
+  (ccoleman@redhat.com)
+- Update tests (ccoleman@redhat.com)
+- Support cache config (ccoleman@redhat.com)
+- Merge remote-tracking branch 'origin/master' into aria_dashboard
+  (ccoleman@redhat.com)
+- Fixing test cases (ccoleman@redhat.com)
+- Support redirection back to the settings page (ccoleman@redhat.com)
+- Use credit card format closer to card value (ccoleman@redhat.com)
+- Cache that the user has no keys (ccoleman@redhat.com)
+- Creating an authorization should take the user to the show page for the token
+  (ccoleman@redhat.com)
+- Merge remote-tracking branch 'origin/master' into aria_dashboard
+  (ccoleman@redhat.com)
+- Merge with master, _account moved to origin-server (ccoleman@redhat.com)
+- Add a stack overflow link helper (ccoleman@redhat.com)
+- Updated date helpers (ccoleman@redhat.com)
+- Initial work (ccoleman@redhat.com)
+
+* Thu Mar 21 2013 Adam Miller <admiller@redhat.com> 1.6.4-1
+- Merge pull request #1678 from smarterclayton/minor_object_cleanup
+  (dmcphers+openshiftbot@redhat.com)
+- Small cleanups in prep for future refactors (remove eigenclasses, no
+  require_dependency) (ccoleman@redhat.com)
+
+* Mon Mar 18 2013 Adam Miller <admiller@redhat.com> 1.6.3-1
+- Pry console won't start in console app (ccoleman@redhat.com)
+- Merge pull request #1668 from smarterclayton/wrong_quickstart_default
+  (dmcphers+openshiftbot@redhat.com)
+- Site should not default to community URL for quickstarts if not specified
+  (ccoleman@redhat.com)
+- Support cache config (ccoleman@redhat.com)
+- Merge pull request #1650 from sg00dwin/various-work
+  (dmcphers+openshiftbot@redhat.com)
+- Replace search and caret with icon-font (sgoodwin@redhat.com)
+
 * Thu Mar 14 2013 Adam Miller <admiller@redhat.com> 1.6.2-1
 - Merge pull request #1636 from tdawson/tdawson/fix-f19-builds
   (dmcphers+openshiftbot@redhat.com)

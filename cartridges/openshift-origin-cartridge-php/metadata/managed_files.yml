@@ -1,0 +1,7 @@
+---
+locked_files:
+- ~/.pearrc
+- configuration/
+- metadata/
+- env/
+- conf/

@@ -28,8 +28,10 @@ class CloudUser
   field :capabilities, type: Hash, default: ->{ default_capabilities }
   field :parent_user_id, type: Moped::BSON::ObjectId
   field :plan_id, type: String
+  field :plan_state, type: String
   field :pending_plan_id, type: String
   field :pending_plan_uptime, type: Time
+  field :plan_history, type: Array, default: []
   field :usage_account_id, type: String
   field :consumed_gears, type: Integer, default: 0
   embeds_many :ssh_keys, class_name: UserSshKey.name
@@ -83,6 +85,13 @@ class CloudUser
     user_capabilities = get_capabilities
     user_capabilities["max_gears"] = m
     set_capabilities(user_capabilities)
+  end
+
+  def max_storage
+    user_capabilities = get_capabilities
+    max_untracked_storage = user_capabilities["max_untracked_addtl_storage_per_gear"] || 0
+    max_tracked_storage = user_capabilities["max_tracked_addtl_storage_per_gear"] || 0
+    (max_untracked_storage + max_tracked_storage)
   end
 
   def save(options = {})
@@ -245,8 +254,9 @@ class CloudUser
       while self.pending_ops.where(state: :init).count > 0
         op = self.pending_ops.where(state: :init).first
 
-        # get the op based on _id so that a reload does not replace it with another one based on position
-        op = self.pending_ops.find_by(_id: op._id)
+        # store the op._id to load it later after a reload
+        # this is required to prevent a reload from replacing it with another one based on position
+        op_id = op._id
 
         # try to do an update on the pending_op state and continue ONLY if successful
         op_index = self.pending_ops.index(op)
@@ -258,16 +268,16 @@ class CloudUser
 
         case op.op_type
         when :add_ssh_key
-          op.pending_domains.each { |domain| domain.add_ssh_key(self._id, op.arguments, op) }
+          op.pending_domains.each { |domain| domain.add_ssh_key(self._id, UserSshKey.new.to_obj(op.arguments), op) }
         when :delete_ssh_key
-          op.pending_domains.each { |domain| domain.remove_ssh_key(self._id, op.arguments, op) }
+          op.pending_domains.each { |domain| domain.remove_ssh_key(self._id, UserSshKey.new.to_obj(op.arguments), op) }
         end
 
         # reloading the op reloads the cloud_user and then incorrectly reloads (potentially)
         # the op based on its position within the pending_ops list
-        # hence, reloading the cloud_user, and then fetching the op using the _id
+        # hence, reloading the cloud_user, and then fetching the op using the op_id stored earlier
         self.with(consistency: :strong).reload
-        op = self.pending_ops.find_by(_id: op._id)
+        op = self.pending_ops.find_by(_id: op_id)
         
         op.close_op
         op.delete if op.completed?

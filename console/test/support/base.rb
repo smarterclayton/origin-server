@@ -1,27 +1,9 @@
-require 'mocha'
-
-require 'webmock/test_unit'
-WebMock.allow_net_connect!
 
 def inline_test(file)
   require "#{Console::Engine.root}/#{Pathname.new(file).relative_path_from(Rails.application.root)}"
 end
 
-Test::Unit::TestCase.test_order = :random
-
 class ActiveSupport::TestCase
-
-  #
-  # Rails 3.2 + Test::Unit 2.x - handle_exception is not called in
-  # active_support/testing/setup_and_teardown.rb
-  #
-  def add_error(e)
-    if /active_support/ =~ caller[0]
-      super unless handle_exception(e)
-    else
-      super
-    end
-  end
 
   def self.isolate(&block)
     self.module_eval do
@@ -49,7 +31,22 @@ class ActiveSupport::TestCase
 
   setup { $VERBOSE = nil }
   teardown { $VERBOSE = false }
-  setup { Rails.cache.clear }
+  setup :cache_clear
+
+  #
+  # By default, cache is preserved across most tests
+  #
+  def cache_clear
+    Rails.cache.clear if rand(15) == 0
+  end
+  #
+  # Some test suites may force the cache to be cleared
+  #
+  def self.with_clean_cache
+    define_method :cache_clear do
+      Rails.cache.clear
+    end
+  end
 
   #
   # In any test case where css_select is valid, take a form object or selector
@@ -139,7 +136,7 @@ class ActiveSupport::TestCase
   end
 
   def community_url
-    'https://www.openshift.com/'
+    Console.config.community_url
   end
   def community_base_url(path='')
     "#{community_url}#{path}"
@@ -152,6 +149,25 @@ class ActionController::TestCase
   def select_controller_routes
     if Console::ConsoleController === @controller
       @routes = Console::Engine.routes
+    end
+  end
+end
+
+raise "Fixed in Rails 4" if Rails::VERSION::MAJOR > 3
+class ActionDispatch::Integration::Session
+  def script_name
+    @script_name ||= @app.config.relative_url_root if @app.respond_to?(:config)
+  end
+
+  def url_options
+    @url_options ||= default_url_options.dup.tap do |url_options|
+      url_options.reverse_merge!(controller.url_options) if controller
+
+      if @app.respond_to?(:routes) && @app.routes.respond_to?(:default_url_options)
+        url_options.reverse_merge!(@app.routes.default_url_options)
+      end
+
+      url_options.reverse_merge!(:host => host, :protocol => https? ? "https" : "http", :script_name => script_name)
     end
   end
 end

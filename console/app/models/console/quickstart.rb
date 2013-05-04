@@ -26,12 +26,16 @@ class Quickstart < RestApi::Base
     super.to_i rescue 0
   end
 
+  def provider
+    (attributes[:provider] || :community).to_sym
+  end
+
   def learn_more_url
     URI.join(self.class.site, href).to_s if href
   end
 
   def tags
-    @tags ||= ApplicationType.user_tags(tags_from(attributes[:tags])) + admin_tags + (3.days.ago < updated ? [:new] : [])
+    @tags ||= ApplicationType.user_tags(tags_from(attributes[:tags])) + admin_tags
   end
 
   def updated
@@ -108,7 +112,7 @@ class Quickstart < RestApi::Base
             :list => (info.link("LIST_QUICKSTARTS").path rescue nil),
             :get => (info.link("SHOW_QUICKSTART").path rescue nil),
             :search => (info.link("SEARCH_QUICKSTARTS").path rescue nil),
-            :search_param => (info.required_params('SEARCH_QUICKSTARTS').first[:name] rescue nil),
+            :search_param => (info.required_params('SEARCH_QUICKSTARTS').first['name'] rescue nil),
           }
         end
       end

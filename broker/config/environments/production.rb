@@ -64,6 +64,11 @@ Broker::Application.configure do
     :log_filepath => conf.get("USER_ACTION_LOG_FILE", "/var/log/openshift/broker/user_action.log")
   }
 
+  config.maintenance = {
+    :enabled => conf.get_bool("ENABLE_MAINTENANCE_MODE", "false"),
+    :outage_msg_filepath => conf.get("MAINTENANCE_NOTIFICATION_FILE", "/etc/openshift/outage_notification.txt")
+  }
+
   config.openshift = {
     :domain_suffix => conf.get("CLOUD_DOMAIN", "example.com"),
     :default_max_gears => (conf.get("DEFAULT_MAX_GEARS", "100")).to_i,
@@ -74,6 +79,7 @@ Broker::Application.configure do
     :scopes => ['Scope::Session', 'Scope::Read', 'Scope::Application', 'Scope::Userinfo'],
     :default_scope => 'userinfo',
     :scope_expirations => OpenShift::Controller::Configuration.parse_expiration(conf.get('AUTH_SCOPE_TIMEOUTS'), 1.day),
+    :download_cartridges_enabled => conf.get_bool("DOWNLOAD_CARTRIDGES_ENABLED", "false"),    
   }
 
   config.auth = {
@@ -82,5 +88,12 @@ Broker::Application.configure do
     :privkeypass => conf.get("AUTH_PRIVKEYPASS", ""),
     :pubkeyfile  => conf.get("AUTH_PUBKEYFILE", "/var/www/openshift/broker/config/server_pub.pem"),
     :rsync_keyfile => conf.get("AUTH_RSYNC_KEY_FILE", "/etc/openshift/rsync_id_rsa")
+  }
+
+  config.downloaded_cartridges = {
+    :max_downloaded_carts_per_app => 5,
+    :max_download_redirects => 2,
+    :max_cart_size => 20480,
+    :max_download_time => 10
   }
 end

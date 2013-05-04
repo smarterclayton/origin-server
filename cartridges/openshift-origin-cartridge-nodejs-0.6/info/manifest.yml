@@ -1,5 +1,6 @@
 Name: nodejs-0.6
 Cartridge-Short-Name: NODEJS
+Cartridge-Vendor: redhat
 Display-Name: Node.js 0.6
 Description: "Node.js is a platform built on Chrome's JavaScript runtime for easily building fast, scalable network applications. Node.js is perfect for data-intensive real-time applications that run across distributed devices."
 Version: 0.6
@@ -12,7 +13,7 @@ Categories:
   - nodejs
   - web_framework
 Help-Topics:
-  "Developer Center": https://openshift.redhat.com/community/developers
+  "Developer Center": https://www.openshift.com/developers
 Cart-Data:
   - Key: OPENSHIFT_NODEJS_LOG_DIR
     Type: environment

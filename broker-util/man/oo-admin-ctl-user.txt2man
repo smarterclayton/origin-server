@@ -4,6 +4,8 @@ NAME
 SYNOPSIS
   oo-admin-ctl-user [-h|--help] [-l|--login login_name] 
   [--setmaxgears max_gears] [--setconsumedgears consumed_gears]
+  [--setmaxuntrackedstorage max_untracked_storage]
+  [--setmaxtrackedstorage max_tracked_storage]
   [--listsubaccounts] [--addsubaccount subaccount_login]
   [--removesubaccount subaccount_login] [--allowsubaccounts true|false]
   [--addgearsize gear_size] [--removegearsize gear_size]
@@ -25,6 +27,12 @@ OPTIONS
   --setconsumedgears consumed_gears  
     Set the number of gears an user has consumed. Use with caution.
 
+  --setmaxuntrackedstorage max_untracked_storage 
+    Set the maximum amount of untracked additional file-system storage.
+
+  --setmaxtrackedstorage max_tracked_storage 
+    Set the maximum amount of tracked additional file-system storage.
+ 
   --listsubaccounts  
     List the subaccounts that have been created under this parent account.
     (login)
@@ -64,9 +72,9 @@ WARNINGS
   dangerous. DO NOT USE THIS SCRIPT TO MODIFY A LOT OF USERS AT ONCE!
 
 SEE ALSO
-  oo-admin-ctl-district(8), oo-setup-broker(8), oo-admin-move(8),
-  oo-admin-chk(8), oo-accept-broker(8), oo-admin-ctl-app(8),
-  oo-admin-ctl-domain(8), oo-setup-bind(8),
+  oo-admin-ctl-district(8), oo-admin-move(8),
+  oo-admin-chk(8), oo-accept-broker(8), 
+  oo-admin-ctl-app(8), oo-admin-ctl-domain(8),
   oo-admin-ctl-user(8), oo-register-dns(8)
  
 AUTHOR

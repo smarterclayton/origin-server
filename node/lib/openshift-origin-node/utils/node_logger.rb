@@ -16,7 +16,7 @@
 
 require 'logger'
 require 'fileutils'
-require 'openshift-origin-common'
+require 'openshift-origin-common/config'
 
 module OpenShift
   module NodeLogger
@@ -61,11 +61,7 @@ module OpenShift
 
         FileUtils.mkpath(File.dirname(log_file)) unless File.exist? File.dirname(log_file)
 
-        file = if File.exist?(log_file)
-                 File.open(log_file, File::WRONLY | File::APPEND)
-               else
-                 File.open(log_file, File::WRONLY | File::APPEND| File::CREAT, 0644)
-               end
+        file = File.open(log_file, File::WRONLY | File::APPEND| File::CREAT, 0644)
 
         file.sync = true
         
@@ -87,12 +83,20 @@ module OpenShift
       @logger ||= self.build_logger(PROFILES[:standard])
     end
 
+    def self.logger_rebuild
+      @logger = self.build_logger(PROFILES[:standard])
+    end
+
     def trace_logger
       NodeLogger.trace_logger
     end
 
     def self.trace_logger
       @trace_logger ||= self.build_logger(PROFILES[:trace])
+    end
+
+    def self.trace_rebuild
+      @trace_logger = self.build_logger(PROFILES[:trace])
     end
 
   end

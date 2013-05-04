@@ -1,0 +1,25 @@
+#!/bin/bash
+source $OPENSHIFT_CARTRIDGE_SDK_BASH
+
+if [ -n "$JENKINS_URL" ]
+then
+  #
+  # Disable job
+  #
+  if out=$(${OPENSHIFT_JENKINS_CLIENT_DIR}/bin/jenkins_job_action disable 2>&1)
+  then
+      # Existing job was disabled
+      client_result ""
+      client_result "The corresponding job '${OPENSHIFT_APP_NAME}-build' in Jenkins has been disabled."
+      client_result "You can re-enable or delete as desired."
+  else
+      # An error occurred disabling existing job
+      client_result ""
+      client_result "Could not disable job '${OPENSHIFT_APP_NAME}-build' in Jenkins server:"
+      client_result "   $out"
+      client_result "Continuing anyway."
+  fi
+  client_result "Job URL: ${JENKINS_URL}job/${OPENSHIFT_APP_NAME}-build/"
+  client_result ""
+fi
+client_result "Jenkins client 1.4 has been removed from: $OPENSHIFT_APP_NAME"

@@ -26,8 +26,10 @@ Gem::Specification.new do |s|
   s.require_paths = ["lib"]
 
   s.add_dependency('openshift-origin-controller')
-  s.add_dependency('json')
-  s.add_development_dependency('rake', '>= 0.8.7', '<= 0.9.2.2')
+  s.add_dependency('openshift-origin-common')
+  s.add_dependency('rails')
+  s.add_development_dependency('json')
+  s.add_development_dependency('rake', '>= 0.8.7', '<= 0.9.6')
   s.add_development_dependency('bundler')
   s.add_development_dependency('mocha')
 end

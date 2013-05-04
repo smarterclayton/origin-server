@@ -39,6 +39,7 @@
 #     <scales-to>-1</scales-to>
 #     <base-gear-storage>1</base-gear-storage>
 #     <additional-gear-storage>0</additional-gear-storage>
+#     <ssh-url>ssh://5124897d6892dfe819000005@testapp-localns.example.com</ssh-url>
 #   </gear-group>
 #   ```
 #
@@ -61,21 +62,31 @@
 #   @return [Integer] Number of GB of disk space assoicated with gear profile
 # @!attribute [r] additional_gear_storage
 #   @return [Integer] Additional number of GB of disk space (beyond the base provided by the gear profile)
+# @!attribute [r] ssh_url
+#   @return [String] username and FQDN that can be used to ssh into the this gear
 class RestGearGroup < OpenShift::Model
   attr_accessor :uuid, :name, :gear_profile, :cartridges, :gears, :scales_from, :scales_to, :base_gear_storage, :additional_gear_storage
 
-  def initialize(group_instance, gear_states = {}, url, nolinks)
+  def initialize(group_instance, gear_states = {}, app, domain, url, nolinks)
     self.uuid         = group_instance._id.to_s
     self.name         = self.uuid
     self.gear_profile = group_instance.gear_size
     self.gears        = group_instance.gears.map{ |gear| 
       { :id => gear.uuid, 
         :state => gear_states[gear.uuid] || 'unknown', 
+        :ssh_url => "ssh://#{app.ssh_uri(domain, gear.uuid)}"
       } 
     }
     
     self.cartridges   = group_instance.all_component_instances.map { |component_instance| 
       cart = CartridgeCache.find_cartridge(component_instance.cartridge_name)
+      
+      # Handling the case when component_properties is an empty array
+      # This can happen if the mongo document is copied and pasted back and saved using a UI tool
+      if component_instance.component_properties.nil? or component_instance.component_properties.is_a? Array
+        component_instance.component_properties = {}
+      end
+       
       component_instance.component_properties.merge({
         :name => cart.name, 
         :display_name => cart.display_name,

@@ -1,0 +1,301 @@
+#!/bin/bash
+[ ${OO_BASH_SDK:-false} == true ] && return 0
+OO_BASH_SDK=true
+
+function error {
+    echo "$1" 1>&2
+    exit "$2"
+}
+
+function warning {
+    echo "$1" 1>&2
+    #echo "$2"
+}
+
+function client_result {
+    client_out "CLIENT_RESULT" "$1"
+}
+
+function client_message {
+    client_out "CLIENT_MESSAGE" "$1"
+}
+
+function client_error {
+    client_out "CLIENT_ERROR" "$1"
+}
+
+function client_internal_error {
+    client_out "CLIENT_INTERNAL_ERROR" "$1"
+}
+
+function client_debug {
+    client_out "CLIENT_DEBUG" "$1"
+}
+
+function client_out() {
+    local type=$1
+    local output=$2
+    local IFS_BAK=$IFS
+IFS="
+"
+    for line in $output
+    do
+        echo "$type: $line"
+    done
+    IFS=$IFS_BAK
+}
+
+function set_app_info {
+    echo "APP_INFO: $1"
+}
+
+function send_attr {
+    echo "ATTR: $1"
+}
+
+function add_ssh_key {
+    echo "SSH_KEY_ADD: $1"
+}
+
+function add_app_ssh_key {
+    echo "APP_SSH_KEY_ADD: $1 $2"
+}
+
+function add_env_var {
+    echo "ENV_VAR_ADD: $1"
+}
+
+function app_remove_env_var {
+    echo "APP_ENV_VAR_REMOVE: $1"
+}
+
+function add_broker_auth_key {
+    echo "BROKER_AUTH_KEY_ADD: "
+}
+
+function remove_broker_auth_key {
+    echo "BROKER_AUTH_KEY_REMOVE: "
+}
+
+function cart_data {
+    echo "CART_DATA: $@"
+}
+
+function cart_props {
+    echo "CART_PROPERTIES: $@"
+}
+
+# Sets the appropriate env variable files
+# Arguments:
+#  - Variable to set
+#  - Value
+#  - Target ENV directory
+function set_env_var {
+  local var=$1
+  local val=$2
+  local target=$3
+
+  [[ -z $target || -z $var || -z $val ]] && \
+    error "Must provide a variable name, value, and target directory for environment variables" 64
+  [ ! -d $target ] && \
+    error "Target directory must exist for environment variables" 64
+
+  echo "$val" >"${target}/${var}"
+}
+
+# Generate a random string from /dev/urandom
+# Arguments:
+#  - Desired length (optional)
+#  - Possible character space (optional)
+#  - Patterns to omit (optional)
+function random_string {
+  local DEFAULT_SPACE="a-zA-Z0-9"
+  local DEFAULT_LEN=12
+
+  local len=${1-$DEFAULT_LEN}
+  local space=${2-"${DEFAULT_SPACE}"}
+
+  local rnd=$(head -n 50 /dev/urandom | tr -dc $space | fold -w $len)
+  [ "$3" ] && rnd=$(echo "${rnd}" | grep -v "${3}")
+  echo $(echo "${rnd}" | head -n1)
+}
+
+# Pad a string with random characters
+# Arguments:
+#  - String to pad
+#  - Desired length
+#  - Pattern to pad with (optional)
+function pad_string {
+  local str=$1
+  local len=$2
+  local pattern=$3
+
+  local remain=$(( $len - ${#str} ))
+  if [ "$remain" -ge 1 ]
+  then
+    local rnstr=$(random_string $remain $pattern)
+    str="${str}${rnstr}"
+  fi
+  echo $str
+}
+
+# Generate a password
+# Arguments:
+#  - Desired length (optional)
+#  - Character space (optional)
+#  - Ignore pattern (optional)
+function generate_password {
+  local DEFAULT_LEN=12
+  local DEFAULT_CHAR="a-np-zA-NP-Z1-9-_" #Dash, underscore, Alphanumeric except o,O,0
+  local DEFAULT_IGNORE="^-"
+
+  echo $(random_string ${1-$DEFAULT_LEN} ${2-$DEFAULT_CHAR} ${3-$DEFAULT_IGNORE})
+}
+
+# Generate a username and pad it to a certain length
+# Arguments:
+#  - Username (optional)
+#  - Desired length (optional)
+#  - Pad characters (optional)
+function generate_username {
+  local DEFAULT_USERNAME='admin'
+  local DEFAULT_LEN=12
+  local DEFAULT_CHAR="a-np-zA-NP-Z1-9" #Alphanumeric except o,O,0
+
+  echo $(pad_string ${1-$DEFAULT_USERNAME} ${2-$DEFAULT_LEN} ${3-$DEFAULT_CHAR})
+}
+
+function log_message() {
+   local msg=${1:-""}
+   [ -z "$msg" ]  &&  return 0
+   logger -i -s "run-scheduled-openshift-origin-user-jobs" -p user.info "`date`: $msg"
+}
+
+function wait_for_stop {
+    local pid=$1
+    for i in {1..60}
+    do
+        if `ps --pid $pid > /dev/null 2>&1`
+        then
+            echo "Waiting for stop to finish"
+            sleep .5
+        else
+            break
+        fi
+    done
+}
+
+function print_user_running_processes {
+    local userid=$1
+    echo ""
+    echo "Running Processes:"
+    echo ""
+    ps -FCvx -U "${userid}"
+    echo ""
+}
+
+# Check is a process is running
+# Arguments:
+#  - Process name
+#  - Pidfile
+#  - UID to check (optional)
+function process_running {
+  local process=$1
+  local pidfile=$2
+  local uid=${3-`id -u`}
+
+  # Check the pidfile for a running process
+  {
+    if [ -f $pidfile ]; then
+      local error=$(pgrep -F $pidfile 2>&1)
+      # pgrep returns 0 with an invalid pidfile, so we need to check the output
+      [ $? ] && ! [[ "${error}" =~ 'pidfile not valid' ]] && return 0
+    fi
+  }
+
+  # Check pgrep for the process name and user id
+  {
+    $(pgrep -x ${process} -u ${uid} > /dev/null 2>&1) && return 0
+  }
+  return 1
+}
+
+function pid_is_httpd() {
+    ps -p "$1" 2> /dev/null | grep httpd > /dev/null
+}
+
+function killall_matching_httpds() {
+   [ -z "$1" ]  &&  return 1
+   ps -u `id -u` -o pid,command | grep "$1" | grep -v "grep" |    \
+       awk '{ print $1 }' |  xargs kill -9  > /dev/null 2>&1  || :
+}
+
+function ensure_valid_httpd_process() {
+    # $1 == pidfile.
+    # $2 == httpd config file.
+    [ -n "$1" ]  &&  [ -f "$1" ]  &&  pid_is_httpd `cat "$1"`  &&  return 0
+    [ -n "$1" ]  &&  rm -f "$1"
+    killall_matching_httpds "$2"
+}
+
+function set_uservars() {
+    while [ $# -gt 0 ]; do
+        local arg=$1
+        shift
+        local nvs=$(echo "$arg" | tr "\n" ";" | cut -f 2- -d '=' | sed "s/'\(.*\)'/\\1/")
+        echo "$nvs" | tr ";" "\n" |  while read line; do
+            [ -z "$line" ]  &&  continue
+            #  Got a name-value pair - add to userenv.
+            local name=$(echo "$line" | cut -f 1 -d '=')
+            local value=$(echo "$line" | cut -f 2- -d '=')
+            if [ -n "$name" ]; then
+                echo "$value" > $OPENSHIFT_HOMEDIR/.env/.uservars/$name
+            fi
+        done
+    done
+}
+
+function hot_deploy_marker_is_present() {
+    if [ -f "${OPENSHIFT_REPO_DIR}/.openshift/markers/hot_deploy" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+
+function primary_cartridge_name() {
+  awk -F: '{printf "%s-%s", $2, $3}' $OPENSHIFT_PRIMARY_CARTRIDGE_DIR/env/OPENSHIFT_*_IDENT
+}
+
+# Returns 0 if the named marker $1 exists, otherwise 1.
+function marker_present() {
+  [ -f "${OPENSHIFT_REPO_DIR}/.openshift/markers/$1" ]
+}
+
+# Add element to end of path
+#
+# $1 path
+# $2 element to add
+# return modified path
+path_append ()  {
+    echo -n "$(path_remove $1 $2):$2"
+}
+
+# Add element to front of path
+#
+# $1 path
+# $2 element to add
+# return modified path
+function path_prepend () {
+    echo -n "$2:$(path_remove $1 $2)"
+}
+
+# Remove element from path
+#
+# $1 path
+# $2 element to remove
+# return modified path
+function path_remove ()  {
+    echo -n $(echo -n $1 | awk -v RS=: -v ORS=: '$0 != "'$2'"' | sed 's/:$//')
+}

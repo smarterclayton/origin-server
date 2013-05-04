@@ -1,5 +1,6 @@
 Name: ruby-1.9
 Cartridge-Short-Name: RUBY
+Cartridge-Vendor: redhat
 Display-Name: Ruby 1.9
 Description: "Ruby is a dynamic, reflective, general-purpose object-oriented programming language. Popular development frameworks include Ruby on Rails and Sinatra."
 Version: 1.9
@@ -10,7 +11,7 @@ Categories:
   - ruby
   - web_framework
 Help-Topics:
-  "Developer Center": https://openshift.redhat.com/community/developers
+  "Developer Center": https://www.openshift.com/developers
 Cart-Data:
   - Key: OPENSHIFT_REPO_DIR
     Type: environment
@@ -68,3 +69,5 @@ Endpoints:
     Private-Port-Name: PORT
     Private-Port:      8080
     Public-Port-Name:  PROXY_PORT
+Additional-Control-Actions:
+    - threaddump

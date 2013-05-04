@@ -14,14 +14,12 @@
 # limitations under the License.
 #++
 
-require File.expand_path('../coverage_helper.rb', __FILE__)
+require_relative 'coverage_helper'
 
-#require File.expand_path('../../lib/openshift-origin-node', __FILE__)
-require 'rubygems'
 require 'test/unit'
 require 'mocha'
 
-require 'openshift-origin-node/utils/node_logger'
+require_relative '../lib/openshift-origin-node'
 
 module OpenShift
   module NodeLogger
@@ -32,7 +30,7 @@ module OpenShift
 
     def self.logger
       @logger ||= begin
-        logger = Logger.new(STDOUT)
+        logger       = Logger.new(STDOUT)
         logger.level = Logger::DEBUG
         logger
       end
@@ -44,10 +42,34 @@ module OpenShift
 
     def self.trace_logger
       @trace_logger ||= begin
-        logger = Logger.new(STDOUT)
+        logger       = Logger.new(STDOUT)
         logger.level = Logger::INFO
         logger
       end
+    end
+  end
+
+  class V2SdkTestCase < MiniTest::Unit::TestCase
+    alias assert_raise assert_raises
+
+    def assert_path_exist(path, message=nil)
+      assert File.exist?(path),  "#{path} expected to exist #{message}"
+    end
+
+    def refute_path_exist(path, message=nil)
+      assert (not File.exists?(path)), "#{path} expected to not exist #{message}"
+    end
+
+    def before_setup
+      OpenShift::Utils::Sdk.stubs(:new_sdk_app?).returns(true)
+      OpenShift::Utils::Sdk.stubs(:node_default_model).returns(:v2)
+      super
+    end
+
+    def after_teardown
+      OpenShift::Utils::Sdk.unstub(:new_sdk_app?)
+      OpenShift::Utils::Sdk.unstub(:node_default_model)
+      super
     end
   end
 end

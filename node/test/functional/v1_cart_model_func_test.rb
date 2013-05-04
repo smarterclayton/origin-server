@@ -13,15 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #++
-
-require 'openshift-origin-node/model/v1_cart_model'
-require 'test/unit'
+require_relative '../test_helper'
 
 class V1CartridgeModelFunctionalTest < Test::Unit::TestCase
   MockUser = Struct.new(:uuid)
 
   def test_get_cartridge
     @config = mock('OpenShift::Config')
+    @config.stubs(:get).returns(nil)
     @config.stubs(:get).with('CARTRIDGE_BASE_PATH').returns('/usr/libexec/openshift/cartridges')
     OpenShift::Config.stubs(:new).returns(@config)
     

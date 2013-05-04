@@ -10,21 +10,18 @@
 
 Summary:       M-Collective agent file for openshift-origin-msg-node-mcollective
 Name:          openshift-origin-msg-node-mcollective
-Version: 1.6.2
+Version: 1.8.4
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
-URL:           http://openshift.redhat.com
+URL:           http://www.openshift.com
 Source0:       http://mirror.openshift.com/pub/openshift-origin/source/%{name}/%{name}-%{version}.tar.gz
 Requires:      %{?scl:%scl_prefix}rubygems
 Requires:      %{?scl:%scl_prefix}rubygem-open4
 Requires:      %{?scl:%scl_prefix}rubygem-json
 Requires:      rubygem-openshift-origin-node
 Requires:      mcollective
-Requires:      facter
-%if 0%{?fedora}%{?rhel} <= 6
 Requires:      %{?scl:%scl_prefix}facter
-%endif
 Requires:      openshift-origin-msg-common
 BuildArch:     noarch
 
@@ -42,7 +39,7 @@ mkdir -p %{buildroot}%{vendor_ruby}facter
 mkdir -p %{buildroot}/etc/cron.minutely
 mkdir -p %{buildroot}/usr/libexec/mcollective
 
-cp src/openshift.rb %{buildroot}%{mco_agent_root}
+cp -p src/openshift.rb %{buildroot}%{mco_agent_root}
 cp -p facts/openshift_facts.rb %{buildroot}%{vendor_ruby}facter/
 cp -p facts/openshift-facts %{buildroot}/etc/cron.minutely/
 cp -p facts/update_yaml.rb %{buildroot}/usr/libexec/mcollective/
@@ -54,6 +51,61 @@ cp -p facts/update_yaml.rb %{buildroot}/usr/libexec/mcollective/
 %attr(0700,-,-) %config(noreplace) /etc/cron.minutely/openshift-facts
 
 %changelog
+* Wed May 01 2013 Adam Miller <admiller@redhat.com> 1.8.4-1
+- Broker changes for supporting unsubscribe connection event. Details: When one
+  of the component is removed from the app and if it has published some content
+  to other components located on different gears, we issue unsubscribe event on
+  all the subscribing gears to cleanup the published content.
+  (rpenta@redhat.com)
+
+* Tue Apr 30 2013 Adam Miller <admiller@redhat.com> 1.8.3-1
+- Env var WIP. (mrunalp@gmail.com)
+- Merge pull request #2201 from BanzaiMan/dev/hasari/c276
+  (dmcphers+openshiftbot@redhat.com)
+- Card 276 (asari.ruby@gmail.com)
+
+* Mon Apr 29 2013 Adam Miller <admiller@redhat.com> 1.8.2-1
+- Merge pull request #2255 from brenton/oo-accept-systems
+  (dmcphers+openshiftbot@redhat.com)
+- Card online_runtime_239 - Download cartridge from URL (jhonce@redhat.com)
+- Bug 957045 - fixing oo-accept-systems for v2 cartridges (bleanhar@redhat.com)
+
+* Thu Apr 25 2013 Adam Miller <admiller@redhat.com> 1.8.1-1
+- Merge pull request #2227 from ironcladlou/bz/955538
+  (dmcphers+openshiftbot@redhat.com)
+- Combine stderr/stdout for cartridge actions (ironcladlou@gmail.com)
+- Splitting configure for cartridges into configure and post-configure
+  (abhgupta@redhat.com)
+- Creating fixer mechanism for replacing all ssh keys for an app
+  (abhgupta@redhat.com)
+- Split v2 configure into configure/post-configure (ironcladlou@gmail.com)
+- Bug 928675 (asari.ruby@gmail.com)
+- bump_minor_versions for sprint 2.0.26 (tdawson@redhat.com)
+
+* Tue Apr 16 2013 Troy Dawson <tdawson@redhat.com> 1.7.4-1
+- Bug 952408 - Node filters threaddump calls (jhonce@redhat.com)
+
+* Wed Apr 10 2013 Adam Miller <admiller@redhat.com> 1.7.3-1
+- Delete move/pre-move/post-move hooks, these hooks are no longer needed.
+  (rpenta@redhat.com)
+- Adding checks for ssh key matches (abhgupta@redhat.com)
+
+* Mon Apr 08 2013 Adam Miller <admiller@redhat.com> 1.7.2-1
+- WIP Cartridge Refactor - Support V1 contract for CLIENT_ERROR
+  (jhonce@redhat.com)
+- fixing rebase (tdawson@redhat.com)
+
+* Thu Mar 28 2013 Adam Miller <admiller@redhat.com> 1.7.1-1
+- bump_minor_versions for sprint 26 (admiller@redhat.com)
+- WIP Cartridge Refactor - more robust oo-admin-cartridge (jhonce@redhat.com)
+
+* Wed Mar 27 2013 Adam Miller <admiller@redhat.com> 1.6.4-1
+- WIP Cartridge Refactor - Roll out old threaddump support (jhonce@redhat.com)
+- WIP Cartridge Refactor - Add PHP support for threaddump (jhonce@redhat.com)
+
+* Mon Mar 18 2013 Adam Miller <admiller@redhat.com> 1.6.3-1
+- Add SNI upload support to API (lnader@redhat.com)
+
 * Thu Mar 14 2013 Adam Miller <admiller@redhat.com> 1.6.2-1
 - Replacing get_value() with config['param'] style calls for new version of
   parseconfig gem. (kraman@gmail.com)

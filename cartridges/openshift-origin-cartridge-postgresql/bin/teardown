@@ -1,0 +1,5 @@
+#!/bin/bash -ue
+
+rm -f $HOME/.psqlrc
+rm -f $HOME/.pgpass
+rm -r $OPENSHIFT_DATA_DIR/.psql_history*

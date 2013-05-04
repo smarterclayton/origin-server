@@ -1,9 +1,4 @@
-#!/bin/bash
+#!/bin/bash -eu
 
-source ~/.env/*
-
-source /usr/libexec/openshift/cartridges/v2/mock-plugin/mock-plugin.conf
-
-PATH=/bin/:/usr/bin:$PATH
-
+source $OPENSHIFT_MOCK_PLUGIN_DIR/mock-plugin.conf
 touch $MOCK_STATE/teardown_called

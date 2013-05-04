@@ -1,17 +1,3 @@
-Given /^a v2 default node$/ do
-  assert_file_exists '/var/lib/openshift/.settings/v2_cartridge_format'
-end
-
-Then /^the ([^ ]+) cartridge instance directory will( not)? exist$/ do |cartridge_name, negate|
-  cartridge_dir = File.join($home_root, @gear.uuid, cartridge_name)
-
-  if negate
-    assert_directory_not_exists cartridge_dir
-  else
-    assert_directory_exists cartridge_dir
-  end
-end
-
 Then /^the ([^ ]+) ([^ ]+) marker will( not)? exist$/ do |cartridge_name, marker, negate|
   state_dir = ".#{cartridge_name.sub('-', '_')}_cartridge_state"
 
@@ -44,77 +30,51 @@ Then /^the ([^ ]+) ([^ ]+) marker will be ([^ ]+)$/ do |cartridge_name, marker, 
   assert_equal value, File.open(marker_file, "rb").read.chomp
 end
 
-Then /^the ([^ ]+) ([^ ]+) env entry will( not)? exist$/ do |cartridge_name, variable, negate|
-  cart_env_var_will_exist(cartridge_name, variable, negate)
-end
-
-Then /^the platform-created default environment variables will exist$/ do
-  app_env_var_will_exist('APP_DNS')
-  app_env_var_will_exist('APP_NAME')
-  app_env_var_will_exist('APP_UUID')
-  app_env_var_will_exist('DATA_DIR')
-  app_env_var_will_exist('REPO_DIR')
-  app_env_var_will_exist('GEAR_DNS')
-  app_env_var_will_exist('GEAR_NAME')
-  app_env_var_will_exist('GEAR_UUID')
-  app_env_var_will_exist('TMP_DIR')
-  app_env_var_will_exist('HOMEDIR')
-  app_env_var_will_exist('HISTFILE', false)
-  app_env_var_will_exist('PATH', false)
-end
-
-Then /^the mock cartridge private endpoints will be exposed$/ do
-  app_env_var_will_exist('MOCK_EXAMPLE_IP1')
-  app_env_var_will_exist('MOCK_EXAMPLE_PORT1')
-  app_env_var_will_exist('MOCK_EXAMPLE_IP2')
-  app_env_var_will_exist('MOCK_EXAMPLE_PORT2')
-  app_env_var_will_exist('MOCK_EXAMPLE_PORT3')
-  app_env_var_will_exist('MOCK_EXAMPLE_PORT4')
-end
-
-Then /^the mock-plugin cartridge private endpoints will be (exposed|concealed)$/ do |action|
-  vars = %w(MOCK_PLUGIN_EXAMPLE_IP1 MOCK_PLUGIN_EXAMPLE_PORT1)
-  
-  vars.each do |var|
-    case action
-    when 'exposed'
-      app_env_var_will_exist(var)
-    when 'concealed'
-      app_env_var_will_not_exist(var)
-    end
+When /^a new file is added and pushed to the client-created application repo$/ do
+  Dir.chdir(@app.repo) do
+    run "echo 'foo' >> cucumber_test_file"
+    run 'git add .'
+    run "git commit -m 'Test Change'"
+    push_output = `git push`
+    $logger.info("Push output:\n#{push_output}")
   end
 end
 
-def app_env_var_will_exist(var_name, prefix = true)
-  if prefix
-    var_name = "OPENSHIFT_#{var_name}"
+Then /^the new file will (not )?be present in the (secondary )?gear app-root repo$/ do |negate, secondary|
+  file = File.join($home_root, @app.uid, 'app-root', 'repo', 'cucumber_test_file')
+
+  if secondary
+    secondary_gear = @app.ssh_command("grep gear- haproxy/conf/haproxy.cfg | awk '{ print $2}' | sed 's#gear-##g'")
+
+    file = File.join($home_root, secondary_gear, 'app-root', 'repo', 'cucumber_test_file')
   end
-
-  var_file_path = File.join($home_root, @gear.uuid, '.env', var_name)
-
-  assert_file_exists var_file_path
-end
-
-def app_env_var_will_not_exist(var_name, prefix = true)
-  if prefix
-    var_name = "OPENSHIFT_#{var_name}"
-  end
-
-  var_file_path = File.join($home_root, @gear.uuid, '.env', var_name)
-
-  assert_file_not_exists var_file_path
-end
-
-
-def cart_env_var_will_exist(cart_name, var_name, negate = false)
-  var_name = "OPENSHIFT_#{var_name}"
-
-  var_file_path = File.join($home_root, @gear.uuid, cart_name, 'env', var_name)
 
   if negate
-    assert_file_not_exists var_file_path
+    assert_file_not_exists file
   else
-    assert_file_exists var_file_path
-    assert((File.stat(var_file_path).size > 0), "#{var_file_path} is empty")
+    assert_file_exists file
   end
+end
+
+Then /^the ([^ ]+) ([^ ]+) marker will( not)? exist in the( plugin)? gear$/ do |cartridge_name, marker, negate, plugin|
+  state_dir = ".#{cartridge_name.sub('-', '_')}_cartridge_state"
+
+  marker_file = File.join($home_root, @app.uid, 'app-root', 'data', state_dir, marker)
+
+  if plugin
+    plugin_gear_uuid = IO.read(File.join($home_root, @app.uid, '.env', '.uservars', 'OPENSHIFT_MOCK_PLUGIN_GEAR_UUID')).chomp
+    plugin_gear_uuid.sub!(/export OPENSHIFT_MOCK_PLUGIN_GEAR_UUID=\'/, '')
+    plugin_gear_uuid.chomp!('\'')
+    marker_file = File.join($home_root, plugin_gear_uuid, 'app-root', 'data', state_dir, marker)
+  end
+
+  if negate
+    assert_file_not_exists marker_file
+  else
+    assert_file_exists marker_file
+  end  
+end
+
+When /^the minimum scaling parameter is set to (\d+)$/ do |min|
+  rhc_ctl_scale(@app, min) 
 end

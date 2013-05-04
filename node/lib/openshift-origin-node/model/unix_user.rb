@@ -16,7 +16,8 @@
 
 require 'rubygems'
 require 'openshift-origin-node/utils/shell_exec'
-require 'openshift-origin-node/utils/path_utils'
+require 'openshift-origin-node/utils/selinux'
+require 'openshift-origin-common/utils/path_utils'
 require 'openshift-origin-node/model/frontend_httpd.rb'
 require 'openshift-origin-node/utils/node_logger'
 require 'openshift-origin-common'
@@ -45,9 +46,12 @@ module OpenShift
 
     DEFAULT_SKEL_DIR = File.join(OpenShift::Config::CONF_DIR,"skel")
 
+    @@MODIFY_SSH_KEY_MUTEX = Mutex.new
+
     def initialize(application_uuid, container_uuid, user_uid=nil,
         app_name=nil, container_name=nil, namespace=nil, quota_blocks=nil, quota_files=nil, debug=false)
       @config = OpenShift::Config.new
+      @cartridge_format = Utils::Sdk.node_default_model(@config)
 
       @container_uuid = container_uuid
       @application_uuid = application_uuid
@@ -93,6 +97,7 @@ module OpenShift
       gecos    = @config.get("GEAR_GECOS")     || "OO application container"
       notify_observers(:before_unix_user_create)
       basedir = @config.get("GEAR_BASE_DIR")
+      supplementary_groups = @config.get("GEAR_SUPL_GRPS")
 
       # lock to prevent race condition between create and delete of gear
       uuid_lock_file = "/var/lock/oo-create.#{@uuid}"
@@ -122,6 +127,9 @@ module OpenShift
                   -m \
                   -k #{skel_dir} \
                   #{@uuid}}
+          if supplementary_groups != ""
+            cmd << %{ -G "#{supplementary_groups}"}
+          end
           out,err,rc = shellCmd(cmd)
           raise UserCreationException.new(
                   "ERROR: unable to create user account(#{rc}): #{cmd.squeeze(" ")} stdout: #{out} stderr: #{err}"
@@ -254,16 +262,11 @@ Dir(after)    #{@uuid}/#{@uid} => #{list_home_dir(@homedir)}
       comment = "" unless comment
       self.class.notify_observers(:before_add_ssh_key, self, key)
 
-      authorized_keys_file = File.join(@homedir, ".ssh", "authorized_keys")
-      keys = read_ssh_keys authorized_keys_file
-      key_type    = "ssh-rsa" if key_type.to_s.strip.length == 0
-      cloud_name  = "OPENSHIFT"
-      ssh_comment = "#{cloud_name}-#{@uuid}-#{comment}"
-      shell       = @config.get("GEAR_SHELL") || "/bin/bash"
-      cmd_entry   = "command=\"#{shell}\",no-X11-forwarding #{key_type} #{key} #{ssh_comment}"
+      ssh_comment, cmd_entry = get_ssh_key_cmd_entry(key, key_type, comment)
 
-      keys[ssh_comment] = cmd_entry
-      write_ssh_keys authorized_keys_file, keys
+      modify_ssh_keys do |keys|
+        keys[ssh_comment] = cmd_entry
+      end
 
       self.class.notify_observers(:after_add_ssh_key, self, key)
     end
@@ -283,18 +286,38 @@ Dir(after)    #{@uuid}/#{@uid} => #{list_home_dir(@homedir)}
     def remove_ssh_key(key, comment=nil)
       self.class.notify_observers(:before_remove_ssh_key, self, key)
 
-      authorized_keys_file = File.join(@homedir, ".ssh", "authorized_keys")
-      keys = read_ssh_keys authorized_keys_file
-
-      if comment
-        keys.delete_if{ |k, v| v.include?(key) && v.include?(comment)}
-      else
+      modify_ssh_keys do |keys|
         keys.delete_if{ |k, v| v.include?(key)}
       end
 
-      write_ssh_keys authorized_keys_file, keys
-
       self.class.notify_observers(:after_remove_ssh_key, self, key)
+    end
+
+    # Public: Remove all existing SSH keys and add the new ones to a users authorized_keys file.
+    #
+    # ssh_keys - The Array of ssh keys.
+    #
+    # Examples
+    #
+    #   replace_ssh_keys([{'key' => AAAAB3NzaC1yc2EAAAADAQABAAABAQDE0DfenPIHn5Bq/...', 'type' => 'ssh-rsa', 'name' => 'key1'}])
+    #   # => nil
+    #
+    # Returns nil on Success or raises on Failure
+    def replace_ssh_keys(ssh_keys)
+      raise Exception.new('The provided ssh keys do not have the required attributes') unless validate_ssh_keys(ssh_keys)
+      
+      self.class.notify_observers(:before_replace_ssh_keys, self)
+
+      modify_ssh_keys do |keys|
+        keys.delete_if{ |k, v| true }
+        
+        ssh_keys.each do |key|
+          ssh_comment, cmd_entry = get_ssh_key_cmd_entry(key['key'], key['type'], key['comment'])
+          keys[ssh_comment] = cmd_entry
+        end
+      end
+
+      self.class.notify_observers(:after_replace_ssh_keys, self)
     end
 
     # Public: Add an environment variable to a given gear.
@@ -311,15 +334,21 @@ Dir(after)    #{@uuid}/#{@uid} => #{list_home_dir(@homedir)}
     # Returns the Integer value for how many bytes got written or raises on
     # failure.
     def add_env_var(key, value, prefix_cloud_name = false, &blk)
-      env_dir = File.join(@homedir,'.env/')
-      if prefix_cloud_name
-        key = "OPENSHIFT_#{key}"
-      end
+      env_dir = File.join(@homedir, '.env/')
+      key = "OPENSHIFT_#{key}" if prefix_cloud_name
+
       filename = File.join(env_dir, key)
-      File.open(filename,
-          File::WRONLY|File::TRUNC|File::CREAT) do |file|
-            file.write "export #{key}='#{value}'"
+      File.open(filename, File::WRONLY|File::TRUNC|File::CREAT) do |file|
+        if :v1 == @cartridge_format
+          file.write "export #{key}='#{value}'"
+        else
+          file.write value.to_s
         end
+      end
+
+      mcs_label = Utils::SELinux.get_mcs_label(uid)
+      PathUtils.oo_chown(0, gid, filename)
+      Utils::SELinux.set_mcs_label(mcs_label, filename)
 
       if block_given?
         blk.call(value)
@@ -433,18 +462,21 @@ Dir(after)    #{@uuid}/#{@uid} => #{list_home_dir(@homedir)}
       notify_observers(:before_initialize_homedir)
       homedir = homedir.end_with?('/') ? homedir : homedir + '/'
 
-      tmp_dir = File.join(homedir, ".tmp")
       # Required for polyinstantiated tmp dirs to work
-      FileUtils.mkdir_p tmp_dir
-      FileUtils.chmod(0o0000, tmp_dir)
+      [".tmp", ".sandbox"].each do |poly_dir|
+        full_poly_dir = File.join(homedir, poly_dir)
+        FileUtils.mkdir_p full_poly_dir
+        FileUtils.chmod(0o0000, full_poly_dir)
+      end
 
-      sandbox_dir = File.join(homedir, ".sandbox")
-      FileUtils.mkdir_p sandbox_dir
-      FileUtils.chmod(0o0000, sandbox_dir)
-
-      sandbox_uuid_dir = File.join(sandbox_dir, @uuid)
+      # Polydir runs before the marker is created so set up sandbox by hand
+      sandbox_uuid_dir = File.join(homedir, ".sandbox", @uuid)
       FileUtils.mkdir_p sandbox_uuid_dir
-      FileUtils.chmod(0o1755, sandbox_uuid_dir)
+      if @cartridge_format == :v1
+        FileUtils.chmod(0o1755, sandbox_uuid_dir)
+      else
+        PathUtils.oo_chown(@uuid, nil, sandbox_uuid_dir)
+      end
 
       env_dir = File.join(homedir, ".env")
       FileUtils.mkdir_p(env_dir)
@@ -526,8 +558,9 @@ Dir(after)    #{@uuid}/#{@uid} => #{list_home_dir(@homedir)}
 
       OpenShift::FrontendHttpServer.new(@container_uuid,@container_name,@namespace).create
 
-      # Fix SELinux context
-      set_selinux_context(homedir)
+      # Fix SELinux context for cart dirs
+      Utils::SELinux.clear_mcs_label_R(homedir)
+      Utils::SELinux.set_mcs_label_R(Utils::SELinux.get_mcs_label(@uid), Dir.glob(File.join(homedir, '*')))
 
       notify_observers(:after_initialize_homedir)
     end
@@ -648,98 +681,72 @@ Dir(after)    #{@uuid}/#{@uid} => #{list_home_dir(@homedir)}
       end
     end
 
-    # private: Write ssh authorized_keys file
+    # private: Modify ssh authorized_keys file
     #
-    # @param  [String] authorized_keys_file ssh authorized_keys path
-    # @param  [Hash]   keys authorized keys with the comment field as the key
+    # @yields [Hash] authorized keys with the comment field as the key which will save if modified.
     # @return [Hash] authorized keys with the comment field as the key
-    def write_ssh_keys(authorized_keys_file, keys)
-      File.open(authorized_keys_file,
-                File::WRONLY|File::TRUNC|File::CREAT,
-                0o0440) do |file|
-        file.write(keys.values.join("\n"))
-        file.write("\n")
-      end
-      PathUtils.oo_chown_R('root', @uuid, authorized_keys_file)
-      shellCmd("restorecon #{authorized_keys_file}")
+    def modify_ssh_keys
+      authorized_keys_file = File.join(@homedir, ".ssh", "authorized_keys")
+      keys = Hash.new
 
-      keys
-    end
+      @@MODIFY_SSH_KEY_MUTEX.synchronize do
+        File.open("/var/lock/oo-modify-ssh-keys", File::RDWR|File::CREAT, 0o0600) do | lock |
+          lock.fcntl(Fcntl::F_SETFD, Fcntl::FD_CLOEXEC)
+          lock.flock(File::LOCK_EX)
+          begin
+            File.open(authorized_keys_file, File::RDWR|File::CREAT, 0o0440) do |file|
+              file.each_line do |line|
+                begin
+                  keys[line.split[-1].chomp] = line.chomp
+                rescue
+                end
+              end
 
-    # private: Read ssh authorized_keys file
-    #
-    # @param  [String] authorized_keys_file ssh authorized_keys path
-    # @return [Hash] authorized keys with the comment field as the key
-    def read_ssh_keys(authorized_keys_file)
-      keys = {}
-      if File.exists? authorized_keys_file
-        File.open(authorized_keys_file, File::RDONLY).each_line do | line |
-          options, key_type, key, comment = line.split
-          keys[comment] = line.chomp
+              if block_given?
+                old_keys = keys.clone
+
+                yield keys
+
+                if old_keys != keys
+                  file.seek(0, IO::SEEK_SET)
+                  file.write(keys.values.join("\n")+"\n")
+                  file.truncate(file.tell)
+                end
+              end
+            end
+            PathUtils.oo_chown_R('root', @uuid, authorized_keys_file)
+            shellCmd("restorecon #{authorized_keys_file}")
+          ensure
+            lock.flock(File::LOCK_UN)
+          end
         end
-        PathUtils.oo_chown_R('root', @uuid, authorized_keys_file)
       end
       keys
     end
 
-    # Set ownership and selinux context for file or tree of files
-    def self.match_ownership(source, target)
-      recurse = '-R' if File.directory? target
-
-      # FIXME: review restorecon with rmillner, see set_selinux_context below
-      Utils.oo_spawn(%Q{chown #{recurse} --reference=#{source} #{target}; \
-                        chcon #{recurse} --reference=#{source} #{target}},
-                     expected_exitstatus: 0)
-    end
-    # Determine the MCS label for a given uid
-    #
-    # @param [Integer] The user ID
-    # @return [String] The SELinux MCS label
-    def get_mcs_label(uid)
-      UnixUser.get_mcs_label(uid)
+    # Generate the command entry for the ssh key to be written into the authorized keys file
+    def get_ssh_key_cmd_entry(key, key_type, comment)
+      key_type    = "ssh-rsa" if key_type.to_s.strip.length == 0
+      cloud_name  = "OPENSHIFT"
+      ssh_comment = "#{cloud_name}-#{@uuid}-#{comment}"
+      shell       = @config.get("GEAR_SHELL") || "/bin/bash"
+      cmd_entry   = "command=\"#{shell}\",no-X11-forwarding #{key_type} #{key} #{ssh_comment}"
+      
+      [ssh_comment, cmd_entry]
     end
 
-    def self.get_mcs_label(uid)
-      if (uid.to_i < 0) || (uid.to_i>523776)
-        raise ArgumentError, "Supplied UID must be between 0 and 523776."
+    # validate the ssh keys to check for the required attributes
+    def validate_ssh_keys(ssh_keys)
+      ssh_keys.each do |key|
+        begin
+          if key['key'].nil? or key['type'].nil? and key['comment'].nil?
+            return false
+          end
+        rescue Exception => ex
+          return false
+        end
       end
-
-      setsize=1023
-      tier=setsize
-      ord=uid.to_i
-      while ord > tier
-        ord -= tier
-        tier -= 1
-      end
-      tier = setsize - tier
-      "s0:c#{tier},c#{ord + tier}"
-    end
-
-    # private: Set the SELinux context the gear home directory.
-    #    Note: This is specific to the home dir structure.
-    #
-    # If target is a directory, operation will be recursive.
-    #
-    # @param [Integer] The user ID
-    def set_selinux_context(target)
-      mcs_label=get_mcs_label(@uid)
-
-      recurse = '-R' if File.directory?(target)
-
-      cmd = "restorecon #{recurse} #{target}"
-      out, err, rc = shellCmd(cmd)
-      logger.error(
-                "ERROR: unable to restorecon #{target} (#{rc}): #{cmd} stdout: #{out} stderr: #{err}"
-                ) unless 0 == rc
-
-      chcon_target = File.directory?(target) ? File.join(target, "*") : target
-
-      cmd = "chcon #{recurse} -l #{mcs_label} #{chcon_target}"
-
-      out, err, rc = shellCmd(cmd)
-      logger.error(
-                "ERROR: unable to chcon #{chcon_target} (#{rc}): #{cmd} stdout: #{out} stderr: #{err}"
-                ) unless 0 == rc
+      return true
     end
 
     # Deterministically constructs an IP address for the given UID based on the given
@@ -767,5 +774,79 @@ Dir(after)    #{@uuid}/#{@uid} => #{list_home_dir(@homedir)}
       # Return the IP in dotted-quad notation
       "#{ip >> 24}.#{ip >> 16 & 0xFF}.#{ip >> 8 & 0xFF}.#{ip & 0xFF}"
     end
+
+    # Deterministically constructs a network and netmask for the given UID
+    #
+    # The global user IP range begins at 0x7F000000.
+    #
+    # Returns an IP network and netmask in dotted-quad notation.
+    def self.get_ip_network(uid)
+      raise "Invalid UID specified" unless uid && uid.is_a?(Integer)
+
+      if uid.to_i < 0 || uid.to_i > 262143
+        raise "User uid #{@uid} is outside the working range 0-262143"
+      end
+      # Generate the network (32-bit unsigned) for the user's range
+      ip = 0x7F000000 + (uid.to_i << 7)
+
+      # Return the network/netmask in dotted-quad notation
+      [ "#{ip >> 24}.#{ip >> 16 & 0xFF}.#{ip >> 8 & 0xFF}.#{ip & 0xFF}", "255.255.255.128" ]
+    end
+
+    #
+    # Public: Return a UnixUser object loaded from the gear_uuid on the system
+    #
+    # Caveat: the quota information will not be populated.
+    #
+    def self.from_uuid(container_uuid)
+      config = OpenShift::Config.new
+      gecos = config.get("GEAR_GECOS") || "OO application container"
+      pwent = Etc.getpwnam(container_uuid)
+      if pwent.gecos != gecos
+        raise ArgumentError, "Not an OpenShift gear: #{gear_uuid}"
+      end
+      env = Utils::Environ.for_gear(pwent.dir)
+      UnixUser.new(env["OPENSHIFT_APP_UUID"], pwent.name, pwent.uid,
+                   env["OPENSHIFT_APP_NAME"], env["OPENSHIFT_GEAR_NAME"],
+                   env['OPENSHIFT_GEAR_DNS'].sub(/\..*$/,"").sub(/^.*\-/,""))
+    end
+
+    #
+    # Public: Return an enumerator which provides a UnixUser object for
+    # every OpenShift user in the system.
+    #
+    # Caveat: the quota information will not be populated.
+    #
+    def self.all
+      Enumerator.new do |yielder|
+        config = OpenShift::Config.new
+        gecos = config.get("GEAR_GECOS") || "OO application container"
+
+        # Some duplication with from_uuid; it may be expensive to keep re-parsing passwd.
+        # Etc is not reentrent.  Capture the password table in one shot.
+        pwents = []
+        Etc.passwd do |pwent|
+          pwents << pwent.clone
+        end
+
+        pwents.each do |pwent|
+          if pwent.gecos == gecos
+            u = nil
+            begin
+              env = Utils::Environ.for_gear(pwent.dir)
+              u = UnixUser.new(env["OPENSHIFT_APP_UUID"], pwent.name, pwent.uid,
+                               env["OPENSHIFT_APP_NAME"], env["OPENSHIFT_GEAR_NAME"],
+                               env['OPENSHIFT_GEAR_DNS'].sub(/\..*$/,"").sub(/^.*\-/,""))
+            rescue => e
+              NodeLogger.logger.error("Failed to instantiate UnixUser for #{pwent.uid}: #{e}")
+              NodeLogger.logger.error("Backtrace: #{e.backtrace}")
+            else
+              yielder.yield(u)
+            end
+          end
+        end
+      end
+    end
+
   end
 end

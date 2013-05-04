@@ -44,8 +44,12 @@ class LastAccessUpdater
     begin
       File.open(file_path) do |file|
         file.each_line do |line|
-          parts = line.split("=")
-          return parts[1].strip.delete("'")
+          if line.start_with?('export ')
+            parts = line.split('=')
+            return parts[1].strip.delete("'")
+          else
+            return line
+          end
         end
       end
     rescue Exception => e
@@ -57,7 +61,7 @@ class LastAccessUpdater
   def read_app_data(app_uuid)
     val = read_app_property(app_uuid, 'OPENSHIFT_GEAR_DNS')
     if val
-      @all_apps_info[val] = app_uuid
+      @all_apps_info[val.downcase] = app_uuid
     end
   end
 

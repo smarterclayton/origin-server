@@ -1,8 +1,9 @@
 # OS independent path locations
-conf_dir = File.join("conf", "*")
+conf_dir = File.join(File.join("conf", "**"), "*")
 httpd_dir = File.join(File.join("httpd", "**"), "*")
 lib_dir  = File.join(File.join("lib", "**"), "*")
 misc_dir  = File.join(File.join("misc", "**"), "*")
+jobs_dir  = File.join(File.join("jobs", "**"), "*")
 test_dir  = File.join(File.join("test", "**"), "*")
 spec_file = "rubygem-openshift-origin-node.spec"
 
@@ -17,7 +18,7 @@ Gem::Specification.new do |s|
   s.description = `rpm -q --define 'rhel 7' --qf "%{description}\n" --specfile #{spec_file}`.split[0]
 
   s.rubyforge_project = "openshift-origin-node"
-  s.files       = Dir[lib_dir] + Dir[conf_dir] + Dir[test_dir] + Dir[misc_dir] + Dir[httpd_dir]
+  s.files       = Dir[lib_dir] + Dir[conf_dir] + Dir[test_dir] + Dir[misc_dir] + Dir[httpd_dir] + Dir[jobs_dir]
   s.files       += %w(README.md Rakefile Gemfile rubygem-openshift-origin-node.spec openshift-origin-node.gemspec COPYRIGHT LICENSE)
   s.require_paths = ["lib"]
   s.add_dependency("json")
@@ -26,5 +27,5 @@ Gem::Specification.new do |s|
 
   s.add_development_dependency('rspec', "1.1.12")
   s.add_development_dependency('mocha', "0.9.8")
-  s.add_development_dependency('rake', '>= 0.8.7', '<= 0.9.2.2')
+  s.add_development_dependency('rake', '>= 0.8.7', '<= 0.9.6')
 end

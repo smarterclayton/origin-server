@@ -1,5 +1,6 @@
 Name: python-2.6
 Cartridge-Short-Name: PYTHON
+Cartridge-Vendor: redhat
 Display-Name: Python 2.6
 Description: "Python is a general-purpose, high-level programming language whose design philosophy emphasizes code readability. Popular development frameworks include: Django, Bottle, Pylons, Zope and TurboGears."
 Version: 2.6
@@ -13,7 +14,7 @@ Categories:
   - web_framework
 Website: "http://www.python.org"
 Help-Topics:
-  "Developer Center": https://openshift.redhat.com/community/developers
+  "Developer Center": https://www.openshift.com/developers
 Cart-Data:
   - Key: OPENSHIFT_REPO_DIR
     Type: environment

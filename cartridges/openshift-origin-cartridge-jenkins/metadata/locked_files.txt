@@ -1,5 +1,0 @@
-jenkins/
-jenkins/configuration/
-jenkins/metadata/
-jenkins/bin/*
-jenkins/template/

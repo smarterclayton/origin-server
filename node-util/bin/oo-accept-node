@@ -20,6 +20,8 @@
 require 'rubygems'
 require 'optparse'
 require 'socket'
+require 'json'
+require 'parseconfig'
 
 $OPTIONS = {}
 
@@ -31,7 +33,12 @@ optparse = OptionParser.new { |opts|
     opts.on('-v','--verbose', 'Print verbose statements') { |verbose|
         $OPTIONS[:verbose] = verbose
     }
-}
+
+    $OPTIONS[:timeout] = 60
+    opts.on('-t n','--timeout n', OptionParser::DecimalInteger, 'length of timeout') { |timeout|
+      $OPTIONS[:timeout] = timeout
+    }
+  }
 optparse.parse!
 
 def verbose(msg)
@@ -74,12 +81,14 @@ $LIMITS_CONF_DIR="/etc/security/limits.d"
 DEFAULT_SEBOOL_LIST="httpd_can_network_connect:on"
 DEFAULT_PACKAGES="rubygem-openshift-origin-node openshift-origin-node-util \
     rubygem-openshift-origin-common selinux-policy selinux-policy-targeted"
-DEFAULT_SERVICES="mcollective cgconfig cgred httpd openshift-port-proxy"
+DEFAULT_SERVICES="mcollective cgconfig cgred httpd openshift-port-proxy oddjobd"
+DEFAULT_SERVICE_CONTEXTS="mcollective='unconfined_u:system_r:openshift_initrc_t:s0-s0:c0.c1023' oddjobd='system_u:system_r:oddjob_t:s0-s0:c0.c1023'"
 DEFAULT_MINSEM=512
 
 $SEBOOL_LIST="SEBOOL_LIST"
 $PACKAGES="PACKAGES"
 $SERVICES="SERVICES"
+$SERVICE_CONTEXTS="SERVICE_CONTEXTS"
 $MINSEM="MINSEM"
 
 
@@ -107,6 +116,13 @@ else
     eputs "WARNING: ENV overrides SERVICES"
 end
 
+if ENV[$SERVICE_CONTEXTS].nil?
+    $SERVICE_CONTEXTS=DEFAULT_SERVICE_CONTEXTS
+else
+    eputs "WARNING: ENV overrides SERVICE_CONTEXTS"
+end
+
+
 if ENV[$MINSEM].nil?
     $MINSEM=DEFAULT_MINSEM
 else
@@ -126,23 +142,17 @@ def do_fail(msg)
 end
 
 def source_file(file)
-    i = 0
-    IO.foreach(file) { |line|
-        next if line =~ /^#/
-        next if line =~ /^$/
-        if line.include?"#"
-            name,value = line.split("#")[0].split("=")
-        else
-            name,value = line.strip.split[0].split("=")
-        end
-        #$stdout.flush
-        #puts "Setting vars #{name}=>#{value.gsub('"',"")}"
-        next if name.nil? or value.nil?
-        #puts "Setting vars #{name}=>#{value.gsub('"',"")}"
-        ENV["#{name}"]=value.gsub('"','').strip
-        #p ENV
-        #exit
-    }
+    # for some reason, we use ParseConfig to parse this, and then hack it up with cargo-cult code.
+    # TODO: do something sane and make it consistent everywhere without breaking anything
+    parser = ParseConfig.new(file)
+    parser.get_params.each do |key|
+      val = parser[key]
+      next if val.nil?
+      val.gsub!(/\\:/,":") if not val.nil?
+      val.gsub!(/[ \t]*#[^\n]*/,"") if not val.nil?
+      val = val[1..-2] if not val.nil? and val.start_with? "\""
+      ENV[key] = val
+    end
 end
 
 ###############################
@@ -171,7 +181,6 @@ def load_node_conf
 
     $GEAR_BASE_DIR=ENV['GEAR_BASE_DIR']
     do_fail("GEAR_BASE_DIR does not exist or is not a directory: #{$GEAR_BASE_DIR}") unless File.exists? $GEAR_BASE_DIR
-    $GEAR_HTTPD_DIR=File.join($GEAR_BASE_DIR,"/.httpd.d")
 
     verbose("loading resource limit file #{$RESOURCE_LIMITS_FILE}")
 
@@ -230,7 +239,7 @@ def check_selinux()
         do_fail("selinux is not enabled")
     else
         verbose("checking selinux #{policy_name} policy")
-        do_fail("selinux #{policy_name} policy is not loaded") unless %x[/usr/bin/timeout -s9 10 /usr/sbin/semodule -l] =~ /#{policy_name}[\d\.\W]+$/
+        do_fail("selinux #{policy_name} policy is not loaded") unless %x[/usr/bin/timeout -s9 #{$OPTIONS[:timeout]} /usr/sbin/semodule -l] =~ /#{policy_name}[\d\.\W]+$/
     end
     verbose("checking selinux booleans")
     $SEBOOL_LIST.split.each { |bool|
@@ -240,6 +249,18 @@ def check_selinux()
     }
 
     do_fail("invalid selinux labels in OPENSHIFT_DIR $GEAR_BASE_DIR") unless %x[restorecon -n -v #{$GEAR_BASE_DIR}] =~ //
+
+    # This will likely only detect the effects of a full relabel but it's
+    # better than nothing.  My unscientific tests shows that checking 100 gears
+    # only added about 1.5 seconds execution time.
+    Dir.glob(File.join($GEAR_BASE_DIR, "*/app-root"))[0,99].each do |dir|
+      out = %x[ls --scontext #{dir}]
+      mcs = /.+:.+:.+:.+:c\d+,c\d+? /.match(out)
+      if mcs.nil?
+        do_fail("invalid MCS labels on #{dir}. run oo-restorecon to restore OpenShift SELinux categories")
+        break
+      end
+    end
 end
 
 def check_packages
@@ -259,6 +280,28 @@ def check_services
     }
 end
 
+def check_service_contexts
+    offset = 0
+    while m = /(\w+)\=[\'\"]?(\w+):(\w+):(\w+):([\w\-\:\.\,]+)[\'\"]?/.match($SERVICE_CONTEXTS[offset..-1])
+      offset += m.end(0)
+      service = m[1]
+      serole = m[3]
+      setype = m[4]
+      selabel = m[5]
+
+      servout = %x[service #{service} status 2>&1]
+      begin
+        pid = /pid\s+(\d+)/.match(servout)[1]
+        pcontext = File.read("/proc/#{pid}/attr/current").strip
+        pm = /(\w+):(\w+):(\w+):([\w\-\:\.\,]+)/.match(pcontext)
+        if (m[3] != pm[2]) or (m[4] != pm[3]) or (m[5] != pm[4])
+          do_fail("SELinux context for #{service} is incorrect")
+        end
+      rescue
+        do_fail("Could not get SELinux context for #{service}")
+      end
+    end
+end
 
 def check_semaphores
     verbose("checking kernel semaphores >= #{$MINSEM}")
@@ -275,6 +318,41 @@ def check_cgroup_config
     if %x[lscgroup cpu,cpuacct,memory,freezer,net_cls:/openshift 2>/dev/null | wc -l].strip.to_i < 1
         do_fail("lscgroup /openshift path does not exist")
         $CGROUP_PASS=false
+    end
+end
+
+
+#
+# Check tc config
+#
+def check_cgroup_procs
+    verbose("checking cgroups processes")
+
+    ### Gather current procs running ###
+    all_user_procs = %x[ps -ef | egrep "^[0-9]{4}"].split("\n")
+    ps_procs = Hash.new(Array.new)
+    all_user_procs.each do |line|
+        user_procs = line.split[0,3]
+        uname = users.grep(/:#{user_procs[0]}:/)[0].split(":")[0]
+        ps_procs[uname] += [user_procs[1]]
+        ps_procs[uname].uniq!
+    end
+
+    ### Gather cgroup procs ###
+    cgroup_procs = {}
+    Dir.glob("/cgroup/all/openshift/*/cgroup.procs").each do |file|
+        uuid = file.split("/")[4]
+        lines = []
+        IO.foreach(file).each { |line| lines << line.strip }
+        cgroup_procs[uuid] = lines
+    end
+
+    ### Compare ###
+    ps_procs.each do |uuid,procs|
+        missing = procs - cgroup_procs[uuid]
+        if missing.length > 0
+            do_fail("#{uuid} has procs missing from cgroups:  #{missing.join(" ")}")
+        end
     end
 end
 
@@ -373,14 +451,151 @@ def check_user_cgroups(username)
 end
 
 def check_system_httpd_configs
-    verbose("checking system httpd configs")
-    Dir.foreach($GEAR_HTTPD_DIR) { |cfile|
-        next if cfile[0,1] == "."
-        next if cfile[-5,5] != ".conf"
-        if ! $ALL_USERS.include?(cfile[0..cfile.index('_')-1])
-            do_fail("httpd config file #{cfile} doesn't have an associated user")
+    verbose("DISABLED: checking system httpd configs")
+end
+
+def check_system_httpd_configs_DISABLED
+  verbose("checking system httpd configs")
+  ['aliases.db', 'idler.db', 'nodes.db', 'sts.db'].each do |db|
+    begin
+      File.open(File.join(ENV['OPENSHIFT_HTTP_CONF_DIR'], db))
+    rescue => e
+      do_fail("#{e}")
+    end
+  end
+
+  httpconfs = Hash.new
+  ['aliases.txt', 'idler.txt', 'nodes.txt', 'sts.txt'].each do |db|
+    httpconfs[db]=Hash.new
+    begin
+      File.open(File.join(ENV['OPENSHIFT_HTTP_CONF_DIR'], db)) do |f|
+        f.each do |l|
+          path, dest = l.strip.split
+          if (not path.nil?) and (not dest.nil?)
+            httpconfs[db][path]=dest
+          end
         end
-    }
+      end
+    rescue => e
+      do_fail("#{e}")
+    end
+  end
+
+  ['routes.json', 'geardb.json'].each do |db|
+    begin
+      File.open(File.join(ENV['OPENSHIFT_HTTP_CONF_DIR'], db)) do |f|
+        httpconfs[db] = JSON.parse(f.read)
+      end
+    rescue => e
+      httpconfs[db] = Hash.new
+      do_fail("#{e}")
+    end
+  end
+
+  httpconfs['nodes.txt'].delete_if   { |k,v|  k.split('/')[0] == '__default__' }
+  $ALL_USERS.each do |u|
+    dnsfile = File.join($GEAR_BASE_DIR, u, '.env', 'OPENSHIFT_GEAR_DNS')
+    fqdn = File.read(dnsfile)
+    if contents.start_with?('export ')
+      fqdn = fqdn.sub(/^.*=/,'').gsub('\'','').gsub('"','').strip.downcase
+    end
+
+    begin
+      has_websocket = false
+      has_framework = false
+
+      carts = Dir.glob(File.join($GEAR_BASE_DIR, u, '*')).map { |p|
+        File.basename(p)
+      }.map { |p|
+        cpath = nil
+        [ File.join(ENV['CARTRIDGE_BASE_PATH'], p), File.join(ENV['CARTRIDGE_BASE_PATH'], 'v2', p)].each { |cp|
+          cpath = cp if File.exists?(cp)
+        }
+        cpath
+      }.select { |p|
+        not p.nil?
+      }.each { |p|
+        is_framework = false
+
+        ['metadata', 'info'].each { |mp|
+          begin
+            manifest = File.read(File.join(p, mp, 'manifest.yml'))
+            manifest.gsub!(/\#.*$/, '')
+            is_framework = manifest.include?('web_framework')
+            has_websocket |= is_framework & manifest.include?('websocket')
+            has_framework  |= is_framework
+          rescue
+          end
+        }
+
+        if is_framework
+          hook = File.join(p, 'info', 'hooks', 'deploy-httpd-proxy')
+          deploy = File.join(p, 'info', 'bin', 'deploy_httpd_proxy.sh')
+          alt_deploy = File.join(ENV['CARTRIDGE_BASE_PATH'], 'abstract', 'info', 'bin', 'deploy_httpd_proxy.sh')
+          begin
+            hookcall = File.read(hook)
+            begin
+              hookcall += File.read(deploy)
+            rescue Errno::ENOENT
+              hookcall += File.read(alt_deploy)
+            end
+            hookcall.gsub!(/\#.*$/, '')
+            has_websocket |= hookcall.include?('--websocket')
+          rescue
+          end
+        end
+      }
+
+      if has_framework and not httpconfs['nodes.txt'].has_key?(fqdn)
+        do_fail("Gear has a web framework cartridge but no Apache configuration: #{u}")
+      end
+
+      if has_websocket and not httpconfs['routes.json'].has_key?(fqdn)
+        do_fail("Gear has a websocket framework cartridge but no websocket configuration: #{u}")
+      end
+
+
+      httpconfs['nodes.txt'].delete_if   { |k,v|  k.split('/')[0] == fqdn }
+      httpconfs['aliases.txt'].delete_if { |k,v|  v == fqdn }
+      httpconfs['idler.txt'].delete(fqdn)
+      httpconfs['sts.txt'].delete(fqdn)
+      httpconfs['routes.json'].delete(fqdn)
+      httpconfs['routes.json'].delete_if { |k, v| v["alias"] == fqdn }
+      httpconfs['geardb.json'].delete_if { |k, v| v["fqdn"] == fqdn }
+    rescue
+    end
+  end
+
+  fail_dns_names = Hash.new
+  httpconfs['nodes.txt'].each   { |k, v| fail_dns_names[k.split('/')[0]]=1 }
+  httpconfs['aliases.txt'].each { |k, v| fail_dns_names[v]=1 }
+  httpconfs['idler.txt'].each   { |k, v| fail_dns_names[k]=1 }
+  httpconfs['sts.txt'].each     { |k, v| fail_dns_names[k]=1 }
+  httpconfs['routes.json'].each do |k, v|
+    if v["alias"]
+      fail_dns_names[v["alias"]]=1
+    else
+      fail_dns_names[k]=1
+    end
+  end
+
+
+  httpconfs['geardb.json'].each do |k, v|
+    do_fail("httpd config references UUID without associated gear: '#{k}'")
+    fail_dns_names.delete(v["fqdn"])
+  end
+
+  fail_dns_names.each do |k, v|
+    do_fail("httpd config references DNS name without associated gear: '#{k}'")
+  end
+
+  Dir.foreach(ENV['OPENSHIFT_HTTP_CONF_DIR']) { |cfile|
+    next if cfile[0,1] == "."
+    next if cfile[-5,5] != ".conf"
+    if ! $ALL_USERS.include?(cfile[0..cfile.index('_')-1])
+      do_fail("httpd config file #{cfile} doesn't have an associated user")
+    end
+  }
 end
 
 def check_app_dirs
@@ -411,8 +626,10 @@ if __FILE__ == $0
     check_selinux
     check_packages
     check_services
+    check_service_contexts
     check_semaphores
     check_cgroup_config
+    check_cgroup_procs
     check_tc_config if $TC_CHECK
     check_quotas
     check_users

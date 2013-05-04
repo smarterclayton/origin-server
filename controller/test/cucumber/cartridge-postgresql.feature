@@ -1,6 +1,7 @@
-#@runtime_other3
+#@runtime_extended_other2
 @runtime
-@runtime3
+@runtime_extended3
+@postgres
 Feature: PostgreSQL Application Sub-Cartridge
 
   @rhel-only

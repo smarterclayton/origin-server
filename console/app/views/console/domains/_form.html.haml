@@ -4,10 +4,11 @@
     .controls.first
       .input-prepend.input-append.wrap
         %span.add-on> http://applicationname&ndash;
+        %label.invisible{:for => 'domain_name'} Namespace
         = f.text_field :name, :autofocus => true, :placeholder => 'Namespace', :class => 'domain_name'
         %span.add-on>= ".#{Console::RestApi.application_domain_suffix}"
       = f.semantic_errors :name, :alias => {:name => :id}, :class => [:unstyled, :errors, 'help-block']
   = f.buttons do
-    = link_to "Cancel", account_path, :class => 'btn'
+    = link_to "Cancel", settings_path, :class => 'btn'
     = f.commit_button :label => domain.persisted? ? 'Save' : 'Create'
     = f.loading

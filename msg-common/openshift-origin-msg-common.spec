@@ -6,18 +6,19 @@
     %global mco_root /usr/libexec/mcollective/mcollective/
 %endif
 
-Summary:       Common dependencies of the msg components for OpenShift server and node
+Summary:       Common msg components for OpenShift broker and node
 Name:          openshift-origin-msg-common
-Version: 1.4.2
+Version: 1.6.2
 Release:       1%{?dist}
 License:       ASL 2.0
-URL:           http://openshift.redhat.com
+URL:           http://www.openshift.com
 Source0:       http://mirror.openshift.com/pub/openshift-origin/source/%{name}/%{name}-%{version}.tar.gz
 Requires:      %{?scl:%scl_prefix}mcollective-common
 BuildArch:     noarch
 
 %description
-Provides the common dependencies of the msg components for OpenShift server and node
+Provides the common dependencies of the msg components
+for OpenShift broker and node
 
 %prep
 %setup -q
@@ -37,6 +38,28 @@ chmod 644 %{buildroot}%{mco_root}validator/*
 %{mco_root}validator/*
 
 %changelog
+* Tue Apr 30 2013 Adam Miller <admiller@redhat.com> 1.6.2-1
+- Env var WIP. (mrunalp@gmail.com)
+
+* Thu Apr 25 2013 Adam Miller <admiller@redhat.com> 1.6.1-1
+- Splitting configure for cartridges into configure and post-configure
+  (abhgupta@redhat.com)
+- Creating fixer mechanism for replacing all ssh keys for an app
+  (abhgupta@redhat.com)
+- Bug 928675 (asari.ruby@gmail.com)
+- bump_minor_versions for sprint 2.0.26 (tdawson@redhat.com)
+
+* Wed Apr 10 2013 Adam Miller <admiller@redhat.com> 1.5.3-1
+- Delete move/pre-move/post-move hooks, these hooks are no longer needed.
+  (rpenta@redhat.com)
+- Adding checks for ssh key matches (abhgupta@redhat.com)
+
+* Mon Apr 08 2013 Adam Miller <admiller@redhat.com> 1.5.2-1
+- fixing rebase (tdawson@redhat.com)
+
+* Thu Mar 28 2013 Adam Miller <admiller@redhat.com> 1.5.1-1
+- bump_minor_versions for sprint 26 (admiller@redhat.com)
+
 * Thu Mar 14 2013 Adam Miller <admiller@redhat.com> 1.4.2-1
 - WIP Cartridge Refactor - Cartridge Repository (jhonce@redhat.com)
 - Revert "Merge pull request #1622 from jwhonce/wip/cartridge_repository"

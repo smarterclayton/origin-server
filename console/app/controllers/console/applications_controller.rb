@@ -70,8 +70,8 @@ end
 class ApplicationsController < ConsoleController
   include AsyncAware
 
-  # trigger synchronous module load
-  [GearGroup] if Rails.env.development?
+  # trigger synchronous module load 
+  [GearGroup, Cartridge, Key, Application] if Rails.env.development?
 
   def index
     # replace domains with Applications.find :all, :as => current_user
@@ -109,6 +109,8 @@ class ApplicationsController < ConsoleController
   def create
     app_params = params[:application] || params
     @advanced = to_boolean(params[:advanced])
+    @unlock_cartridges = to_boolean(params[:unlock])
+
     type = params[:application_type] || app_params[:application_type]
     domain_name = app_params[:domain_name].presence || app_params[:domain_id].presence
 
@@ -120,18 +122,18 @@ class ApplicationsController < ConsoleController
 
     @application = (@application_type >> Application.new(:as => current_user)).assign_attributes(app_params)
 
-    begin
-      @cartridges, @missing_cartridges = @application_type.matching_cartridges
-      flash.now[:error] = "No cartridges are defined for this type - all applications require at least one web cartridge" unless @cartridges.present?
-    rescue ApplicationType::CartridgeSpecInvalid
-      logger.debug $!
-      flash.now[:error] = "The cartridges defined for this type are not valid.  The #{@application_type.source} may not be correct."
+    unless @unlock_cartridges
+      begin
+        @cartridges, @missing_cartridges = @application_type.matching_cartridges
+        flash.now[:error] = "No cartridges are defined for this type - all applications require at least one web cartridge" unless @cartridges.present?
+      rescue ApplicationType::CartridgeSpecInvalid
+        logger.debug $!
+        flash.now[:error] = "The cartridges defined for this type are not valid.  The #{@application_type.source} may not be correct."
+      end
+      @disabled = @missing_cartridges.present? || @cartridges.blank?
     end
 
-    #@cartridges, @missing_cartridges = ApplicationType.matching_cartridges(@application.cartridge_names.presence || @application_type.cartridges)
-
     flash.now[:error] = "You have no free gears.  You'll need to scale down or delete another application first." unless @capabilities.gears_free?
-    @disabled = @missing_cartridges.present? || @cartridges.blank?
 
     # opened bug 789763 to track simplifying this block - with domain_name submission we would
     # only need to check that domain_name is set (which it should be by the show form)

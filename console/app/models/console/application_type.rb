@@ -5,7 +5,7 @@ class ApplicationType
   include RestApi::Cacheable
   extend ActiveModel::Naming
 
-  PROTECTED_TAGS = [:new, :premium, :blacklist, :featured]
+  PROTECTED_TAGS = [:new, :premium, :blacklist, :featured, :custom]
   def self.user_tags(tags)
     tags - PROTECTED_TAGS
   end
@@ -26,6 +26,7 @@ class ApplicationType
   attr_accessor :priority
   attr_accessor :scalable
   alias_method :scalable?, :scalable
+  attr_accessor :provider
   attr_accessor :source
   attr_accessor :usage_rates
 
@@ -101,18 +102,35 @@ class ApplicationType
     end
   end
 
+  def support_type
+    provider or tags.include?(:community) ? :community : :openshift
+  end
+
+  def automatic_updates?
+    cartridge? && !tags.include?(:community)
+  end
+
   def cartridge?; source == :cartridge; end
   def quickstart?; source == :quickstart; end
+  def custom?; id == 'custom'; end
 
   def matching_cartridges
     self.class.matching_cartridges(cartridge_specs)
   end
 
   def >>(app)
-    app.cartridges = cartridges if cartridges.present?
+    app.cartridges = cartridges.map{ |s| to_cart(s) } if cartridges.present?
     app.initial_git_url = initial_git_url if initial_git_url
     app.initial_git_branch = initial_git_branch if initial_git_branch
     app
+  end
+
+  def to_cart(c)
+    if c.is_a?(String) && (c.start_with? 'http://' or c.start_with? 'https://')
+      CartridgeType.for_url(c)
+    else
+      c
+    end
   end
 
   #
@@ -156,7 +174,9 @@ class ApplicationType
   def self.matching_cartridges(cartridge_specs)
     valid, invalid = {}, []
     Array(cartridge_specs).uniq.each do |c|
-      if (matches = CartridgeType.cached.matches(c)).present?
+      if c.start_with? 'http://' or c.start_with? 'https://'
+        valid[c] = [CartridgeType.for_url(c)]
+      elsif (matches = CartridgeType.cached.matches(c)).present?
         valid[c] = matches
       else
         invalid << c
@@ -190,17 +210,17 @@ class ApplicationType
         query = opts[:search].downcase
         types.concat CartridgeType.cached.standalone
         types.keep_if &LOCAL_SEARCH.curry[query]
-        types.concat Quickstart.search(query)
+        types.concat Quickstart.search(query) rescue handle_error($!)
       when opts[:tag]
         tag = opts[:tag].to_sym rescue (return [])
         types.concat CartridgeType.cached.standalone
         if tag != :cartridge
           types.keep_if &TAG_FILTER.curry[[tag]]
-          types.concat Quickstart.search(tag.to_s)
+          types.concat Quickstart.search(tag.to_s) rescue handle_error($!)
         end
       else
         types.concat CartridgeType.cached.standalone
-        types.concat Quickstart.cached.promoted
+        types.concat Quickstart.cached.promoted rescue handle_error($!)
       end
       raise "nil types" unless types
 
@@ -225,11 +245,16 @@ class ApplicationType
     end
     def self.from_quickstart(type)
       attrs = { :id => "quickstart!#{type.id}", :source => :quickstart }
-      [:display_name, :tags, :description, :website, :initial_git_url, :initial_git_branch, :cartridges_spec, :priority, :scalable, :learn_more_url].each do |m|
+      [:display_name, :tags, :description, :website, :initial_git_url, :initial_git_branch, :cartridges_spec, :priority, :scalable, :learn_more_url, :provider].each do |m|
         attrs[m] = type.send(m)
       end
 
       new(attrs, type.persisted?)
+    end
+
+    def self.handle_error(e)
+      Rails.logger.error "Unable to process source data: #{e.message}\n#{e.backtrace.join("\n  ")}"
+      nil
     end
 
   protected

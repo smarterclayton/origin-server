@@ -35,6 +35,31 @@ isrunning() {
     return 1
 }
 
+# Check if the server is all the way up
+function is_up() {
+    jenkins_url="http://${OPENSHIFT_INTERNAL_IP}:8080/"
+
+    let count=0
+    while [ ${count} -lt 25 ]
+    do
+        url="curl -s -k -X GET --user \"${JENKINS_USERNAME}:${JENKINS_PASSWORD}\" ${jenkins_url}"
+        result=`$url`
+        if [ -z "$result" ]; then
+                echo "Waiting ..."
+        else
+                if [[ "$result" == *"Please wait while Jenkins is getting ready to work"* ]]; then
+                        echo "Still waiting ..."
+                else
+                        return 0
+                fi
+        fi
+        let count=${count}+1
+        sleep 2
+    done
+    return 1
+}
+
+
 start_jenkins() {
     src_user_hook pre_start_${cartridge_type}
     set_app_state started
@@ -48,14 +73,18 @@ start_jenkins() {
     if [ -f "${OPENSHIFT_REPO_DIR}/.openshift/markers/enable_debugging" ]; then
         JENKINS_CMD="${JENKINS_CMD} -Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=${OPENSHIFT_JENKINS_IP}:7600,suspend=n"
     fi
+    
+    if [ -z $JENKINS_WAR_PATH ]; then
+		JENKINS_WAR_PATH=/usr/lib/jenkins/jenkins.war
+	fi
 
-    JENKINS_CMD="${JENKINS_CMD} -DJENKINS_HOME=$OPENSHIFT_DATA_DIR/ \
+    JENKINS_CMD="${JENKINS_CMD} ${JENKINS_OPTS} -DJENKINS_HOME=$OPENSHIFT_DATA_DIR/ \
         -Dhudson.slaves.NodeProvisioner.recurrencePeriod=500 \
         -Dhudson.slaves.NodeProvisioner.initialDelay=100 \
         -Dhudson.slaves.NodeProvisioner.MARGIN=100 \
         -Dhudson.model.UpdateCenter.never=true \
         -Dhudson.DNSMultiCast.disabled=true \
-        -jar /usr/lib/jenkins/jenkins.war \
+        -jar ${JENKINS_WAR_PATH} \
         --ajp13Port=-1 \
         --controlPort=-1 \
         --logfile=$OPENSHIFT_JENKINS_LOG_DIR/jenkins.log \
@@ -67,6 +96,11 @@ start_jenkins() {
         --httpListenAddress=$OPENSHIFT_INTERNAL_IP"
 
     $JENKINS_CMD &    
+    
+    if ! is_up; then
+        echo "Timed out waiting for Jenkins to fully start"
+        exit 1
+    fi
 
     echo $! > /dev/null
     if [ $? -eq 0 ]; then

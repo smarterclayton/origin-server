@@ -1,5 +1,6 @@
 Name:  jenkins-1.4
 Cartridge-Short-Name: JENKINS
+Cartridge-Vendor: redhat
 Display-Name: Jenkins Server 1.4
 Description: "Jenkins is a continuous integration (CI) build server that is deeply integrated into OpenShift. See the Jenkins info page for more."
 Version: 1.4
@@ -11,7 +12,7 @@ Categories:
   - domain_scope
 Website: http://www.jenkins-ci.org
 Help-Topics:
-  "Developer Center": https://openshift.redhat.com/community/developers
+  "Developer Center": https://www.openshift.com/developers
 Cart-Data:
   - Key: OPENSHIFT_JENKINS_LOG_DIR
     Type: environment

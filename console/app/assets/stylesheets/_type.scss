@@ -83,7 +83,7 @@ h6 {
 @media (max-width:480px) {
 	h1 {font-size:24px;line-height: $baseLineHeight * 1.5;}
 	h2 {font-size: 19.5px;line-height: $baseLineHeight * 1.25;}
-	h3 {font-size: 16.5px;line-height: $baseLineHeight;}
+	h3 {font-size: 16.5px;}
 	h4 {font-size: 14px;}
 	h5 {font-size: 13px;}
 }
@@ -100,7 +100,7 @@ footer h3 {
 // ASIDE
 // -----
 aside, aside p {
-    font-size: $baseFontSize - 1.5;
+    font-size: $baseFontSize - 1;
 }
 
 
@@ -174,12 +174,18 @@ em {
 }
 
 // Abbreviations and acronyms
+
 abbr {
-  font-size: 90%;
   text-transform: uppercase;
-  border-bottom: 1px dotted #ddd;
+  border-bottom: 1px dotted $grayLight;
   cursor: help;
+  
+  &[title="required"] {
+    border: 0;
+  }
 }
+
+
 
 // Blockquotes
 blockquote {
@@ -311,4 +317,9 @@ ul.unstyled-flat {
 // A semantic element that is wrapped
 .wrap {
   white-space: normal !important;
+}
+
+a.link-block {
+  display: block;
+  text-decoration: none;
 }

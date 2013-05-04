@@ -25,7 +25,7 @@ class Application < RestApi::Base
   has_many :cartridges
   has_many :gears
   has_many :gear_groups
-  has_one  :embedded, :class_name => as_attribute_hash
+  has_one  :embedded, :class_name => as_indifferent_hash
 
   attr_accessible :name, :scale, :gear_profile, :cartridges, :cartridge_names, :initial_git_url, :initial_git_branch
 
@@ -68,6 +68,24 @@ class Application < RestApi::Base
   def restart!
     post(:events, nil, {:event => :restart}.to_json)
     true
+  end
+
+  def aliases
+    Alias.find :all, child_options
+  end
+  def find_alias(id)
+    Alias.find id, child_options
+  end
+  def remove_alias(alias_name)
+    begin
+      response = post(:events, nil, {:event => 'remove-alias', :alias => alias_name}.to_json)
+      response.is_a? Net::HTTPOK
+    rescue
+      false
+    end
+  end
+  def remove_aliases
+    self.aliases.each {|a| self.remove_alias(a.id) }
   end
 
   def web_url

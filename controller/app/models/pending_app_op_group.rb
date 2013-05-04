@@ -85,11 +85,19 @@ class PendingAppOpGroup
           result_io.append gear.remove_component(component_instance)
         when :create_gear
           gear = get_gear_for_rollback(op)
-          result_io.append gear.destroy_gear
+          result_io.append gear.destroy_gear(true)
           self.inc(:num_gears_rolled_back, 1)
         when :track_usage
-          unless op.args["parent_user_id"]
-            UsageRecord.untrack_usage(op.args["user_id"], op.args["gear_ref"], op.args["event"], op.args["usage_type"]) 
+          unless op.args["parent_user_id"].nil?
+            storage_usage_type = (op.args["usage_type"] == UsageRecord::USAGE_TYPES[:addtl_fs_gb])
+            tracked_storage = nil
+            if storage_usage_type
+              max_untracked_storage = (application.domain.owner.get_capabilities['max_untracked_addtl_storage_per_gear'] || 0)
+              tracked_storage = op.args["additional_filesystem_gb"] - max_untracked_storage
+            end
+            if !storage_usage_type or (tracked_storage > 0)
+              UsageRecord.untrack_usage(op.args["user_id"], op.args["gear_ref"], op.args["event"], op.args["usage_type"])
+            end
           end
         when :register_dns
           gear = get_gear_for_rollback(op)
@@ -183,6 +191,8 @@ class PendingAppOpGroup
             application.component_instances.delete(component_instance)
           when :add_component
             result_io.append gear.add_component(component_instance, op.args["init_git_url"])
+          when :post_configure_component
+            result_io.append gear.post_configure_component(component_instance, op.args["init_git_url"])
           when :remove_component
             result_io.append gear.remove_component(component_instance)          
           when :create_gear
@@ -191,27 +201,35 @@ class PendingAppOpGroup
             self.inc(:num_gears_created, 1)
           when :track_usage
             unless op.args["parent_user_id"]
-              UsageRecord.track_usage(op.args["user_id"], op.args["app_name"], op.args["gear_ref"], op.args["event"], op.args["usage_type"],
-                                      op.args["gear_size"], op.args["additional_filesystem_gb"], op.args["cart_name"])
+              storage_usage_type = (op.args["usage_type"] == UsageRecord::USAGE_TYPES[:addtl_fs_gb])
+              tracked_storage = nil
+              if storage_usage_type
+                max_untracked_storage = (application.domain.owner.get_capabilities['max_untracked_addtl_storage_per_gear'] || 0)
+                tracked_storage = op.args["additional_filesystem_gb"] - max_untracked_storage
+              end
+              if !storage_usage_type or (tracked_storage > 0)
+                UsageRecord.track_usage(op.args["user_id"], op.args["app_name"], op.args["gear_ref"], op.args["event"], op.args["usage_type"],
+                                        op.args["gear_size"], tracked_storage, op.args["cart_name"])
+              end
             end
           when :register_dns          
             gear.register_dns
           when :deregister_dns          
             gear.deregister_dns          
           when :destroy_gear
-            result_io.append gear.destroy_gear
+            result_io.append gear.destroy_gear(true)
           when :start_component
-            result_io.append gear.start(comp_name)
+            result_io.append gear.start(cart_name)
           when :stop_component
             if args.has_key?("force") and args["force"]==true
-              result_io.append gear.force_stop(comp_name)
+              result_io.append gear.force_stop(cart_name)
             else
-              result_io.append gear.stop(comp_name)
+              result_io.append gear.stop(cart_name)
             end
           when :restart_component
-            result_io.append gear.restart(comp_name)
+            result_io.append gear.restart(cart_name)
           when :reload_component_config
-            result_io.append gear.reload_config(comp_name)
+            result_io.append gear.reload_config(cart_name)
           when :tidy_component
             result_io.append gear.tidy(comp_name)
           when :update_configuration
@@ -237,6 +255,8 @@ class PendingAppOpGroup
             application.set_connections(op.args["connections"])
           when :execute_connections
             application.execute_connections
+          when :unsubscribe_connections
+            application.unsubscribe_connections(op.args["sub_pub_info"])
           when :set_gear_additional_filesystem_gb
             gear.set_addtl_fs_gb(op.args["additional_filesystem_gb"], handle)
             use_parallel_job = true
@@ -261,6 +281,10 @@ class PendingAppOpGroup
             a.has_private_ssl_certificate = false
             a.certificate_added_at = nil
             self.application.save
+          when :replace_all_ssh_keys
+            job = gear.get_fix_authorized_ssh_keys_job(op.args["keys_attrs"])
+            RemoteJob.add_parallel_job(handle, "", gear, job)
+            use_parallel_job = true
           end
           
           if use_parallel_job 
@@ -290,7 +314,7 @@ class PendingAppOpGroup
         end
       end
       unless self.parent_op_id.nil?
-        reloaded_domain = Domain.with(consistency: :strong).find_by(_id: self.application.domain._id)
+        reloaded_domain = Domain.with(consistency: :strong).find_by(_id: self.application.domain_id)
         reloaded_domain.pending_ops.find(self.parent_op_id).child_completed(self.application)
       end
     rescue Exception => e_orig
