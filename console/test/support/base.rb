@@ -17,7 +17,7 @@ class ActiveSupport::TestCase
   def self.uses_http_mock(sym=:always)
     require 'active_resource/persistent_http_mock'
     self.module_eval do
-      setup{ RestApi.stubs(:application_domain_suffix).returns('test.rhcloud.com') }
+      setup{ Console::RestApi.stubs(:application_domain_suffix).returns('test.rhcloud.com') }
       setup{ ActiveResource::HttpMock.enabled = true } unless sym == :sometimes
       teardown do
         ActiveResource::HttpMock.reset!
@@ -140,6 +140,16 @@ class ActiveSupport::TestCase
   end
   def community_base_url(path='')
     "#{community_url}#{path}"
+  end
+end
+
+class ActionController::TestCase
+  setup :select_controller_routes
+
+  def select_controller_routes
+    if Console::ConsoleController === @controller
+      @routes = Console::Engine.routes
+    end
   end
 end
 

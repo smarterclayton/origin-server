@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class RescueFromTest < ActionDispatch::IntegrationTest
   setup { open_session }
 
@@ -22,4 +23,5 @@ class RescueFromTest < ActionDispatch::IntegrationTest
     controller_raises(ActiveResource::ConnectionError.new(nil))
     assert_error_page
   end
+end
 end

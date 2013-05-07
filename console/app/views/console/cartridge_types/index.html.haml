@@ -1,0 +1,44 @@
+- breadcrumb_for_application @application, 'Add a Cartridge'
+- content_for :page_title, 'Add a Cartridge'
+
+%h1.invisible Add a New Cartridge
+= cartridge_wizard_steps_create 0
+
+%section.row
+  - if @carts.empty?
+    .alert.alert-info There are no cartridges that can be installed
+
+  - else
+    .span8
+      %p Choose a cartridge to add to your application.
+      .row
+        - @carts.in_groups(2, false).each do |types|
+          .span4
+            = render :collection => types, :partial => 'cartridge_type', :locals => {:application => @application}
+
+      - if Console::RestApi.download_cartridges_enabled?
+        %h3 Install your own cartridge
+        %form.form-inline{:method => :get, :action => application_cartridge_type_path(@application, 'custom')}
+          %p You may also add an #{link_to 'personal cartridge', downloadable_cartridges_help_url} by providing the URL to the definition.  OpenShift will download and install this cart into your application.  Remember that personal cartridges will not automatically receive updates.
+
+          %input{:type => :text, :name => :url, :placeholder => 'URL to a cartridge definition'}
+          %input.btn{:type => :submit, :value => 'Next', :title => 'Add an personal cartridge to this app'}
+
+  - unless @installed.empty? and @requires.empty? and @conflicts.empty? and @blocked.empty?
+    .span4
+      - unless @installed.empty?
+        %h3 Installed
+        = render :collection => @installed, :partial => 'cartridge_type', :locals => {:application => @application, :inactive => true, :reason => :installed}
+
+      - unless @requires.empty? and @conflicts.empty? and @blocked.empty?
+        %h3 Has Dependencies
+        = render :collection => @requires, :partial => 'cartridge_type', :locals => {:application => @application, :inactive => true, :reason => :requires}
+        = render :collection => @conflicts, :partial => 'cartridge_type', :locals => {:application => @application, :inactive => true, :reason => :conflicts}
+        = render :collection => @blocked, :partial => 'cartridge_type', :locals => {:application => @application, :inactive => true, :reason => :blocked}
+
+- content_for :javascripts do
+  :javascript
+    jQuery('.cartridge_type').click(function() {
+      a = $('a.btn', this)[0];
+      window.location = a.href
+    });

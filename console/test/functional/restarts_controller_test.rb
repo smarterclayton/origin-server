@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class RestartsControllerTest < ActionController::TestCase
   uses_http_mock :sometimes
 
@@ -56,4 +57,5 @@ class RestartsControllerTest < ActionController::TestCase
     assert ActiveResource::HttpMock.requests.include?(expected), 'A restart event was not created.'
   end
 
+end
 end

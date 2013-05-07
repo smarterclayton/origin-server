@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class FilterHashTest < ActiveSupport::TestCase
 
   F = '[FILTERED]'
@@ -61,4 +62,5 @@ class FilterHashTest < ActiveSupport::TestCase
   def assert_filtered(hash, *args)
     args.each{ |k| assert_equal '[FILTERED]', hash[k], "Key #{k} was not filtered" }
   end
+end
 end

@@ -25,11 +25,20 @@ module Console::LayoutHelper
   def navigation_tab(name, options={})
     action = options[:action]
     active = active_tab == name || (name.to_s == controller_name) && (action.nil? || action.to_s == controller.action_name)
+    routes = 
+      case options[:in]
+      when :account 
+        name = "/console/account/#{name}"
+        main_app
+      else 
+        name = "/console/#{name}"
+        console
+      end
     content_tag(
       :li,
       link_to(
         options[:name] || ActiveSupport::Inflector.humanize(name),
-        url_for({
+        routes.url_for({
           :action => action || :index,
           :controller => name
         })

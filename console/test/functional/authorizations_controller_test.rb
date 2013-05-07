@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class AuthorizationsControllerTest < ActionController::TestCase
   setup{ with_configured_user }
 
@@ -99,4 +100,5 @@ class AuthorizationsControllerTest < ActionController::TestCase
     assert_redirected_to settings_path
     assert Authorization.all(:as => @user).length == 0
   end
+end
 end

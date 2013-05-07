@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class AliasesControllerTest < ActionController::TestCase
 
   setup :with_configured_user
@@ -67,4 +68,4 @@ class AliasesControllerTest < ActionController::TestCase
     })
   end
 end
-
+end

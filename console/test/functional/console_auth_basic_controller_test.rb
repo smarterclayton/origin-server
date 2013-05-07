@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class ConsoleAuthBasicControllerTest < ActionController::TestCase
   uses_http_mock :sometimes
 
@@ -79,4 +80,5 @@ class ConsoleAuthBasicControllerTest < ActionController::TestCase
     get :restapi
     assert_response :unauthorized
   end
+end
 end

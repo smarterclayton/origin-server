@@ -26,6 +26,15 @@ namespace :test do
   end
   task :prepare => 'test:prepare:ci_reporter'
 
+  ['unit', 'functional', 'integration'].each do |s|
+    Rake::TestTask.new s.to_sym => 'test:prepare' do |t|
+      t.libs << 'test'
+      t.test_files = FileList[
+        "test/#{s}/**/*_test.rb",
+      ]
+    end
+  end
+
   Rake::TestTask.new :restapi => 'test:prepare' do |t|
     t.libs << 'test'
     t.test_files = FileList[

@@ -1,5 +1,6 @@
 require File.expand_path('../../../test_helper', __FILE__)
 
+module Console
 class RestApiCartridgeTypeTest < ActiveSupport::TestCase
 
   def setup
@@ -115,4 +116,5 @@ class RestApiCartridgeTypeTest < ActiveSupport::TestCase
     assert_equal ['zend-5.6','php-5.3'], CartridgeType.cached.matches('zend-|php-').map(&:name)
     assert_equal ['php-5.3','zend-5.6'], CartridgeType.cached.matches('php-|zend-').map(&:name)
   end
+end
 end

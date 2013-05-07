@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class SettingsControllerTest < ActionController::TestCase
 
   test "should render settings with no data" do
@@ -34,4 +35,5 @@ class SettingsControllerTest < ActionController::TestCase
     assert_select 'a', 'test authorization'
     assert_select 'td', 'a_key'
   end
+end
 end

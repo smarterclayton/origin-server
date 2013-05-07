@@ -1,5 +1,6 @@
 require File.expand_path('../../../test_helper', __FILE__)
 
+module Console
 class RestApiKeyTest < ActiveSupport::TestCase
   include RestApiAuth
 
@@ -81,4 +82,5 @@ class RestApiKeyTest < ActiveSupport::TestCase
     assert found_key = keys.find {|k| k.name == key.name }
     assert_attr_equal key, found_key
   end
+end
 end
