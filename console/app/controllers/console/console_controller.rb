@@ -6,7 +6,6 @@ class ConsoleController < Console.config.parent_controller.constantize
   include SshkeyAware
   include CommunityAware
 
-
   layout 'console'
 
   before_filter :authenticate_user!
