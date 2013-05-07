@@ -29,6 +29,10 @@ class ConsoleAuthRemoteUserControllerTest < ActionController::TestCase
   setup{ Console.config.expects(:remote_user_header).at_least_once.returns('HTTP_X_REMOTE_USER') }
   setup{ Console.config.stubs(:remote_user_copy_headers).returns(['X-Remote-User','X-Other-Header']) }
 
+  #def select_controller_routes
+  #  @routes = Console::Engine.routes
+  #end
+
   tests ConsoleAuthRemoteUserController
 
   test 'should redirect when protected' do

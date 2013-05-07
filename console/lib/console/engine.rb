@@ -30,6 +30,5 @@ module Console
   end
 end
 
-require 'console/rails/routes'
 require 'console/rails/app_redirector'
 require 'console/rails/filter_hash'
