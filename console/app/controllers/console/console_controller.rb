@@ -1,6 +1,10 @@
 module Console
 class ConsoleController < Console.config.parent_controller.constantize
   include Console.config.security_controller.constantize
+  if Console.config.embedded_in_broker?
+    include Console::Rescue
+    helper Console::Engine.helpers
+  end 
   include CapabilityAware
   include DomainAware
   include SshkeyAware

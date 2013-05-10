@@ -97,4 +97,21 @@ Broker::Application.configure do
     :max_cart_size => 20480,
     :max_download_time => 10
   }
+
+  # Enable the asset pipeline
+  config.assets.enabled = true
+
+  # Version of your assets, change this if you want to expire all your assets
+  config.assets.version = '1.0'
+
+  # Do not compress assets
+  config.assets.compress = false
+
+  # Expands the lines which load the assets
+  config.assets.debug = true
+  config.assets.logger = false
+  
+  Console.configure(ENV['CONSOLE_CONFIG_FILE'] || '/etc/openshift/console.conf') do |c|
+    c.include_helpers = false
+  end  
 end

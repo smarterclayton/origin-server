@@ -3,7 +3,7 @@
 
 Console::RestApi::LogSubscriber.attach_to :active_resource
 
-if Rails.env.development?
+if Rails.env.development? and not Console.config.embedded_in_broker?
   begin
     info = Console::RestApi.info
     Rails.logger.info "Connected to #{info.url} with version #{info.version}"
