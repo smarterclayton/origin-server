@@ -9,7 +9,7 @@
 
 Summary:       Cloud Development Controller
 Name:          rubygem-%{gem_name}
-Version: 1.8.6
+Version: 1.9.1
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -84,6 +84,38 @@ mkdir -p %{buildroot}/etc/openshift/
 %{gem_dir}/doc/%{gem_name}-%{version}
 
 %changelog
+* Wed May 08 2013 Adam Miller <admiller@redhat.com> 1.9.1-1
+- bump_minor_versions for sprint 28 (admiller@redhat.com)
+- Merge pull request #2341 from lnader/master
+  (dmcphers+openshiftbot@redhat.com)
+- Bugs 958653, 959676, 959214 and Cleaned up UserException (lnader@redhat.com)
+
+* Wed May 08 2013 Adam Miller <admiller@redhat.com> 1.8.10-1
+- Merge pull request #2385 from pravisankar/dev/ravi/misc-bug958249
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2393 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- Fix 'max_storage_per_gear' capability in rest user model. (rpenta@redhat.com)
+- Bug 958249 : oo-admin-move will allow different node profile for non-scalable
+  apps (rpenta@redhat.com)
+- cleanup download url flow for embedded cart (rchopra@redhat.com)
+
+* Wed May 08 2013 Adam Miller <admiller@redhat.com> 1.8.9-1
+- fix bz959826 - fqdn for secondary gears (rchopra@redhat.com)
+
+* Tue May 07 2013 Adam Miller <admiller@redhat.com> 1.8.8-1
+- Merge pull request #2366 from rajatchopra/url_carts_fixes
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2362 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- fix the rest models/controllers for applications based on downloadable carts
+  (rchopra@redhat.com)
+- fix embedded cartridges controller to cleanly understand json input structure
+  (rchopra@redhat.com)
+
+* Mon May 06 2013 Adam Miller <admiller@redhat.com> 1.8.7-1
+- renaming and fix bug#958970 (rchopra@redhat.com)
+
 * Fri May 03 2013 Adam Miller <admiller@redhat.com> 1.8.6-1
 - fix version mismatch between broker/node for personal carts; some more safety
   for yaml downloads (rchopra@redhat.com)

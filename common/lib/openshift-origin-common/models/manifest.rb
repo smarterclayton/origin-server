@@ -147,7 +147,21 @@ module OpenShift
       # Furthermore, we validate the vendor name by matching against
       # RESERVED_VENDOR_NAME_PATTERN.
       # If it matches the pattern, it will be rejected.
-      RESERVED_VENDOR_NAME_PATTERN = /\A(?:redhat)\z/
+      ## TODO:
+      # Add ability to configure reserved vendor names
+      reserved_vendor_names = %w(
+        redhat
+      )
+      reserved_cartridge_names = %w(
+        app-root
+        git
+      )
+      RESERVED_VENDOR_NAME_PATTERN    = Regexp.new("\\A(?:#{reserved_vendor_names.join('|')})\\z")
+      RESERVED_CARTRIDGE_NAME_PATTERN = Regexp.new("\\A(?:#{reserved_cartridge_names.join('|')})\\z")
+      ## TODO:
+      # these should be configurable
+      MAX_VENDOR_NAME    = 32
+      MAX_CARTRIDGE_NAME = 32
 
       # :call-seq:
       #   Cartridge.new(manifest) -> Cartridge
@@ -158,7 +172,7 @@ module OpenShift
       #
       #   Cartridge.new('/var/lib/openshift/.cartridge_repository/php/1.0/metadata/manifest.yml', '3.5', '.../.cartridge_repository') -> Cartridge
       #   Cartridge.new('Name: ...', '3.5') -> Cartridge
-      def initialize(manifest, version=nil, repository_base_path='')
+      def initialize(manifest, version=nil, repository_base_path='', check_names=true)
 
         if File.exist? manifest
           @manifest      = YAML.load_file(manifest)
@@ -193,7 +207,7 @@ module OpenShift
         @name                   = @manifest['Name']
         @short_name             = @manifest['Cartridge-Short-Name']
         @categories             = @manifest['Categories'] || []
-        @is_primary             = @categories.include?('web_framework')
+        @is_deployable          = @categories.include?('web_framework')
         @is_web_proxy           = @categories.include?('web_proxy')
         @install_build_required = @manifest.has_key?('Install-Build-Required') ? @manifest['Install-Build-Required'] : true
 
@@ -206,8 +220,11 @@ module OpenShift
         raise MissingElementError.new(nil, 'Name') unless @name
         #raise InvalidElementError.new(nil, 'Name') if @name.include?('-')
 
-        validate_vendor_name
-        validate_cartridge_name
+        if check_names
+          validate_vendor_name
+          validate_cartridge_name
+          check_reserved_cartridge_name
+        end
 
         if @manifest.has_key?('Source-Url')
           raise InvalidElementError.new(nil, 'Source-Url') unless @manifest['Source-Url'] =~ URI::ABS_URI
@@ -242,9 +259,12 @@ module OpenShift
         @endpoints.select { |e| e.public_port_name }
       end
 
-      def primary?
-        @is_primary
+      def deployable?
+        @is_deployable
       end
+
+      # For now, these are synonyms
+      alias :buildable? :deployable?
 
       def web_proxy?
         @is_web_proxy
@@ -274,6 +294,13 @@ module OpenShift
             'Cartridge-Vendor'
           )
         end
+
+        if cartridge_vendor.length > MAX_VENDOR_NAME
+          raise InvalidElementError.new(
+            "'#{cartridge_vendor}' must be no longer than #{MAX_VENDOR_NAME} characters.",
+            'Cartridge-Vendor'
+          )
+        end
       end
 
       def validate_cartridge_name
@@ -283,11 +310,21 @@ module OpenShift
             'Name'
           )
         end
+
+        if name.length > MAX_CARTRIDGE_NAME
+          raise InvalidElementError.new("'#{name}' must be no longer than #{MAX_VENDOR_NAME} characters.", 'Name')
+        end
       end
 
       def check_reserved_vendor_name
         if cartridge_vendor =~ RESERVED_VENDOR_NAME_PATTERN
           raise InvalidElementError.new("'#{cartridge_vendor}' is reserved.", 'Cartridge-Vendor')
+        end
+      end
+
+      def check_reserved_cartridge_name
+        if name =~ RESERVED_CARTRIDGE_NAME_PATTERN
+          raise InvalidElementError.new("'#{name}' is reserved.", 'Name')
         end
       end
     end

@@ -2,7 +2,7 @@
 
 Summary:       Provides JBossEWS2.0 support
 Name:          openshift-origin-cartridge-jbossews
-Version: 0.3.5
+Version: 0.4.1
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -10,6 +10,7 @@ URL:           http://www.openshift.com
 Source0:       http://mirror.openshift.com/pub/openshift-origin/source/%{name}/%{name}-%{version}.tar.gz
 Requires:      rubygem(openshift-origin-node)
 Requires:      openshift-origin-node-util
+Requires:      tomcat6
 Requires:      tomcat7
 Requires:      lsof
 Requires:      java-1.7.0-openjdk
@@ -25,7 +26,7 @@ BuildRequires: jpackage-utils
 BuildArch:     noarch
 
 %description
-Provides JBossEWS2.0 support to OpenShift. (Cartridge Format V2)
+Provides JBossEWS1.0 and JBossEWS2.0 support to OpenShift. (Cartridge Format V2)
 
 
 %prep
@@ -60,10 +61,13 @@ alternatives --install /etc/alternatives/maven-3.0 maven-3.0 /usr/share/maven 10
 alternatives --set maven-3.0 /usr/share/maven
 %endif
 
+alternatives --remove jbossews-1.0 /usr/share/tomcat6
+alternatives --install /etc/alternatives/jbossews-1.0 jbossews-1.0 /usr/share/tomcat6 102
+alternatives --set jbossews-1.0 /usr/share/tomcat6
+
 alternatives --remove jbossews-2.0 /usr/share/tomcat7
 alternatives --install /etc/alternatives/jbossews-2.0 jbossews-2.0 /usr/share/tomcat7 102
 alternatives --set jbossews-2.0 /usr/share/tomcat7
-
 
 %{_sbindir}/oo-admin-cartridge --action install --offline --source /usr/libexec/openshift/cartridges/v2/jbossews
 
@@ -84,6 +88,21 @@ alternatives --set jbossews-2.0 /usr/share/tomcat7
 
 
 %changelog
+* Wed May 08 2013 Adam Miller <admiller@redhat.com> 0.4.1-1
+- bump_minor_versions for sprint 28 (admiller@redhat.com)
+
+* Wed May 08 2013 Adam Miller <admiller@redhat.com> 0.3.8-1
+- Bug 960650: Integrate with mysql and postgresql cartridges by default
+  (ironcladlou@gmail.com)
+
+* Tue May 07 2013 Adam Miller <admiller@redhat.com> 0.3.7-1
+- Merge pull request #2353 from detiber/bz959844
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 959844 - JBoss EWS v2 Cartridge fixes for EWS1.0 (jdetiber@redhat.com)
+
+* Mon May 06 2013 Adam Miller <admiller@redhat.com> 0.3.6-1
+- Bug 959132: Add cron cartridge integration (ironcladlou@gmail.com)
+
 * Fri May 03 2013 Adam Miller <admiller@redhat.com> 0.3.5-1
 - Special file processing (fotios@redhat.com)
 - Validate cartridge and vendor names under certain conditions

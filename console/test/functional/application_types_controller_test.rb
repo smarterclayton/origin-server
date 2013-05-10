@@ -28,6 +28,14 @@ class ApplicationTypesControllerTest < ActionController::TestCase
     assert_select "p", /Have your own framework/
   end
 
+  test "should always show DIY cart" do
+    RestApi.stubs(:download_cartridges_enabled?).returns(false)
+
+    with_unique_user
+    get :index
+    assert_select "a", /Do-It-Yourself/
+  end
+
   test "should be able to find quickstarts" do
     with_unique_user
     types = ApplicationType.all
@@ -120,7 +128,7 @@ class ApplicationTypesControllerTest < ActionController::TestCase
     assert_response :success
     assert_select 'h3', 'From Scratch'
     assert_select 'h3 > a', 'custom_cart'
-    assert_select '.text-warning', /Personal cartridges do not receive updates automatically/
+    assert_select '.text-warning', /Downloaded cartridges do not receive updates automatically/
     assert_select "input[type=hidden][name='application[cartridges][][url]'][value=http://foo.bar#custom_cart]"
   end
 
@@ -129,7 +137,7 @@ class ApplicationTypesControllerTest < ActionController::TestCase
     get :show, :id => 'custom', :application_type => {:cartridges => 'http://foo.bar#custom_cart'}, :unlock => true
     assert_response :success
     assert_select 'h3', 'From Scratch'
-    assert_select '.text-warning', /Personal cartridges do not receive updates automatically/
+    assert_select '.text-warning', /Downloaded cartridges do not receive updates automatically/
     assert_select "input[type=text][name='application_type[cartridges]'][value=http://foo.bar#custom_cart]"
   end
 

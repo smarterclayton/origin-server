@@ -2,7 +2,7 @@
 %global frameworkdir %{_libexecdir}/openshift/cartridges/v2/python
 
 Name: openshift-origin-cartridge-python
-Version: 0.3.5
+Version: 0.4.1
 Release: 1%{?dist}
 Summary: Python cartridge
 Group: Development/Languages
@@ -73,6 +73,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed May 08 2013 Adam Miller <admiller@redhat.com> 0.4.1-1
+- bump_minor_versions for sprint 28 (admiller@redhat.com)
+
+* Tue May 07 2013 Adam Miller <admiller@redhat.com> 0.3.6-1
+- fix missing target for cp (rchopra@redhat.com)
+
 * Fri May 03 2013 Adam Miller <admiller@redhat.com> 0.3.5-1
 - fix tests (dmcphers@redhat.com)
 - Special file processing (fotios@redhat.com)

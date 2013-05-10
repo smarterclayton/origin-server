@@ -1,6 +1,6 @@
 Summary:       Utility scripts for the OpenShift Origin broker
 Name:          openshift-origin-node-util
-Version: 1.8.6
+Version: 1.9.1
 Release:       1%{?dist}
 Group:         Network/Daemons
 License:       ASL 2.0
@@ -120,6 +120,22 @@ mv services/openshift-gears.service %{buildroot}/etc/systemd/system/openshift-ge
 /sbin/restorecon /usr/sbin/oo-restorer* || :
 
 %changelog
+* Wed May 08 2013 Adam Miller <admiller@redhat.com> 1.9.1-1
+- bump_minor_versions for sprint 28 (admiller@redhat.com)
+
+* Wed May 08 2013 Adam Miller <admiller@redhat.com> 1.8.8-1
+- Bug 959095 - Fixes to oo-accept-node and add the command line argument
+  --devbuild to inhibit tests which should only run in prod.
+  (rmillner@redhat.com)
+- Time to reintroduce this test. (rmillner@redhat.com)
+
+* Mon May 06 2013 Adam Miller <admiller@redhat.com> 1.8.7-1
+- WIP Cartridge Refactor - Install cartridges without mco client
+  (jhonce@redhat.com)
+- Merge pull request #2343 from rmillner/BZ958355
+  (dmcphers+openshiftbot@redhat.com)
+- Add logger lines back. (rmillner@redhat.com)
+
 * Fri May 03 2013 Adam Miller <admiller@redhat.com> 1.8.6-1
 - <oo-cart-version> fix toggling broker restart logic (lmeyer@redhat.com)
 - Merge pull request #2333 from ironcladlou/bz/949232
