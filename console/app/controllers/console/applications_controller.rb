@@ -73,11 +73,16 @@ class ApplicationsController < ConsoleController
     # replace domains with Applications.find :all, :as => current_user
     # in the future
     #domain = Domain.find :one, :as => current_user rescue nil
-    user_default_domain rescue nil
-    return redirect_to application_types_path, :notice => 'Create your first application now!' if @domain.nil? || @domain.applications.empty?
 
-    @applications_filter = ApplicationsFilter.new params[:applications_filter]
-    @applications = @applications_filter.apply(@domain.applications)
+    #@domain = user_default_domain rescue nil
+    #@applications = @domain ? @domain.applications : []
+    cloud_user = ::CloudUser.find_by_identity(current_user.login)
+    @applications = cloud_user.domains.map(&:applications).flatten.map(&:rest_api)
+    
+    return redirect_to application_types_path, :notice => 'Create your first application now!' if @applications.empty?
+
+    #@applications_filter = ApplicationsFilter.new params[:applications_filter]
+    #@applications = @applications_filter.apply(@applications)
   end
 
   def destroy

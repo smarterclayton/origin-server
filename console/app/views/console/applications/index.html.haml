@@ -18,7 +18,7 @@
     - @applications.each do |application|
       .grid-wrapper.tile-click
         .span7.application-info
-          %h2.name= link_to application.name, application_path(application), :class => 'tile-target'
+          %h2.name= link_to application.name, application_path(application.name), :class => 'tile-target'
           .url
             %strong @
             = link_to application.web_url, application.web_url

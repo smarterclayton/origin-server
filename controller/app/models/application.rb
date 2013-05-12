@@ -61,6 +61,7 @@ class Application
   include Mongoid::Document
   include Mongoid::Timestamps
   include UtilHelper
+  include OpenShift::Controller::ApiModel
   
   # Maximum length of  a valid application name
   APP_NAME_MAX_LENGTH = 32
