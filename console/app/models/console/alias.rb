@@ -1,7 +1,8 @@
 #
 # The REST API model object representing a domain name alias to an application.
 #
-class Console::Alias < Console::RestApi::Base
+module Console
+class Alias < RestApi::Base
   schema do
     string :id
     string :has_private_ssl_certificate
@@ -42,4 +43,5 @@ class Console::Alias < Console::RestApi::Base
     return self.name <=> a.name
   end
 
+end
 end

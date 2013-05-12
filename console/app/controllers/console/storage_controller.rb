@@ -7,7 +7,7 @@ class StorageController < ConsoleController
   end
 
   def update
-    @cartridge = @application.find_cartridge(params[:id]) or raise RestApi::ResourceNotFound.new(Cartridge.model_name, params[:id])
+    @cartridge = @application.find_cartridge(params[:id]) or raise RestApi::ResourceNotFound.new(Cartridge, params[:id])
 
     @cartridge.additional_gear_storage = Integer(params[:cartridge][:additional_gear_storage])
 

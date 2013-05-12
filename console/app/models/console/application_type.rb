@@ -12,7 +12,7 @@ class ApplicationType
 
   class NotFound < RestApi::ResourceNotFound
     def initialize(id, response=nil)
-      super(ApplicationType.model_name, id, response)
+      super(ApplicationType, id, response)
     end
   end
 

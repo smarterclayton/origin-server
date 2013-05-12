@@ -23,7 +23,7 @@ class StaticPagesTest < ActionDispatch::IntegrationTest
   end
 
   test 'render not found if domain missing' do
-    controller_raises(RestApi::ResourceNotFound.new(Domain.model_name,nil))
+    controller_raises(RestApi::ResourceNotFound.new(Domain,nil))
 
     assert_response :success
     assert_select 'h1', /Domain does not exist/

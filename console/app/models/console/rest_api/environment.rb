@@ -1,5 +1,6 @@
-module Console::RestApi
-  class Environment < Console::RestApi::Base
+module Console
+module RestApi
+  class Environment < RestApi::Base
     allow_anonymous
     singleton
     cacheable
@@ -11,4 +12,5 @@ module Console::RestApi
 
     cache_find_method :one
   end
+end
 end

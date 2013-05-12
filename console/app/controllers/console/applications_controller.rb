@@ -64,14 +64,10 @@ class ApplicationsFilter
     wildcard_re = "^" + wildcard_re + "$"
     /#{wildcard_re}/.match(value)
   end
-
 end
 
 class ApplicationsController < ConsoleController
   include AsyncAware
-
-  # trigger synchronous module load 
-  [GearGroup, Cartridge, Key, Application] if Rails.env.development?
 
   def index
     # replace domains with Applications.find :all, :as => current_user

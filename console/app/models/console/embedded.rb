@@ -1,4 +1,5 @@
-class Console::Embedded < Console::RestApi::Base
+module Console
+class Embedded < RestApi::Base
   def info(cart)
     @attributes[cart].info rescue nil
   end
@@ -8,4 +9,5 @@ class Console::Embedded < Console::RestApi::Base
     client = info('jenkins-client-1.4')
     ((client || '').chomp)[/Job URL: ([^\s]*)\s*/, 1]
   end
+end
 end

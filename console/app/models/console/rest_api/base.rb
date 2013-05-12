@@ -428,7 +428,7 @@ module RestApi
           instantiate_record(format.decode(connection(options).get(path, headers).body), as) #end add
         end
       rescue ActiveResource::ResourceNotFound => e
-        raise ResourceNotFound.new(self.model_name, nil, e.response)
+        raise ResourceNotFound.new(self, nil, e.response)
       end
 
       def allow_anonymous?
@@ -441,7 +441,7 @@ module RestApi
         self.use_patch_api?
       end
       def cacheable
-        include Console::RestApi::Cacheable
+        include RestApi::Cacheable
       end
 
       protected
@@ -613,7 +613,7 @@ module RestApi
           path = element_path(scope, prefix_options, query_options)
           instantiate_record(format.decode(connection(options).get(path, headers).body), options[:as], prefix_options) #changed
         rescue ActiveResource::ResourceNotFound => e
-          raise ResourceNotFound.new(self.model_name, scope, e.response)
+          raise ResourceNotFound.new(self, scope, e.response)
         end
 
         def find_every(options)

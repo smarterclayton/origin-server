@@ -35,19 +35,16 @@ module RestApi
   class ResourceExistsError < StandardError ; end
 
   class ResourceNotFound < ActiveResource::ResourceNotFound
-    attr_reader :id
+    attr_reader :id, :model
     def initialize(model, id, response=nil)
       @id, @model = id, model
       super(response)
     end
-    def model
-      @model.constantize rescue Base
-    end
     def domain_missing?
-      @model == 'Domain' || Base.remote_errors_for(response).any?{ |m| m[0] == 127 } rescue false
+      model == Console::Domain || Base.remote_errors_for(response).any?{ |m| m[0] == 127 } rescue false
     end
     def to_s
-      "#{model.to_s.titleize}#{ " '#{id}'" unless id.nil?} does not exist"
+      "#{model.model_name.human}#{ " '#{id}'" unless id.nil?} does not exist"
     end
   end
 

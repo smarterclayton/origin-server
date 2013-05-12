@@ -27,7 +27,7 @@ class ScalingController < ConsoleController
     @user = User.find :one, :as => current_user
     @application = @domain.find_application params[:application_id]
     @cartridges = @application.cartridges
-    @cartridge = @cartridges.find{ |c| c.name == params[:id] } or raise RestApi::ResourceNotFound.new(Cartridge.model_name, params[:id])
+    @cartridge = @cartridges.find{ |c| c.name == params[:id] } or raise RestApi::ResourceNotFound.new(Cartridge, params[:id])
 
     range = [params[:cartridge][:scales_from].to_i, params[:cartridge][:scales_to].to_i]
     range.reverse! if range.first > range.last && range.last != -1

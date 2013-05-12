@@ -150,12 +150,12 @@ class CartridgeType < RestApi::Base
     0
   end
 
-  class Property < Console::RestApi::Base
+  class Property < RestApi::Base
   end
 
   protected
     def self.find_single(scope, options)
-      all(options).find{ |t| t.to_param == scope } or raise RestApi::ResourceNotFound.new(CartridgeType.name, scope)
+      all(options).find{ |t| t.to_param == scope } or raise RestApi::ResourceNotFound.new(CartridgeType, scope)
     end
 
     def self.type_map

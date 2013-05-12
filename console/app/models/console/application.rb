@@ -70,9 +70,6 @@ class Application < RestApi::Base
     true
   end
 
-  def aliases
-    Alias.find :all, child_options
-  end
   def find_alias(id)
     Alias.find id, child_options
   end
@@ -153,7 +150,7 @@ class Application < RestApi::Base
 
     class << self
       def rescue_parent_missing(e, options=nil)
-        parent = RestApi::ResourceNotFound.new(Domain.model_name, (options[:params][:domain_id] rescue nil), e.response)
+        parent = RestApi::ResourceNotFound.new(Domain, (options[:params][:domain_id] rescue nil), e.response)
         raise parent if parent.domain_missing?
       end
     end
