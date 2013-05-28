@@ -45,7 +45,7 @@ else
 end
 
 config = Rails.application.config
-config.action_dispatch.x_frame_options ||= 'SAMEORIGIN'
+# config.action_dispatch.x_frame_options ||= 'SAMEORIGIN'
 
 if config.action_dispatch.x_frame_options
   ActionDispatch::Response.default_x_frame_options = config.action_dispatch.x_frame_options
