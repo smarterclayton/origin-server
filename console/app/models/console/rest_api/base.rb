@@ -841,6 +841,35 @@ module RestApi
       @last_config = config
       @info = false
     end
+
+    #
+    # Indicate that this class may adapt a core model instance by providing either
+    # an adapter class or by a block which defines a subclass of SimpleDelegator.
+    #
+    # Does not check that an adapt request matches the 'from'.
+    # 
+    def self.adapts(from, to=nil, &block)
+      self.model_class = if block_given?
+          Class.new(SimpleDelegator).tap{ |c| c.module_eval &block }
+        else
+          to.is_a?(Class) ? to : to.constantize
+        end
+    end
+    class_attribute :model_class, :instance_writer => false
+    #
+    # Retrieve an adapter for this model object or the model object itself.  Allows
+    # REST API classes to encapsulate behavior wrappers around core OpenShift model
+    # objects.
+    #
+    def self.for_model(obj)
+      model_class ? model_class.new(obj) : obj
+    end
+    #
+    # Convenience model for object adaption
+    #
+    def self.from(items)
+      model_class ? (items.is_a?(Array) ? items.map{ |o| for_model(o) } : for_model(items)) : items
+    end
   end
 end
 

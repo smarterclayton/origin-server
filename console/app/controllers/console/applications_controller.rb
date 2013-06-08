@@ -77,7 +77,7 @@ class ApplicationsController < ConsoleController
     #@domain = user_default_domain rescue nil
     #@applications = @domain ? @domain.applications : []
     cloud_user = ::CloudUser.find_by_identity(current_user.login)
-    @applications = cloud_user.domains.map(&:applications).flatten.map(&:rest_api)
+    @applications = Console::Application.from(cloud_user.domains.map(&:applications).flatten)
     
     return redirect_to application_types_path, :notice => 'Create your first application now!' if @applications.empty?
 

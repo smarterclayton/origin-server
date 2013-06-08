@@ -7,7 +7,6 @@ module OpenShift
     autoload :ActionLog,               'openshift/controller/action_log'
     autoload :Authentication,          'openshift/controller/authentication'
     autoload :ApiBehavior,             'openshift/controller/api_behavior'
-    autoload :ApiModel,                'openshift/controller/api_model'
     autoload :ApiResponses,            'openshift/controller/api_responses'
     autoload :Configuration,           'openshift/controller/configuration'
     autoload :OAuth,                   'openshift/controller/oauth'
