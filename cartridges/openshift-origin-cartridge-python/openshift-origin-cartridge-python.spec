@@ -1,20 +1,31 @@
 %global cartridgedir %{_libexecdir}/openshift/cartridges/v2/python
-%global frameworkdir %{_libexecdir}/openshift/cartridges/v2/python
 
-Name: openshift-origin-cartridge-python
-Version: 0.4.1
-Release: 1%{?dist}
-Summary: Python cartridge
-Group: Development/Languages
-License: ASL 2.0
-URL: https://www.openshift.com
-Source0: http://mirror.openshift.com/pub/origin-server/source/%{name}/%{name}-%{version}.tar.gz
+Name:          openshift-origin-cartridge-python
+Version: 0.5.1
+Release:       1%{?dist}
+Summary:       Python cartridge
+Group:         Development/Languages
+License:       ASL 2.0
+URL:           https://www.openshift.com
+Source0:       http://mirror.openshift.com/pub/openshift-origin/source/%{name}/%{name}-%{version}.tar.gz
 Requires:      rubygem(openshift-origin-node)
 Requires:      openshift-origin-node-util
-Requires:      python
+%if 0%{?fedora}%{?rhel} <= 6
+Requires:      python >= 2.6
+Requires:      python < 2.7
 Requires:      mod_wsgi >= 3.2
 Requires:      mod_wsgi < 3.4
 Requires:      httpd < 2.4
+%endif
+%if 0%{?fedora} >= 19
+Requires:      python >= 2.7
+Requires:      python < 2.8
+Requires:      mod_wsgi >= 3.4
+Requires:      mod_wsgi < 3.5
+Requires:      httpd > 2.3
+Requires:      httpd < 2.5
+%endif
+
 Requires:      MySQL-python
 Requires:      pymongo
 Requires:      pymongo-gridfs
@@ -31,9 +42,8 @@ Requires:      gcc-gfortran
 Requires:      freetype-devel
 Requires:      atlas-devel
 Requires:      lapack-devel
-BuildRequires: git
-BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
-BuildArch: noarch
+Requires:      redhat-lsb-core
+BuildArch:     noarch
 
 %description
 Python cartridge for OpenShift. (Cartridge Format V2)
@@ -43,36 +53,88 @@ Python cartridge for OpenShift. (Cartridge Format V2)
 %setup -q
 
 %build
+%__rm %{name}.spec
 
 %install
-rm -rf %{buildroot}
-mkdir -p %{buildroot}%{cartridgedir}
-mkdir -p %{buildroot}/%{_sysconfdir}/openshift/cartridges
-cp -r * %{buildroot}%{cartridgedir}/
+%__mkdir -p %{buildroot}%{cartridgedir}
+%__cp -r * %{buildroot}%{cartridgedir}
 
-
-%clean
-rm -rf %{buildroot}
+%if 0%{?fedora}%{?rhel} <= 6
+%__mv %{buildroot}%{cartridgedir}/versions/native %{buildroot}%{cartridgedir}/versions/2.6
+mv %{buildroot}%{cartridgedir}/metadata/manifest.yml.rhel %{buildroot}%{cartridgedir}/metadata/manifest.yml
+%endif
+%if 0%{?fedora} == 19
+%__rm -rf %{buildroot}%{cartridgedir}/versions/2.7
+%__mv %{buildroot}%{cartridgedir}/versions/native %{buildroot}%{cartridgedir}/versions/2.7
+mv %{buildroot}%{cartridgedir}/metadata/manifest.yml.f19 %{buildroot}%{cartridgedir}/metadata/manifest.yml
+%endif
 
 %post
-%{_sbindir}/oo-admin-cartridge --action install --offline --source /usr/libexec/openshift/cartridges/v2/python
+%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
 
 %files
-%defattr(-,root,root,-)
 %dir %{cartridgedir}
-%dir %{cartridgedir}/bin
-%dir %{cartridgedir}/hooks
-%dir %{cartridgedir}/env
-%dir %{cartridgedir}/metadata
-%dir %{cartridgedir}/versions
 %attr(0755,-,-) %{cartridgedir}/bin/
+%if 0%{?fedora}%{?rhel} <= 6
+%attr(0755,-,-) %{cartridgedir}/versions/2.6/bin/
+%endif
+%attr(0755,-,-) %{cartridgedir}/versions/shared/bin/
 %attr(0755,-,-) %{cartridgedir}/hooks/
-%attr(0755,-,-) %{frameworkdir}
-%{cartridgedir}/metadata/manifest.yml
+%{cartridgedir}
 %doc %{cartridgedir}/README.md
-
+%doc %{cartridgedir}/COPYRIGHT
+%doc %{cartridgedir}/LICENSE
 
 %changelog
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 0.5.1-1
+- bump_minor_versions for sprint 29 (admiller@redhat.com)
+
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 0.4.7-1
+- Bug 968882 - Fix MIMEMagicFile (jhonce@redhat.com)
+
+* Wed May 29 2013 Adam Miller <admiller@redhat.com> 0.4.6-1
+- Add cherrypy to python 3.3 template. (mrunalp@gmail.com)
+
+* Thu May 23 2013 Adam Miller <admiller@redhat.com> 0.4.5-1
+- Bug 966065: Make python-2.6 install script executable (ironcladlou@gmail.com)
+- Merge pull request #2613 from mrunalp/bugs/965960
+  (dmcphers+openshiftbot@redhat.com)
+- Handle rsync exclusions (mrunalp@gmail.com)
+- Bug 966255: Remove OPENSHIFT_INTERNAL_* references from v2 carts
+  (ironcladlou@gmail.com)
+
+* Wed May 22 2013 Adam Miller <admiller@redhat.com> 0.4.4-1
+- Bug 962662 (dmcphers@redhat.com)
+- get submodules working in all cases (dmcphers@redhat.com)
+- Bug 965537 - Dynamically build PassEnv httpd configuration
+  (jhonce@redhat.com)
+- Fix bug 964348 (pmorie@gmail.com)
+
+* Mon May 20 2013 Dan McPherson <dmcphers@redhat.com> 0.4.3-1
+- spec file cleanup (tdawson@redhat.com)
+
+* Thu May 16 2013 Adam Miller <admiller@redhat.com> 0.4.2-1
+- Include bash sdk in control file. (mrunalp@gmail.com)
+- Merge pull request #2503 from danmcp/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2492 from mrunalp/dev/pybugs
+  (dmcphers+openshiftbot@redhat.com)
+- process-version -> update-configuration (dmcphers@redhat.com)
+- Bug 963156 (dmcphers@redhat.com)
+- Move env var creation to correct install file. (mrunalp@gmail.com)
+- locking fixes and adjustments (dmcphers@redhat.com)
+- Add erb processing to managed_files.yml Also fixed and added some test cases
+  (fotios@redhat.com)
+- Merge pull request #2442 from mrunalp/bugs/python_status
+  (dmcphers+openshiftbot@redhat.com)
+- Card online_runtime_297 - Allow cartridges to use more resources
+  (jhonce@redhat.com)
+- Fix python control status. (mrunalp@gmail.com)
+- WIP Cartridge Refactor -- Cleanup spec files (jhonce@redhat.com)
+- Card online_runtime_297 - Allow cartridges to use more resources
+  (jhonce@redhat.com)
+- Python migration WIP. (mrunalp@gmail.com)
+
 * Wed May 08 2013 Adam Miller <admiller@redhat.com> 0.4.1-1
 - bump_minor_versions for sprint 28 (admiller@redhat.com)
 

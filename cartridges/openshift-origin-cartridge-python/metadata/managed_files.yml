@@ -1,7 +1,13 @@
 ---
 locked_files:
+- bin/
+- bin/*
 - conf/
 - metadata/
+- metadata/*
 - env/
+- env/OPENSHIFT_PYTHON_DIR
+- env/OPENSHIFT_PYTHON_LOG_DIR
 - etc/
-- template/
+processed_templates:
+- '**/*.erb'

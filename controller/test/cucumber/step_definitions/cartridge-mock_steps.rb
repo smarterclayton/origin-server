@@ -44,8 +44,7 @@ Then /^the new file will (not )?be present in the (secondary )?gear app-root rep
   file = File.join($home_root, @app.uid, 'app-root', 'repo', 'cucumber_test_file')
 
   if secondary
-    secondary_gear = @app.ssh_command("grep gear- haproxy/conf/haproxy.cfg | awk '{ print $2}' | sed 's#gear-##g'")
-
+    secondary_gear = @app.ssh_command("grep gear- haproxy/conf/haproxy.cfg | awk '{ print $2}' | sed 's#gear-##g'").split("-").first
     file = File.join($home_root, secondary_gear, 'app-root', 'repo', 'cucumber_test_file')
   end
 
@@ -62,7 +61,7 @@ Then /^the ([^ ]+) ([^ ]+) marker will( not)? exist in the( plugin)? gear$/ do |
   marker_file = File.join($home_root, @app.uid, 'app-root', 'data', state_dir, marker)
 
   if plugin
-    plugin_gear_uuid = IO.read(File.join($home_root, @app.uid, '.env', '.uservars', 'OPENSHIFT_MOCK_PLUGIN_GEAR_UUID')).chomp
+    plugin_gear_uuid = IO.read(File.join($home_root, @app.uid, '.env', 'mock-plugin', 'OPENSHIFT_MOCK_PLUGIN_GEAR_UUID')).chomp
     plugin_gear_uuid.sub!(/export OPENSHIFT_MOCK_PLUGIN_GEAR_UUID=\'/, '')
     plugin_gear_uuid.chomp!('\'')
     marker_file = File.join($home_root, plugin_gear_uuid, 'app-root', 'data', state_dir, marker)

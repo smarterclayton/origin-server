@@ -8,32 +8,11 @@
 require 'fileutils'
 require 'openshift-origin-node/utils/application_state'
 require 'openshift-origin-node/utils/shell_exec'
+require 'pty'
+require 'digest/md5'
 
 # These are provided to reduce duplication of code in feature files.
 #   Scenario Outlines are not used as they interfer with the devenv retry logic (whole feature is retried no example line)
-Given /^a new ([^ ]+) application, verify it using ([^ ]+)$/ do |cart_name, proc_name|
-  steps %Q{
-    Given a new #{cart_name} type application
-    Then the http proxy will exist
-    And a #{proc_name} process will be running
-    And the application git repo will exist
-    And the application source tree will exist
-    And the application log files will exist
-    When I stop the application
-    Then a #{proc_name} process will not be running
-    When I start the application
-    Then a #{proc_name} process will be running
-    When I status the application
-    Then a #{proc_name} process will be running
-    When I restart the application
-    Then a #{proc_name} process will be running
-    When I destroy the application
-    Then the http proxy will not exist
-    And a #{proc_name} process will not be running
-    And the application git repo will not exist
-    And the application source tree will not exist
-  }
-end
 
 Given /^a new ([^ ]+) application, verify create and delete using ([^ ]+)$/ do |cart_name, proc_name|
   steps %Q{
@@ -69,112 +48,11 @@ Given /^a new ([^ ]+) application, verify start, stop, restart using ([^ ]+)$/ d
   }
 end
 
-Given /^a new ([^ ]+) application, verify its availability$/ do |cart_name|
-  steps %{
-    Given the libra client tools
-    When 1 #{cart_name} applications are created
-    Then the applications should be accessible
-    Then the applications should be accessible via node-web-proxy
-  }
-end
-
-Given /^an existing ([^ ]+) application, verify application aliases$/ do |cart_name|
-  steps %{
-    Given an existing #{cart_name} application
-    When the application is aliased
-    Then the application should respond to the alias
-  }
-end
-
-Given /^a new ([^ ]+) application, verify application alias setup on the node$/ do |cart_name|
-  steps %{
-    Given a new #{cart_name} type application
-    And I add an alias to the application
-    Then the php application will be aliased
-    And the php file permissions are correct
-    When I remove an alias from the application
-    Then the php application will not be aliased 
-    When I destroy the application
-    Then the http proxy will not exist
-  }
-end
-
-Given /^an existing ([^ ]+) application, verify submodules$/ do |cart_name|
-  steps %{
-    Given an existing #{cart_name} application
-    When the submodule is added
-    Then the submodule should be deployed successfully
-    And the application should be accessible
-  }
-end
-
-Given /^an existing ([^ ]+) application, verify code updates$/ do |cart_name|
-  steps %{
-    Given an existing #{cart_name} application
-    When the application is changed
-    Then it should be updated successfully
-    And the application should be accessible
-  }
-end
-
-Given /^an existing ([^ ]+) application, verify it can be stopped$/ do |cart_name|
-  steps %{
-    Given an existing #{cart_name} application
-    When the application is stopped
-    Then the application should not be accessible
-  }
-end
-
-Given /^an existing ([^ ]+) application, verify it can be started$/ do |cart_name|
-  steps %{
-    Given an existing #{cart_name} application
-    When the application is started
-    Then the application should be accessible
-  }
-end
-
-Given /^an existing ([^ ]+) application, verify it can be restarted$/ do |cart_name|
-  steps %{
-    Given an existing #{cart_name} application
-    When the application is restarted
-    Then the application should be accessible
-  }
-end
-
-Given /^an existing ([^ ]+) application, verify it can be tidied$/ do |cart_name|
-  steps %{
-    Given an existing #{cart_name} application
-    When I tidy the application
-    Then the application should be accessible
-  }
-end
-
-Given /^an existing ([^ ]+) application, verify it can be snapshotted and restored$/ do |cart_name|
-  steps %{
-    Given an existing #{cart_name} application    
-    When I snapshot the application
-    Then the application should be accessible
-    When a new file is added and pushed to the client-created application repo
-    When I restore the application
-    Then the application should be accessible
-    And the new file will not be present in the gear app-root repo
-  }
-end
-
 Given /^an existing ([^ ]+) application, verify its namespace cannot be changed$/ do |cart_name|
   steps %{
     Given an existing #{cart_name} application
     When the application namespace is updated
     Then the application should be accessible
-  }
-end
-
-Given /^an existing ([^ ]+) application, verify it can be destroyed$/ do |cart_name|
-  steps %{
-    Given an existing #{cart_name} application
-    When the application is destroyed
-    Then the application should not be accessible
-    Then the application should not be accessible via node-web-proxy
   }
 end
 
@@ -210,62 +88,6 @@ Given /^a new ([^ ]+) application, obtain disk quota information via SSH$/ do |c
     Given a new #{cart_name} type application
     And the application is made publicly accessible
     Then I can obtain disk quota information via SSH
-  }
-end
-
-Given /^a new ([^ ]+) application, use ctl_all to start and stop it, and verify it using ([^ ]+)$/ do |cart_name, proc_name|
-  steps %{
-    Given a new #{cart_name} type application
-    And the application is made publicly accessible
-
-    When I stop the application using ctl_all via rhcsh
-    Then a #{proc_name} process will not be running
-
-    When I start the application using ctl_all via rhcsh
-    Then a #{proc_name} process will be running
-  }
-end
-
-Given /^a new ([^ ]+) application, with ([^ ]+) and ([^ ]+), verify that they are running using ([^ ]+) and ([^ ]+)$/ do |cart_name, db_type, management_app, proc_name, db_proc_name|
-  steps %{
-    Given a new #{cart_name} type application
-    And I embed a #{db_type} cartridge into the application
-    And I embed a #{management_app} cartridge into the application
-    And the application is made publicly accessible
-
-    When I stop the application using ctl_all via rhcsh
-    Then a #{proc_name} process for #{cart_name} will not be running
-    And a #{db_proc_name} process will not be running 
-    And a httpd process for #{management_app} will not be running
-
-    When I start the application using ctl_all via rhcsh
-    Then a #{proc_name} process for #{cart_name} will be running
-    And a #{db_proc_name} process will be running
-    And a httpd process for #{management_app} will be running
-  }
-end
-
-Given /^a new ([^ ]+) application, verify using socket file to connect to database$/ do |cart_name|
-  steps %{  
-    Given a new #{cart_name} type application
-    And I embed a mysql-5.1 cartridge into the application
-
-    When the application is made publicly accessible
-    Then I can select from the mysql database using the socket file
-  }
-end
-
-Given /^a new ([^ ]+) application, verify when hot deploy is( not)? enabled, it does( not)? change pid of ([^ ]+) proc$/ do |cart_name, hot_deply_not_enabled, pid_not_changed, proc_name|
-  steps %{
-    Given a new #{cart_name} type application
-    And the application is made publicly accessible
-    And hot deployment is#{hot_deply_not_enabled} enabled for the application
-    And the application cartridge PIDs are tracked
-    When an update is pushed to the application repo
-    Then a #{proc_name} process will be running
-    And the tracked application cartridge PIDs should#{pid_not_changed} be changed
-    When I destroy the application
-    Then a #{proc_name} process will not be running
   }
 end
 
@@ -376,7 +198,8 @@ end
 # Verifies the existence of an exported source tree associated with
 # the current application.
 Then /^the application source tree will( not)? exist$/ do | negate |
-  app_root = "#{$home_root}/#{@gear.uuid}/#{@cart.name}"
+  cartridge = @gear.carts[@cart.name]
+  app_root = "#{$home_root}/#{@gear.uuid}/#{cartridge.directory}"
 
   # TODO - need to check permissions and SELinux labels
 
@@ -392,7 +215,8 @@ end
 # Verifies the existence of application log files associated with the
 # current application.
 Then /^the application log files will( not)? exist$/ do | negate |
-  log_dir_path = "#{$home_root}/#{@gear.uuid}/#{@cart.name}/logs"
+  cartridge = @gear.carts[@cart.name]
+  log_dir_path = "#{$home_root}/#{@gear.uuid}/#{cartridge.directory}/logs"
 
   $logger.info("Checking for log dir at #{log_dir_path}")
 
@@ -413,7 +237,8 @@ end
 
 # Ensures that the root directory exists for the given embedded cartridge.
 Then /^the embedded ([^ ]+) cartridge directory will( not)? exist$/ do | cart_name, negate |
-  user_root = "#{$home_root}/#{@gear.uuid}/#{cart_name}"
+  cartridge = @gear.carts[cart_name]
+  user_root = "#{$home_root}/#{@gear.uuid}/#{cartridge.directory}"
 
   $logger.info("Checking for #{negate} cartridge root dir at #{user_root}")
   if negate
@@ -427,7 +252,8 @@ end
 # Ensures that more than zero log files exist in the given embedded cartridge
 # log directory.
 Then /^the embedded ([^ ]+) cartridge log files will( not)? exist$/ do | cart_name, negate |
-  log_dir_path = "#{$home_root}/#{@gear.uuid}/#{cart_name}/logs"
+  cartridge = @gear.carts[cart_name]
+  log_dir_path = "#{$home_root}/#{@gear.uuid}/#{cartridge.directory}/logs"
 
   $logger.info("Checking for #{negate} cartridge log dir at #{log_dir_path}")
   if negate
@@ -440,7 +266,8 @@ end
 
 # Simple verification of arbitrary cartridge directory existence.
 Then /^the embedded ([^ ]+) cartridge subdirectory named ([^ ]+) will( not)? exist$/ do | cart_name, dir_name, negate |
-  dir_path = "#{$home_root}/#{@gear.uuid}/#{cart_name}/#{dir_name}"
+  cartridge = @gear.carts[cart_name]
+  dir_path = "#{$home_root}/#{@gear.uuid}/#{cartridge.directory}/#{dir_name}"
 
   $logger.info("Checking for #{negate} cartridge subdirectory at #{dir_path}")
   if negate
@@ -760,6 +587,10 @@ end
 # V2-focused steps
 #####################
 
+def ssh_command(command) 
+  "ssh 2>/dev/null -o BatchMode=yes -o StrictHostKeyChecking=no -tt #{@gear.uuid}@#{@app.name}-#{@account.domain}.#{$cloud_domain} " + command
+end
+
 def app_env_var_will_exist(var_name, prefix = true)
   if prefix
     var_name = "OPENSHIFT_#{var_name}"
@@ -818,7 +649,7 @@ When /^I (start|stop|status|restart|tidy|reload) the newfangled application$/ do
 end
 
 Given /^a v2 default node$/ do
-  assert_file_exists '/var/lib/openshift/.settings/v2_cartridge_format'
+  assert_file_not_exists '/var/lib/openshift/.settings/v1_cartridge_format'
   $v2_node = true
 end
 
@@ -888,6 +719,23 @@ Then /^the ([^ ]+) cartridge private endpoints will be (exposed|concealed)$/ do 
   end
 end
 
+Then /^the ([^ ]+) cartridge endpoints with ssl to gear option will be (exposed|concealed)$/ do |cart_name, action|
+  cartridge = @gear.container.cartridge_model.get_cartridge(cart_name)
+
+  cartridge.endpoints.each do |endpoint|
+    if endpoint.options and endpoint.options["ssl_to_gear"]
+      $logger.info("Validating public endpoint #{endpoint.private_ip_name}:#{endpoint.private_port_name}:"\
+                   "#{endpoint.public_port_name} for cartridge #{cart_name}")
+      case action
+      when 'exposed'
+        app_env_var_will_exist(endpoint.public_port_name, false)
+      when 'concealed'
+        app_env_var_will_not_exist(endpoint.public_port_name, false)
+      end
+    end
+  end
+end
+
 Then /^the application state will be ([^ ]+)$/ do |state_value|
   state_const = OpenShift::State.const_get(state_value.upcase)
 
@@ -932,4 +780,81 @@ When /^the application hot deploy marker is (added|removed)$/ do |verb|
       $logger.info("Push output:\n#{push_output}")
     end
   end
+end
+
+Then /^I can run "([^\"]*)" with exit code: (\d+)$/ do |cmd, code|
+  command = ssh_command("rhcsh #{cmd}")
+  
+  $logger.debug "Running #{command}"
+
+  output = `#{command}`
+
+  $logger.debug "Output: #{output}"
+
+  assert_equal code.to_i, $?.exitstatus
+end
+
+When /^I run the rhcsh command "([^\"]*)"$/ do |cmd|
+  command = ssh_command("rhcsh #{cmd}")
+
+  $logger.debug "Running #{command}"
+
+  output = `#{command}`
+
+  $logger.debug "Output: #{output}"
+end
+
+When /^I tail the logs via ssh$/ do
+  ssh_cmd = ssh_command("tail -f */logs/\\*")
+  stdout, stdin, pid = PTY.spawn ssh_cmd
+
+  @ssh_cmd = {
+    :pid => pid,
+    :stdin => stdin,
+    :stdout => stdout,
+  }
+end
+
+When /^I stop tailing the logs$/ do
+  begin
+    Process.kill('KILL', @ssh_cmd[:pid])
+    exit_code = -1
+
+    # Don't let a command run more than 1 minute
+    Timeout::timeout(60) do
+      ignored, status = Process::waitpid2 @ssh_cmd[:pid]
+      exit_code = status.exitstatus
+    end
+  rescue PTY::ChildExited
+    # Completed as expected
+  end
+end
+
+Then /^I can obtain disk quota information via SSH$/ do
+  cmd = ssh_command('/usr/bin/quota')
+
+  $logger.debug "Running: #{cmd}"
+
+  out = `#{cmd}`
+
+  $logger.debug "Output: #{out}"
+
+  if out.index("Disk quotas for user ").nil?
+    raise "Could not obtain disk quota information"
+  end  
+end
+
+When /^I (start|stop) the application using ctl_all via rhcsh$/ do |action|
+  cmd = case action
+  when 'start'
+    ssh_command("rhcsh ctl_all start")
+  when 'stop'
+    ssh_command("rhcsh ctl_all stop")
+  end
+
+  $logger.debug "Running #{cmd}"
+
+  output = `#{cmd}`
+
+  $logger.debug "Output: #{output}"
 end

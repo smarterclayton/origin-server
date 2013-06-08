@@ -18,7 +18,7 @@ require 'pathname'
 
 # Deploy cannot be testing in this manner. SELinux requires a valid UID or the tests fail.
 # See cucumber test application_repository.feature
-class ApplicationRepositoryFuncTest < OpenShift::V2SdkTestCase
+class ApplicationRepositoryFuncTest < OpenShift::NodeTestCase
   GEAR_BASE_DIR = '/var/lib/openshift'
 
   def before_setup
@@ -62,7 +62,10 @@ class ApplicationRepositoryFuncTest < OpenShift::V2SdkTestCase
     @state = mock('OpenShift::Utils::ApplicationState')
     @state.stubs(:value=).with('started').returns('started')
 
-    @model               = OpenShift::V2CartridgeModel.new(@config, @user, @state)
+    @hourglass = mock()
+    @hourglass.stubs(:remaining).returns(3600)
+
+    @model               = OpenShift::V2CartridgeModel.new(@config, @user, @state, @hourglass)
     @cartridge_name      = 'mock-0.1'
     @cartridge_directory = 'mock'
     @cartridge_home      = File.join(@user.homedir, @cartridge_directory)
@@ -105,6 +108,14 @@ class ApplicationRepositoryFuncTest < OpenShift::V2SdkTestCase
   def test_new
     repo = OpenShift::ApplicationRepository.new(@user)
     refute_nil repo
+  end
+
+  def test_no_template
+    template = File.join(@user.homedir, @cartridge_directory, 'template')
+    FileUtils.rm_rf template
+    repo = OpenShift::ApplicationRepository.new(@user)
+    refute_path_exist template
+    repo.archive
   end
 
   def test_bare_repository_usr
@@ -216,7 +227,7 @@ class ApplicationRepositoryFuncTest < OpenShift::V2SdkTestCase
 
       runtime_repo = "#{@user.homedir}/app-root/runtime/repo"
       FileUtils.mkpath(runtime_repo)
-      repo.deploy
+      repo.archive
       assert_path_exist File.join(runtime_repo, 'perl', 'health_check.pl')
     rescue OpenShift::Utils::ShellExecutionException => e
       puts %Q{
@@ -245,7 +256,7 @@ class ApplicationRepositoryFuncTest < OpenShift::V2SdkTestCase
 
       runtime_repo = "#{@user.homedir}/app-root/runtime/repo"
       FileUtils.mkpath(runtime_repo)
-      repo.deploy
+      repo.archive
       assert_path_exist File.join(runtime_repo, 'perl', 'health_check.pl')
     rescue OpenShift::Utils::ShellExecutionException => e
       puts %Q{
@@ -274,7 +285,7 @@ class ApplicationRepositoryFuncTest < OpenShift::V2SdkTestCase
 
       runtime_repo = "#{@user.homedir}/app-root/runtime/repo"
       FileUtils.mkpath(runtime_repo)
-      repo.deploy
+      repo.archive
       assert_path_exist File.join(runtime_repo, 'perl', 'health_check.pl')
       assert_path_exist File.join(runtime_repo, 'module001', 'README.md')
     rescue OpenShift::Utils::ShellExecutionException => e

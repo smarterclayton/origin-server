@@ -36,9 +36,6 @@ class Application < RestApi::Base
   def cartridges
     attributes[:cartridges] ||= persisted? ? Cartridge.find(:all, child_options) : []
   end
-  #def cartridges=(arr)
-  #  attributes[:cartridges] = Array(arr)
-  #end
 
   def cartridge_names
     persisted? ? cartridges.map(&:name) : Array(attributes[:cartridges])
@@ -73,6 +70,7 @@ class Application < RestApi::Base
   def find_alias(id)
     Alias.find id, child_options
   end
+
   def remove_alias(alias_name)
     begin
       response = post(:events, nil, {:event => 'remove-alias', :alias => alias_name}.to_json)
@@ -137,8 +135,8 @@ class Application < RestApi::Base
   end
 
   def reload
-    @gear_groups = nil
-    @cartridge_gear_groups = nil
+    [:@gear_groups, :@cartridge_gear_groups, :@framework_name].each{ |s| instance_variable_set(s, nil) }
+    attributes.delete(:cartridges) if persisted?
     super
   end
 
@@ -148,11 +146,9 @@ class Application < RestApi::Base
         :as => as }
     end
 
-    class << self
-      def rescue_parent_missing(e, options=nil)
-        parent = RestApi::ResourceNotFound.new(Domain, (options[:params][:domain_id] rescue nil), e.response)
-        raise parent if parent.domain_missing?
-      end
+    def self.rescue_parent_missing(e, options=nil)
+      parent = RestApi::ResourceNotFound.new(Domain, (options[:params][:domain_id] rescue nil), e.response)
+      raise parent if parent.domain_missing?
     end
 end
 end

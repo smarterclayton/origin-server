@@ -31,15 +31,20 @@ class DomiansControllerTest < ActionController::TestCase
     namespace = "ns#{@random}"
     post :create, {"id" => namespace}
     assert_response :created
+
     get :show, {"id" => namespace}
     assert_response :success
+    assert json = JSON.parse(response.body)
+    assert link = json['data']['links']['ADD_APPLICATION']
+    assert_equal Rails.configuration.openshift[:download_cartridges_enabled], link['optional_params'].one?{ |p| p['name'] == 'cartridges[][url]' }
+
     get :index , {}
     assert_response :success
     new_namespace = "xns#{@random}"
     put :update, {"existing_id" => namespace, "id" => new_namespace}
     assert_response :success
     delete :destroy , {"id" => new_namespace}
-    assert_response :no_content
+    assert_response :ok
   end
   
   
@@ -76,7 +81,7 @@ class DomiansControllerTest < ActionController::TestCase
     assert_response :unprocessable_entity
     
     delete :destroy , {"id" => namespace, "force" => true}
-    assert_response :no_content
+    assert_response :ok
   end
   
   test "update domain with apps" do

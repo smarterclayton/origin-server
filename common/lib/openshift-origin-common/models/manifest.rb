@@ -16,7 +16,9 @@
 
 require 'openshift-origin-common/utils/path_utils'
 require 'uri'
-require 'yaml'
+require 'safe_yaml'
+
+SafeYAML::OPTIONS[:default_mode] = :unsafe
 
 module OpenShift
 
@@ -57,11 +59,15 @@ module OpenShift
     # Wrapper speeds up access and provides fixed API
     class Manifest
 
+      def self.manifest_from_yaml(yaml_str)
+        YAML.load(yaml_str, :safe => true)
+      end
+
       #
       # Class to support Manifest +Endpoint+ elements
       class Endpoint
         attr_accessor :private_ip_name, :private_port_name, :private_port, :public_port_name,
-                      :websocket_port_name, :websocket_port, :mappings
+                      :websocket_port_name, :websocket_port, :mappings, :options
 
         class Mapping
           attr_accessor :frontend, :backend, :options
@@ -92,13 +98,14 @@ module OpenShift
               endpoint.private_port        = entry['Private-Port'].to_i
               endpoint.public_port_name    = build_name(tag, entry['Public-Port-Name'])
               endpoint.websocket_port_name = build_name(tag, entry['WebSocket-Port-Name'])
-              endpoint.websocket_port = entry['WebSocket-Port'].to_i if entry['WebSocket-Port']
+              endpoint.websocket_port      = entry['WebSocket-Port'].to_i if entry['WebSocket-Port']
+              endpoint.options             = entry['Options']
 
               if entry['Mappings'].respond_to?(:each)
                 endpoint.mappings = entry['Mappings'].each_with_object([]) do |mapping_entry, mapping_memo|
                   mapping          = Endpoint::Mapping.new
-                  mapping.frontend = mapping_entry['Frontend']
-                  mapping.backend  = mapping_entry['Backend']
+                  mapping.frontend = prepend_slash mapping_entry['Frontend']
+                  mapping.backend  = prepend_slash mapping_entry['Backend']
                   mapping.options  = mapping_entry['Options']
 
                   mapping_memo << mapping
@@ -118,6 +125,12 @@ module OpenShift
           endpoints
         end
 
+        def self.prepend_slash(string)
+          return string unless string
+          return string if string.empty?
+          string.start_with?('/') ? string : string.prepend('/')
+        end
+
         def self.build_name(tag, name)
           name ? "OPENSHIFT_#{tag}_#{name}" : nil
         end
@@ -125,6 +138,7 @@ module OpenShift
 
       attr_reader :cartridge_vendor,
                   :cartridge_version,
+                  :compatible_versions,
                   :directory,
                   :endpoints,
                   :manifest,
@@ -144,6 +158,7 @@ module OpenShift
       # If it does not match the respective pattern, the cartridge will be rejected.
       VALID_VENDOR_NAME_PATTERN    = /\A[a-z][a-z0-9_]*\z/
       VALID_CARTRIDGE_NAME_PATTERN = /\A[a-z0-9](?:[-\.a-z0-9_]*[a-z0-9]|)\z/
+
       # Furthermore, we validate the vendor name by matching against
       # RESERVED_VENDOR_NAME_PATTERN.
       # If it matches the pattern, it will be rejected.
@@ -152,12 +167,15 @@ module OpenShift
       reserved_vendor_names = %w(
         redhat
       )
+
       reserved_cartridge_names = %w(
         app-root
         git
       )
+
       RESERVED_VENDOR_NAME_PATTERN    = Regexp.new("\\A(?:#{reserved_vendor_names.join('|')})\\z")
       RESERVED_CARTRIDGE_NAME_PATTERN = Regexp.new("\\A(?:#{reserved_cartridge_names.join('|')})\\z")
+
       ## TODO:
       # these should be configurable
       MAX_VENDOR_NAME    = 32
@@ -186,6 +204,10 @@ module OpenShift
         raise MissingElementError.new(nil, 'Version') unless @manifest.has_key?('Version')
         raise InvalidElementError.new(nil, 'Versions') if @manifest.has_key?('Versions') && !@manifest['Versions'].kind_of?(Array)
 
+        if @manifest.has_key?('Compatible-Versions') && !@manifest['Compatible-Versions'].kind_of?(Array)
+          raise InvalidElementError.new(nil, 'Compatible-Versions')
+        end
+
         if version
           raise ArgumentError.new(
                     "Unsupported version #{version} from #{versions} for #{@manifest['Name']}"
@@ -209,16 +231,16 @@ module OpenShift
         @categories             = @manifest['Categories'] || []
         @is_deployable          = @categories.include?('web_framework')
         @is_web_proxy           = @categories.include?('web_proxy')
-        @install_build_required = @manifest.has_key?('Install-Build-Required') ? @manifest['Install-Build-Required'] : true
+        @install_build_required = @manifest.has_key?('Install-Build-Required') ? @manifest['Install-Build-Required'] : false
+
+        @compatible_versions = (@manifest['Compatible-Versions'] || []).map { |v| v.to_s }
 
         #FIXME: reinstate code after manifests are updated
         #raise MissingElementError.new(nil, 'Cartridge-Vendor') unless @cartridge_vendor
-        #raise InvalidElementError.new(nil, 'Cartridge-Vendor') if @cartridge_vendor.include?('-')
         #raise MissingElementError.new(nil, 'Cartridge-Version') unless @cartridge_version
         raise MissingElementError.new(nil, 'Cartridge-Short-Name') unless @short_name
         raise InvalidElementError.new(nil, 'Cartridge-Short-Name') if @short_name.include?('-')
         raise MissingElementError.new(nil, 'Name') unless @name
-        #raise InvalidElementError.new(nil, 'Name') if @name.include?('-')
 
         if check_names
           validate_vendor_name

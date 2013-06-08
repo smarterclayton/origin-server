@@ -9,7 +9,7 @@ The OpenShift Origin RPMs can be available from:
 
 * Your local repository [Budinging OpenShift Origin RPMs](file.building_source.html)
 * OpenShift Origin nightly mirrors repository.
-  + [Fedora 18 repository](https://mirror.openshift.com/pub/origin-server/nightly/fedora-18/latest/x86_64)
+  + [Fedora 19 repository](https://mirror.openshift.com/pub/origin-server/nightly/fedora-19/latest/x86_64)
   + [RHEL 6.4 repository](https://mirror.openshift.com/pub/origin-server/nightly/rhel-6/latest/x86_64/)
 
     Note: For OpenShift Origin broker/nodes to be configured properly you will need the host to be
@@ -17,20 +17,9 @@ The OpenShift Origin RPMs can be available from:
 
 ## Installing Puppet
 
-You will also need to install the latest puppet and facter RPMS from [PuppetLabs](https://puppetlabs.com/).
-Create the following on each host:
+  Note: For RHEL systems you will need to include the [EPEL repository](http://fedoraproject.org/wiki/EPEL) to install puppet. To do so install the latest `epel-release` package found [here](http://download.fedoraproject.org/pub/epel/6/i386/repoview/epel-release.html)
 
-File: /etc/yum.repos.d/puppetlabs-products.repo
-
-Contents:
-
-    [puppetlabs-products]
-    name=puppetlabs-products
-    baseurl=http://yum.puppetlabs.com/fedora/f17/products/x86_64/
-    gpgkey=http://yum.puppetlabs.com/RPM-GPG-KEY-puppetlabs
-    exclude=mcollective*
-    gpgcheck=1
-    enabled=1
+    yum install -y --nogpgcheck ${url_of_the_latest_epel-release_rpm}
 
 Run the following to install puppet and facter
 

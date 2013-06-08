@@ -88,7 +88,7 @@ class PendingAppOpGroup
           result_io.append gear.destroy_gear(true)
           self.inc(:num_gears_rolled_back, 1)
         when :track_usage
-          unless op.args["parent_user_id"].nil?
+          unless op.args["parent_user_id"]
             storage_usage_type = (op.args["usage_type"] == UsageRecord::USAGE_TYPES[:addtl_fs_gb])
             tracked_storage = nil
             if storage_usage_type
@@ -106,9 +106,9 @@ class PendingAppOpGroup
           application.group_overrides=op.saved_values["group_overrides"]
           application.save
         when :set_connections
-          application.set_connections(op.saved_values["connections"])
+          # no op
         when :execute_connections
-          application.execute_connections
+          application.execute_connections rescue nil
         when :set_gear_additional_filesystem_gb
           gear = get_gear_for_rollback(op)
           gear.set_addtl_fs_gb(op.saved_values["additional_filesystem_gb"], handle)
@@ -159,7 +159,7 @@ class PendingAppOpGroup
             comp_name = op.args["comp_spec"]["comp"]
             cart_name = op.args["comp_spec"]["cart"]
             if op.op_type == :new_component
-              component_instance = ComponentInstance.new(cartridge_name: cart_name, component_name: comp_name, group_instance_id: group_instance._id)
+              component_instance = ComponentInstance.new(cartridge_name: cart_name, component_name: comp_name, group_instance_id: group_instance._id, cartridge_vendor: op.args["cartridge_vendor"], version: op.args["version"])
             else
               component_instance = application.component_instances.find_by(cartridge_name: cart_name, component_name: comp_name, group_instance_id: group_instance._id)
             end
@@ -182,13 +182,16 @@ class PendingAppOpGroup
           when :unreserve_uid
             gear.unreserve_uid          
           when :expose_port
-            job = gear.get_expose_port_job(cart_name)
+            job = gear.get_expose_port_job(component_instance)
             RemoteJob.add_parallel_job(handle, "expose-ports::#{component_instance._id.to_s}", gear, job)
             use_parallel_job = true
           when :new_component
             application.component_instances.push(component_instance)
           when :del_component
+            cartname = component_instance.cartridge_name
             application.component_instances.delete(component_instance)
+            application.downloaded_cart_map.delete_if { |cname,c| c["versioned_name"]==component_instance.cartridge_name}
+            application.save
           when :add_component
             result_io.append gear.add_component(component_instance, op.args["init_git_url"])
           when :post_configure_component
@@ -219,24 +222,22 @@ class PendingAppOpGroup
           when :destroy_gear
             result_io.append gear.destroy_gear(true)
           when :start_component
-            result_io.append gear.start(cart_name)
+            result_io.append gear.start(component_instance)
           when :stop_component
             if args.has_key?("force") and args["force"]==true
-              result_io.append gear.force_stop(cart_name)
+              result_io.append gear.force_stop(component_instance)
             else
-              result_io.append gear.stop(cart_name)
+              result_io.append gear.stop(component_instance)
             end
           when :restart_component
-            result_io.append gear.restart(cart_name)
+            result_io.append gear.restart(component_instance)
           when :reload_component_config
-            result_io.append gear.reload_config(cart_name)
+            result_io.append gear.reload_config(component_instance)
           when :tidy_component
-            result_io.append gear.tidy(comp_name)
+            result_io.append gear.tidy(component_instance)
           when :update_configuration
             gear.update_configuration(op.args,handle)
             use_parallel_job = true
-          when :update_namespace
-            gear.update_namespace(op.args)
           when :add_broker_auth_key 
             job = gear.get_broker_auth_key_add_job(args["iv"], args["token"])
             RemoteJob.add_parallel_job(handle, "", gear, job)
@@ -245,14 +246,11 @@ class PendingAppOpGroup
             job = gear.get_broker_auth_key_remove_job()
             RemoteJob.add_parallel_job(handle, "", gear, job)
             use_parallel_job = true
-          when :complete_update_namespace
-            component_instance.complete_update_namespace(op.args)
-            self.application.save
           when :set_group_overrides
             application.group_overrides=op.args["group_overrides"]
             application.save
           when :set_connections
-            application.set_connections(op.args["connections"])
+            # no op
           when :execute_connections
             application.execute_connections
           when :unsubscribe_connections
@@ -342,5 +340,17 @@ class PendingAppOpGroup
       component_instance = application.component_instances.find_by(cartridge_name: cart_name, component_name: comp_name, group_instance_id: group_instance._id)
     end
     component_instance
+  end
+  
+  def serializable_hash_with_timestamp
+    s_hash = self.serializable_hash
+    t = Time.zone.now
+    if self.created_at.nil?
+      s_hash["created_at"] = t
+    end
+    if self.updated_at.nil?
+      s_hash["updated_at"] = t
+    end
+    s_hash
   end
 end

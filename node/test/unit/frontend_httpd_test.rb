@@ -20,23 +20,13 @@
 require_relative '../test_helper'
 require 'fileutils'
 
-class FrontendHttpServerModelTest < Test::Unit::TestCase
+class FrontendHttpServerModelTest < OpenShift::NodeTestCase
 
   class FauxApacheDB < Hash
     READER = 1
     WRITER = 1
     WRCREAT = 1
     NEWDB = 1
-
-    def update_block
-      deletions = []
-      updates = {}
-      self.each do |k, v|
-        yield(deletions, updates, k, v)
-      end
-      self.delete_if { |k, v| deletions.include?(k) }
-      self.update(updates)
-    end
   end
 
   def setup
@@ -194,9 +184,7 @@ class FrontendHttpServerModelTest < Test::Unit::TestCase
     OpenShift::Utils::Environ.stubs(:for_gear).returns(t_environ).never
 
     frontend = nil
-    assert_nothing_raised do
-      frontend = OpenShift::FrontendHttpServer.new(@container_uuid)
-    end
+    frontend = OpenShift::FrontendHttpServer.new(@container_uuid)
 
     assert_equal @container_name, frontend.container_name
     assert_equal @namespace, frontend.namespace
@@ -209,9 +197,7 @@ class FrontendHttpServerModelTest < Test::Unit::TestCase
     OpenShift::Utils::Environ.stubs(:for_gear).returns(t_environ).once
 
     frontend = nil
-    assert_nothing_raised do
-      frontend = OpenShift::FrontendHttpServer.new(@container_uuid)
-    end
+    frontend = OpenShift::FrontendHttpServer.new(@container_uuid)
 
     assert_equal @container_name, frontend.container_name
     assert_equal @namespace, frontend.namespace
@@ -238,35 +224,6 @@ class FrontendHttpServerModelTest < Test::Unit::TestCase
     frontend.destroy
 
     check_dbs_empty
-  end
-
-
-  def test_update
-    set_dbs_full
-
-    frontend = OpenShift::FrontendHttpServer.new(@container_uuid, @container_name, @namespace)
-    frontend.update_name("newname")
-    frontend.update_namespace("newnamespace")
-
-    new_fqdn = "newname-newnamespace.#{@cloud_domain}"
-
-    assert_equal "newname", frontend.container_name
-    assert_equal "newnamespace", frontend.namespace
-    assert_equal new_fqdn, frontend.fqdn
-
-    check_dbs_not_empty
-
-    assert_equal @apache_db_nodes_full[@fqdn], @apache_db_nodes[new_fqdn]
-
-    assert_equal new_fqdn, @apache_db_aliases[@test_alias]
-
-    assert_equal @container_uuid, @apache_db_idler[new_fqdn]
-
-    assert_equal @sts_max_age, @apache_db_sts[new_fqdn]
-
-    assert_equal @nodejs_db_routes_full[@fqdn], @nodejs_db_routes[new_fqdn]
-
-    assert_equal @gear_db[@container_uuid]['fqdn'], new_fqdn
   end
 
   def test_connections
@@ -451,7 +408,7 @@ class FrontendHttpServerModelTest < Test::Unit::TestCase
 
 end
 
-class TestApacheDB < Test::Unit::TestCase
+class TestApacheDB < OpenShift::NodeTestCase
 
   def setup
 
@@ -511,10 +468,8 @@ class TestApacheDB < Test::Unit::TestCase
     OpenShift::ApacheDBNodes.stubs(:callout).never
 
     dest = nil
-    assert_nothing_raised do
-      OpenShift::ApacheDBNodes.open(OpenShift::ApacheDBNodes::READER) do |d|
-        dest = d.fetch("www.example.com")
-      end
+    OpenShift::ApacheDBNodes.open(OpenShift::ApacheDBNodes::READER) do |d|
+      dest = d.fetch("www.example.com")
     end
     assert_equal "127.0.0.1:8080", dest
   end
@@ -530,6 +485,7 @@ class TestApacheDB < Test::Unit::TestCase
 
     writefile_mock = mock('FileWrite') do
       stubs(:write).with("www.example.com 127.0.0.1:8080\n").once
+      stubs(:fsync).once
     end
     File.stubs(:open).with(@apachedb_files["nodes"] + '-', anything, anything).yields(writefile_mock).once
 

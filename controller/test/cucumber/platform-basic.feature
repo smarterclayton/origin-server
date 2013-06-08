@@ -1,4 +1,4 @@
-@runtime_other2
+@runtime2
 Feature: V2 SDK Mock Cartridge
 
   Scenario: Exercise basic platform functionality in isolation
@@ -7,15 +7,13 @@ Feature: V2 SDK Mock Cartridge
     Then the application git repo will exist
     And the platform-created default environment variables will exist
     And the mock-0.1 cartridge private endpoints will be exposed
+    And the mock-0.1 cartridge endpoints with ssl to gear option will be exposed
     And the mock setup_called marker will exist
     And the mock setup_version marker will exist
     And the mock setup_failure marker will not exist
     And the mock install_called marker will exist
     And the mock install_version marker will exist
     And the mock install_failure marker will not exist
-    And the mock post_setup_called marker will exist
-    And the mock post_setup_version marker will exist
-    And the mock post_setup_failure marker will not exist
     And the mock post_install_called marker will exist
     And the mock post_install_version marker will exist
     And the mock post_install_failure marker will not exist
@@ -64,8 +62,8 @@ Feature: V2 SDK Mock Cartridge
     And the mock control_stop marker is removed
     And a simple update is pushed to the application repo
     Then the mock control_stop marker will exist
-    And the mock control_pre_receive marker will exist
-    And the mock control_process_version marker will exist
+    And the mock control_pre_repo_archive marker will exist
+    And the mock control_update_configuration marker will exist
     And the mock control_pre_build marker will exist
     And the mock control_build marker will exist
     And the mock control_deploy marker will exist

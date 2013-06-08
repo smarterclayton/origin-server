@@ -28,7 +28,9 @@ Given /^an existing (.+) application( without an embedded cartridge)?$/ do |type
 end
 
 Given /^a new client created( scalable)? (.+) application$/ do |scalable, type|
-  @app = TestApp.create_unique(type, 'test', scalable)
+  @app = TestApp.create_unique(type, nil, scalable)
+  @apps ||= []
+  @apps << @app.name
   register_user(@app.login, @app.password) if $registration_required
   if rhc_create_domain(@app)
     if scalable
@@ -60,7 +62,7 @@ end
 When /^the submodule is added$/ do
   Dir.chdir(@app.repo) do
     # Add a submodule created in devenv and link the index file
-    run("git submodule add /root/submodule_test_repo")
+    run("git submodule add #{$submodule_repo_dir}")
     run("REPLACE=`cat submodule_test_repo/index`; sed -i \"s/OpenShift/${REPLACE}/\" #{@app.get_index_file}")
     run("git commit -a -m 'Test submodule change'")
     run("git push >> " + @app.get_log("git_push") + " 2>&1")
@@ -138,6 +140,14 @@ When /^I snapshot the application$/ do
   File.size(@app.snapshot).should > 0
 end
 
+When "I preserve the current snapshot" do
+  assert_file_exists @app.snapshot
+  tmpdir = Dir.mktmpdir
+
+  @saved_snapshot = File.join(tmpdir,File.basename(@app.snapshot))
+  FileUtils.cp(@app.snapshot,@saved_snapshot)
+end
+
 When /^I tidy the application$/ do
   rhc_tidy(@app)
 end
@@ -146,10 +156,13 @@ When /^I reload the application$/ do
   rhc_reload(@app)
 end
 
-When /^I restore the application$/ do
+When /^I restore the application( from a preserved snapshot)?$/ do |preserve|
+  if preserve
+    @app.snapshot = @saved_snapshot
+  end
   assert_file_exists @app.snapshot
   File.size(@app.snapshot).should > 0
-  
+
   file_list = `tar ztf #{@app.snapshot}`
   ["#{@app.name}_ctl.sh", "openshift.conf", "httpd.pid"].each {|file|
     assert ! file_list.include?(file), "Found illegal file \'#{file} in snapshot"
@@ -163,10 +176,21 @@ Then /^the application should respond to the alias$/ do
   @app.is_accessible?(false, 120, "#{@app.name}-#{@app.namespace}.#{$alias_domain}").should be_true
 end
 
-Then /^the applications should be accessible?$/ do
+Then /^the applications should( not)? be accessible?$/ do |negate|
   @apps.each do |app|
-    app.is_accessible?.should be_true
-    app.is_accessible?(true).should be_true
+    if negate
+      app.is_accessible?.should be_false
+      app.is_accessible?(true).should be_false
+    else
+      app.is_accessible?.should be_true
+      app.is_accessible?(true).should be_true
+    end
+  end
+end
+
+When /^the applications are destroyed$/ do
+  @apps.each do |app|
+    rhc_ctl_destroy(app)
   end
 end
 

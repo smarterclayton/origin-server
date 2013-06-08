@@ -13,22 +13,32 @@ fi
 # Defines the default pre sync actions, taking into account
 # the hot_deploy marker.
 function set_default_pre_actions {
-  if hot_deploy_marker_is_present; then
-    echo "Application will not be stopped during gear sync to to presence of hot_deploy marker"
-    OPENSHIFT_SYNC_GEARS_PRE=()
-  else
-    OPENSHIFT_SYNC_GEARS_PRE=('gear stop')
+  OPENSHIFT_SYNC_GEARS_PRE=('gear stop')
+
+  # Only respect hot deployment for initialized gears
+  if [ "$new_gear" = "false" ]; then
+    if hot_deploy_marker_is_present; then
+      echo "Application will not be stopped during gear sync to to presence of hot_deploy marker"
+      OPENSHIFT_SYNC_GEARS_PRE=()
+    fi
   fi
 }
 
 # Defines the default post sync actions, taking into account
 # the hot_deploy marker.
 function set_default_post_actions {
+    remote_deploy_cmd="gear remotedeploy"
+
     if [ "$new_gear" = "true" ]; then
-        OPENSHIFT_SYNC_GEARS_POST=('gear remotedeploy --init')
+      remote_deploy_cmd="${remote_deploy_cmd} --init"
     else
-        OPENSHIFT_SYNC_GEARS_POST=('gear remotedeploy')
+      # Only respect hot deployment for initialized gears
+      if hot_deploy_marker_is_present; then
+        remote_deploy_cmd="${remote_deploy_cmd} --hot-deploy"
+      fi
     fi
+
+    OPENSHIFT_SYNC_GEARS_POST=("${remote_deploy_cmd}")
 }
 
 # Defaults for sync-gears.  Override these in .env from the configure script
@@ -37,7 +47,12 @@ function set_default_post_actions {
 [ -z "$OPENSHIFT_SYNC_GEARS_POST" ] && set_default_post_actions
 declare -ax OPENSHIFT_SYNC_GEARS_DIRS OPENSHIFT_SYNC_GEARS_PRE OPENSHIFT_SYNC_GEARS_POST
 
+
 rsynccmd="rsync -v --delete-after -az"
+if [ -f ${SYNC_BASE_DIR}/metadata/rsync.excludes ]; then
+    rsynccmd="rsync --exclude-from=${SYNC_BASE_DIR}metadata/rsync.excludes --delete-after -az"
+fi
+
 export RSYNC_RSH="ssh"
 
 # Fix to get name of haproxy cartridge from environment

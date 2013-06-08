@@ -20,8 +20,9 @@ Broker::Application.configure do
     # Authentication information: TSIG or GSS-TSIG (kerberos) but not both
     #
     # TSIG credentials
-    :keyname => conf.get("BIND_KEYNAME", "example.com"),
-    :keyvalue => conf.get("BIND_KEYVALUE", "base64-encoded key, most likely from /var/named/example.com.key."),
+    :keyname => conf.get("BIND_KEYNAME", nil),
+    :keyvalue => conf.get("BIND_KEYVALUE", nil),
+    :keyalgorithm => conf.get("BIND_KEYALGORITHM", "HMAC-MD5"),
 
     # GSS-TSIG (kerberos) credentials
     :krb_principal => conf.get("BIND_KRB_PRINCIPAL", nil),

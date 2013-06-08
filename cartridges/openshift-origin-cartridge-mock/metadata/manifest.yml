@@ -30,10 +30,10 @@ Publishes:
     Type: "NET_TCP:gear-endpoint-info"
 Subscribes:
   set-db-connection-info:
-    Type: "NET_TCP:db:connection-info"
+    Type: "ENV:NET_TCP:db:connection-info"
     Required: false
   set-nosql-db-connection-info:
-    Type: "NET_TCP:nosqldb:connection-info"
+    Type: "ENV:NET_TCP:nosqldb:connection-info"
     Required: false
 Endpoints:
   - Private-IP-Name:   EXAMPLE_IP1
@@ -60,6 +60,11 @@ Endpoints:
   - Private-IP-Name:   EXAMPLE_IP2
     Private-Port-Name: EXAMPLE_PORT4
     Private-Port:      9090
+  - Private-IP-Name:   SSL_IP
+    Private-Port-Name: SSL_PORT
+    Private-Port:      8443
+    Public-Port-Name:  SSL_PROXY_PORT
+    Options:           { "ssl_to_gear": true }
 Scaling:
   Min: 1
   Max: -1

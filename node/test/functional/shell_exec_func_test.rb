@@ -16,19 +16,16 @@
 require_relative '../test_helper'
 
 module OpenShift
-  class UtilsSpawnFunctionalTest < Test::Unit::TestCase
+  class UtilsSpawnFunctionalTest < OpenShift::NodeTestCase
 
     def setup
       @uid     = 5999
-      @homedir = "/tmp/tests/#@uid"
+      # Using /var/tmp since using /tmp causes problems with polyinstantiation
+      @homedir = "/var/tmp/homedir-#{@uid}"
 
-      # polyinstantiation makes creating the homedir a pain...
       FileUtils.rm_r @homedir if File.exist?(@homedir)
-      FileUtils.mkpath(@homedir)
-      %x{useradd -u #@uid -d #@homedir #@uid 1>/dev/null 2>&1}
-      %x{chown -R #@uid:#@uid #@homedir}
-      FileUtils.mkpath(File.join(@homedir, '.tmp', @uid.to_s))
-      FileUtils.chmod(0, File.join(@homedir, '.tmp'))
+      FileUtils.mkdir_p @homedir
+      %x{useradd -m -u #@uid -d #@homedir #@uid 1>/dev/null 2>&1}
     end
 
     def teardown
@@ -154,7 +151,7 @@ module OpenShift
     end
 
     def test_jailed_env
-      assert_not_empty ENV['HOME']
+      refute_empty ENV['HOME']
       out, err, rc = Utils.oo_spawn('echo ${HOME}xx',
                                     env:             {},
                                     unsetenv_others: true)
@@ -164,7 +161,7 @@ module OpenShift
     end
 
     def test_env
-      assert_not_empty ENV['HOME']
+      refute_empty ENV['HOME']
       out, err, rc = Utils.oo_spawn('echo ${HOME}xx')
       assert_equal 0, rc
       assert_empty err
@@ -172,7 +169,7 @@ module OpenShift
     end
 
     def test_run_as_env
-      assert_not_empty ENV['HOME']
+      refute_empty ENV['HOME']
       out, err, rc = Utils.oo_spawn('echo ${HOME}xx',
                                     uid: @uid)
       assert_equal 0, rc

@@ -22,7 +22,9 @@ module SQLHelper
       '-d' => '$OPENSHIFT_APP_NAME' # always use proper db name
     }
 
-    cmd = @psql_helper ? "psql" : "/usr/bin/psql"
+    # TODO: Need to explicitly use rhcsh to get the psql helper
+    #  - https://bugzilla.redhat.com/show_bug.cgi?id=955849
+    cmd = @psql_helper ? "rhcsh psql" : "/usr/bin/psql"
 
     # SCP the file so we don't have to worry about escaping SQL
     if @app.respond_to?(:scp_content)
@@ -34,7 +36,7 @@ module SQLHelper
     # If we don't pass anything, assume we want the normal user environment
     unless @psql_helper
       # These vars will be set to an empty string unless overridden
-      clear_vars = %w(PGPASSFILE PGUSER PGHOST PGDATABASE PGDATA)
+      clear_vars = %w(PGPASSFILE PGUSER PGHOST PGDATABASE PGDATA PGPASSWORD)
       # Prepend the export statements to the command
       cmd = "%s #{cmd}" % env_vars_string(clear_vars, @psql_env)
     end
@@ -46,7 +48,7 @@ module SQLHelper
     # Turn opts into '-k val' format
     opts = opts.inject(""){|str,(key,val)| "#{str} #{key} #{val}" }.strip
 
-    cmd = "-o LogLevel=quiet \"#{cmd} #{opts} 2>/dev/null\""
+    cmd = "\"#{cmd} #{opts}\""
     cmd.gsub!(/\$/,'\\$')
 
     output = if @app && @app.respond_to?(:ssh_command)

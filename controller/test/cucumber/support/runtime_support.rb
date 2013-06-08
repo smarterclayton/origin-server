@@ -12,6 +12,7 @@ require 'openshift-origin-node'
 require 'openshift-origin-node/utils/shell_exec'
 require 'etc'
 require 'timeout'
+require 'json'
 
 # Some constants which might be misplaced here. Perhaps they should
 # go in 00_setup_helper.rb?
@@ -151,7 +152,7 @@ module OpenShift
 
       @gears.each do |gear|
         gear.carts.values.each do |cart|
-          Dir.glob("#{$home_root}/#{gear.uuid}/#{cart.name}/{run,pid}/*.pid") do |pid_file|
+          Dir.glob("#{$home_root}/#{gear.uuid}/#{cart.directory}/{run,pid}/*.pid") do |pid_file|
             $logger.info("Reading pid file #{pid_file} for cart #{cart.name}")
             pid = IO.read(pid_file).chomp
             proc_name = File.basename(pid_file, ".pid")
@@ -198,7 +199,7 @@ module OpenShift
 
       # Create the container object for use in the event listener later
       begin
-        @container = OpenShift::ApplicationContainer.new(@app.uuid, @uuid, nil, @app.name, @app.name, @app.account.domain, nil, nil, $logger)
+        @container = OpenShift::ApplicationContainer.new(@app.uuid, @uuid, nil, @app.name, @app.name, @app.account.domain, nil, nil)
       rescue Exception => e
         $logger.error("#{e.message}\n#{e.backtrace}")
         raise
@@ -264,6 +265,12 @@ module OpenShift
     attr_reader :name, :gear, :path, :metadata
 
     def initialize(name, gear)
+      unless name.match('-')
+        cart_list = JSON.parse(`oo-cartridge-list --porcelain`[15..-1])
+        cart_list.delete_if{ |c| not c.start_with? name }
+        name = cart_list.first
+      end
+
       @name = name
       @gear = gear
 
@@ -330,6 +337,11 @@ module OpenShift
       with_container do |container|
         container.tidy
       end
+    end
+
+    def directory
+      inst = @gear.container.cartridge_model.get_cartridge(@name)
+      inst.directory || inst.name
     end
 
     def with_container
@@ -439,7 +451,8 @@ module OpenShift
           end
         end
 
-        $logger.info("DatabaseCartListener is adding a DbConnection to cartridge #{cart.name}: #{db.inspect}")
+        $logger.info("DatabaseCartListener is adding a DbConnection to cartridge #{cart.name}: "\
+                     "db.username=#{db.username}, db.password=#{db.password}, db.ip=#{db.port}, db.port=#{db.port}")
         cart.instance_variable_set(:@db, db)
         cart.instance_eval('def db; @db; end')
       end

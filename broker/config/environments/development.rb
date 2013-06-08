@@ -53,7 +53,7 @@ Broker::Application.configure do
   config.usage_tracking = {
     :datastore_enabled => conf.get_bool("ENABLE_USAGE_TRACKING_DATASTORE", "true"),
     :audit_log_enabled => conf.get_bool("ENABLE_USAGE_TRACKING_AUDIT_LOG", "true"),
-    :audit_log_filepath => conf.get_bool("USAGE_TRACKING_AUDIT_LOG_FILE", "/var/log/openshift/broker/usage.log")
+    :audit_log_filepath => conf.get("USAGE_TRACKING_AUDIT_LOG_FILE", "/var/log/openshift/broker/usage.log")
   }
 
   config.analytics = {
@@ -81,6 +81,7 @@ Broker::Application.configure do
     :default_scope => 'userinfo',
     :scope_expirations => OpenShift::Controller::Configuration.parse_expiration(conf.get('AUTH_SCOPE_TIMEOUTS'), 1.day),
     :download_cartridges_enabled => conf.get_bool("DOWNLOAD_CARTRIDGES_ENABLED", "true"),
+    :ssl_endpoint => conf.get("SSL_ENDPOINT", "allow"),
   }
 
   config.auth = {

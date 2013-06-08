@@ -1,72 +1,85 @@
 %global cartridgedir %{_libexecdir}/openshift/cartridges/v2/mock
-%global frameworkdir %{_libexecdir}/openshift/cartridges/v2/mock
 
-Name: openshift-origin-cartridge-mock
-Version: 0.4.1
-Release: 1%{?dist}
-Summary: Mock cartridge for V2 Cartridge SDK
-Group: Development/Languages
-License: ASL 2.0
-URL: https://www.openshift.com
-Source0: http://mirror.openshift.com/pub/origin-server/source/%{name}/%{name}-%{version}.tar.gz
-
-BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
-BuildArch: noarch
+Summary:       Mock cartridge for V2 Cartridge SDK
+Name:          openshift-origin-cartridge-mock
+Version: 0.5.1
+Release:       1%{?dist}
+Group:         Development/Languages
+License:       ASL 2.0
+URL:           https://www.openshift.com
+Source0:       http://mirror.openshift.com/pub/openshift-origin/source/%{name}/%{name}-%{version}.tar.gz
 Requires:      rubygem(openshift-origin-node)
 Requires:      openshift-origin-node-util
+BuildArch:     noarch
 
 %description
 Provides a mock cartridge for use in the V2 Cartridge SDK. Used to integration
 test platform functionality. (Cartridge Format V2)
 
-
 %prep
 %setup -q
 
-
 %build
-
+%__rm %{name}.spec
 
 %install
-rm -rf %{buildroot}
-mkdir -p %{buildroot}%{cartridgedir}/.openshift
-mkdir -p %{buildroot}/%{_sysconfdir}/openshift/cartridges/v2
-cp -r * %{buildroot}%{cartridgedir}/
-cp .mock_hidden.erb %{buildroot}%{cartridgedir}/
-ln -s %{cartridgedir}/conf/ %{buildroot}/%{_sysconfdir}/openshift/cartridges/v2/%{name}
-
-
-%clean
-rm -rf %{buildroot}
-
+%__mkdir -p %{buildroot}%{cartridgedir}
+%__cp -r * %{buildroot}%{cartridgedir}
+%__cp .mock_hidden.erb %{buildroot}%{cartridgedir}
 
 %post
-%{_sbindir}/oo-admin-cartridge --action install --offline --source /usr/libexec/openshift/cartridges/v2/mock
+%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
 
 %files
-%defattr(-,root,root,-)
 %dir %{cartridgedir}
-%dir %{cartridgedir}/bin
-%dir %{cartridgedir}/hooks
-%dir %{cartridgedir}/conf
-%dir %{cartridgedir}/conf.d
-%dir %{cartridgedir}/env
-%dir %{cartridgedir}/metadata
-%dir %{cartridgedir}/usr
-%dir %{cartridgedir}/template
-%dir %{cartridgedir}/.openshift
-%config(noreplace) %{cartridgedir}/conf/
 %attr(0755,-,-) %{cartridgedir}/bin/
 %attr(0755,-,-) %{cartridgedir}/hooks/
-%attr(0755,-,-) %{frameworkdir}
-%{_sysconfdir}/openshift/cartridges/v2/%{name}
-%{cartridgedir}/metadata/manifest.yml
-%{cartridgedir}/.mock_hidden.erb
+%{cartridgedir}
 %doc %{cartridgedir}/README.md
-%config(noreplace) %{cartridgedir}/mock.conf
-
+%doc %{cartridgedir}/COPYRIGHT
+%doc %{cartridgedir}/LICENSE
 
 %changelog
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 0.5.1-1
+- bump_minor_versions for sprint 29 (admiller@redhat.com)
+
+* Tue May 28 2013 Adam Miller <admiller@redhat.com> 0.4.7-1
+- Replace pre-receive cart control action with pre-repo-archive
+  (ironcladlou@gmail.com)
+
+* Fri May 24 2013 Adam Miller <admiller@redhat.com> 0.4.6-1
+- Bug 967017: Use underscores for v2 cart script names (ironcladlou@gmail.com)
+- Merge pull request #2612 from jwhonce/bug/964347
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 964347 - Run cartridge scripts from cartridge home directory
+  (jhonce@redhat.com)
+
+* Thu May 23 2013 Adam Miller <admiller@redhat.com> 0.4.5-1
+- Merge pull request #2596 from fotioslindiakos/Bug960707
+  (dmcphers+openshiftbot@redhat.com)
+- Remove connection info hooks from the mock cartridge (fotios@redhat.com)
+
+* Wed May 22 2013 Adam Miller <admiller@redhat.com> 0.4.4-1
+- Bug 962662 (dmcphers@redhat.com)
+- Fix bug 964348 (pmorie@gmail.com)
+
+* Mon May 20 2013 Dan McPherson <dmcphers@redhat.com> 0.4.3-1
+- spec file cleanup (tdawson@redhat.com)
+- Merge pull request #2520 from jwhonce/wip/rm_post_setup
+  (dmcphers+openshiftbot@redhat.com)
+- WIP Cartridge Refactor - remove post-setup support (jhonce@redhat.com)
+
+* Thu May 16 2013 Adam Miller <admiller@redhat.com> 0.4.2-1
+- process-version -> update-configuration (dmcphers@redhat.com)
+- Bug 963156 (dmcphers@redhat.com)
+- Merge pull request #2454 from fotioslindiakos/locked_files
+  (dmcphers+openshiftbot@redhat.com)
+- Add erb processing to managed_files.yml Also fixed and added some test cases
+  (fotios@redhat.com)
+- Fix bug 958977 (pmorie@gmail.com)
+- WIP Cartridge Refactor -- Cleanup spec files (jhonce@redhat.com)
+- Switching v2 to be the default (dmcphers@redhat.com)
+
 * Wed May 08 2013 Adam Miller <admiller@redhat.com> 0.4.1-1
 - bump_minor_versions for sprint 28 (admiller@redhat.com)
 

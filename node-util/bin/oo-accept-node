@@ -74,8 +74,8 @@ rescue LoadError => e
 end
 
 $TC_CHECK=false
-$TC_DATA = %x[tc clas show dev eth0].split("\n").grep(/parent/)
-$ALL_QUOTAS = %x[repquota -a].split("\n")
+$TC_DATA = %x[/sbin/tc clas show dev eth0].split("\n").grep(/parent/)
+$ALL_QUOTAS = %x[/usr/sbin/repquota -a].split("\n")
 
 $CONF_DIR="/etc/openshift"
 $NODE_CONF_FILE=File.join($CONF_DIR, "/node.conf")
@@ -84,7 +84,7 @@ $LIMITS_CONF_DIR="/etc/security/limits.d"
 #
 # Control variables.  Override for testing
 #
-DEFAULT_SEBOOL_LIST="httpd_can_network_connect:on"
+DEFAULT_SEBOOL_LIST="httpd_can_network_connect:on allow_polyinstantiation:on"
 DEFAULT_PACKAGES="rubygem-openshift-origin-node openshift-origin-node-util \
     rubygem-openshift-origin-common selinux-policy selinux-policy-targeted"
 DEFAULT_SERVICES="mcollective cgconfig cgred httpd openshift-port-proxy oddjobd"
@@ -164,7 +164,7 @@ end
 ###############################
 
 def users
-    $USERS ||= %x[grep ":#{ENV['GEAR_GECOS']}:" /etc/passwd].split("\n")
+    $USERS ||= %x[/bin/grep ":#{ENV['GEAR_GECOS']}:" /etc/passwd].split("\n")
 end
 
 def load_node_conf
@@ -241,7 +241,7 @@ def check_selinux()
 
     policy_name = selinux_policy_name
 
-    unless %x[getenforce] =~ /Enforcing/
+    unless %x[/usr/sbin/getenforce] =~ /Enforcing/
         do_fail("selinux is not enabled")
     else
         verbose("checking selinux #{policy_name} policy")
@@ -250,29 +250,33 @@ def check_selinux()
     verbose("checking selinux booleans")
     $SEBOOL_LIST.split.each { |bool|
         name,value = bool.split(':')
-        result = %x[getsebool #{name}]
+        result = %x[/usr/sbin/getsebool #{name}]
         do_fail("selinux boolean #{name} should be #{value}") unless result =~ /#{name} --> #{value}/
     }
 
-    do_fail("invalid selinux labels in OPENSHIFT_DIR $GEAR_BASE_DIR") unless %x[restorecon -n -v #{$GEAR_BASE_DIR}] =~ //
+    do_fail("invalid selinux labels in OPENSHIFT_DIR $GEAR_BASE_DIR") unless %x[/sbin/restorecon -n -v #{$GEAR_BASE_DIR}] =~ //
 
     # This will likely only detect the effects of a full relabel but it's
     # better than nothing.  My unscientific tests shows that checking 100 gears
     # only added about 1.5 seconds execution time.
     Dir.glob(File.join($GEAR_BASE_DIR, "*/app-root"))[0,99].each do |dir|
-      out = %x[ls --scontext #{dir}]
+      out = %x[/bin/ls --scontext #{dir}]
       mcs = /.+:.+:.+:.+:c\d+,c\d+? /.match(out)
       if mcs.nil?
         do_fail("invalid MCS labels on #{dir}. run oo-restorecon to restore OpenShift SELinux categories")
         break
       end
     end
+
+    if defined?(check_selinux_additional)
+      check_selinux_additional
+    end
 end
 
 def check_packages
     verbose("checking package list")
     packages = "#{$PACKAGES}  #{ext_packages.join(' ')}"
-    not_installed = %x[rpm -q #{packages}].split("\n").grep(/not/)
+    not_installed = %x[/bin/rpm -q #{packages}].split("\n").grep(/not/)
     not_installed.each { |pack_not_installed|
         do_fail(pack_not_installed)
     }
@@ -281,7 +285,7 @@ end
 def check_services
     verbose("checking services")
     $SERVICES.split.each { |service|
-        %x[service #{service} status &>/dev/null]
+        %x[/sbin/service #{service} status &>/dev/null]
         do_fail("service #{service} not running") unless $?.exitstatus == 0
     }
 end
@@ -295,7 +299,7 @@ def check_service_contexts
       setype = m[4]
       selabel = m[5]
 
-      servout = %x[service #{service} status 2>&1]
+      servout = %x[/sbin/service #{service} status 2>&1]
       begin
         pid = /pid\s+(\d+)/.match(servout)[1]
         pcontext = File.read("/proc/#{pid}/attr/current").strip
@@ -311,7 +315,7 @@ end
 
 def check_semaphores
     verbose("checking kernel semaphores >= #{$MINSEM}")
-    semcount=%x[sysctl kernel.sem | cut -f4].strip.to_i
+    semcount=%x[/sbin/sysctl kernel.sem | /bin/cut -f4].strip.to_i
     do_fail("kernel.sem semaphores too low: #{semcount} < #{$MINSEM}") if semcount <= $MINSEM
 end
 
@@ -321,7 +325,7 @@ end
 def check_cgroup_config
     verbose("checking cgroups configuration")
 
-    if %x[lscgroup cpu,cpuacct,memory,freezer,net_cls:/openshift 2>/dev/null | wc -l].strip.to_i < 1
+    if %x[/bin/lscgroup cpu,cpuacct,memory,freezer,net_cls:/openshift 2>/dev/null | /usr/bin/wc -l].strip.to_i < 1
         do_fail("lscgroup /openshift path does not exist")
         $CGROUP_PASS=false
     end
@@ -335,18 +339,34 @@ def check_cgroup_procs
     verbose("checking cgroups processes")
 
     ### Gather current procs running ###
-    all_user_procs = %x[ps -ef | egrep "^[0-9]{4}"].split("\n")
+    min_uid = ENV['GEAR_MIN_UID']
+    max_uid = ENV['GEAR_MAX_UID']
+
+    all_user_procs = %x[/bin/ps -e -o uid,pid | /bin/egrep "^\s+[0-9]{4}"].split("\n")
     ps_procs = Hash.new(Array.new)
     all_user_procs.each do |line|
-        user_procs = line.split[0,3]
-        uname = users.grep(/:#{user_procs[0]}:/)[0].split(":")[0]
-        ps_procs[uname] += [user_procs[1]]
-        ps_procs[uname].uniq!
+        uid,pid = line.split[0,2]
+
+        if (min_uid..max_uid).include?(uid)
+            passwd_lines = users.grep(/:#{uid}:/)
+
+            if passwd_lines.size == 0
+                do_fail("Process #{pid} is owned by a gear that's no longer on the system, uid: #{uid}")
+                next
+            end
+
+            uname = passwd_lines[0].split(":")[0]
+            ps_procs[uname] += [pid]
+            ps_procs[uname].uniq!
+        end
     end
 
     ### Gather cgroup procs ###
     cgroup_procs = {}
-    Dir.glob("/cgroup/all/openshift/*/cgroup.procs").each do |file|
+
+    # Support mounting cgroup controllers under /cgroup/all or 
+    # /cgroup/<controller>
+    Dir.glob("/cgroup/{all,memory}/openshift/*/cgroup.procs").each do |file|
         uuid = file.split("/")[4]
         lines = []
         IO.foreach(file).each { |line| lines << line.strip }
@@ -357,7 +377,16 @@ def check_cgroup_procs
     ps_procs.each do |uuid,procs|
         missing = procs - cgroup_procs[uuid]
         if missing.length > 0
-            do_fail("#{uuid} has procs missing from cgroups:  #{missing.join(" ")}")
+            missing.each do |pid|
+                proc_data = %x[/bin/ps -p #{pid} -o uid,pid,ppid,etime,cmd].split("\n")
+
+                # ensure the process is still running and not defunct before failing
+                # this fixes both the transient process and the defunct process
+                # detection problems
+                if proc_data.size > 1 && !proc_data.first.strip.end_with?('<defunct>')
+                    do_fail("#{uuid} has a process missing from cgroups:  #{pid}")
+                end
+            end
         end
     end
 end
@@ -369,18 +398,18 @@ def check_tc_config
     verbose("checking presence of tc qdisc")
     qdiscresponse="qdisc htb 1: root"
 
-    result = %x[tc qdisc show dev eth0 | grep -q "#{qdiscresponse}"]
+    result = %x[/sbin/tc qdisc show dev eth0 | /bin/grep -q "#{qdiscresponse}"]
     if $?.exitstatus != 0
         do_fail("tc htb qdisc not configured")
         $TC_PASS=false
     else
         verbose("checking for cgroup filter")
-        if %x[tc filter show dev eth0 | grep 'cgroup handle' | uniq | wc -l].strip.to_i < 1
+        if %x[/sbin/tc filter show dev eth0 | /bin/grep 'cgroup handle' | /usr/bin/uniq | /usr/bin/wc -l].strip.to_i < 1
             do_fail("no cgroup filter configured")
             $TC_PASS=false
         else
             verbose("checking presence of tc classes")
-            if %x[tc class show dev eth0 | grep 'class htb' | wc -l].strip.to_i < 1
+            if %x[/sbin/tc class show dev eth0 | /bin/grep 'class htb' | /usr/bin/wc -l].strip.to_i < 1
                 do_fail("no htb classes configured")
                 $TC_PASS=false
             end
@@ -390,16 +419,16 @@ end
 
 def check_quotas
     verbose("checking filesystem quotas")
-    oo_device=%x[df -P #{$GEAR_BASE_DIR} | tail -1].split[0]
-    oo_mount=%x[df -P #{$GEAR_BASE_DIR} | tail -1 | tr -s ' '].split[5]
-    unless %x[quotaon -u -p #{oo_mount} 2>&1].strip == "user quota on #{oo_mount} (#{oo_device}) is on"
+    oo_device=%x[/bin/df -P #{$GEAR_BASE_DIR} | /usr/bin/tail -1].split[0]
+    oo_mount=%x[/bin/df -P #{$GEAR_BASE_DIR} | /usr/bin/tail -1 | /usr/bin/tr -s ' '].split[5]
+    unless %x[/sbin/quotaon -u -p #{oo_mount} 2>&1].strip == "user quota on #{oo_mount} (#{oo_device}) is on"
         do_fail "quotas are not enabled on #{oo_mount} (#{oo_device})"
     end
 
     quota_db_file=File.join(oo_mount,"/aquota.user")
     if File.exists? quota_db_file
         verbose("checking quota db file selinux label")
-        quota_db_type = %x[secon -f #{quota_db_file} | grep type: ]
+        quota_db_type = %x[/usr/bin/secon -f #{quota_db_file} | /bin/grep type: ]
         if quota_db_type !~ /quota_db_t/
             do_fail("quota db file: selinux type is incorrect: #{quota_db_type}")
         end
@@ -442,7 +471,7 @@ def check_user_cgroups(username)
   test_subsystems = ['cpu', 'cpuacct', 'memory', 'freezer', 'net_cls'].sort
 
   # Create the list of cgroups to query
-  cmd =  "lscgroup " + test_subsystems.map {|s| "#{s}:#{user_cgroup}"}.join(' ')
+  cmd =  "/bin/lscgroup " + test_subsystems.map {|s| "#{s}:#{user_cgroup}"}.join(' ')
   reply = %x[#{cmd}]
 
   # This is a horrible bit of cleverness
@@ -495,18 +524,30 @@ def check_system_httpd_configs
   end
 
   httpconfs['nodes.txt'].delete_if   { |k,v|  k.split('/')[0] == '__default__' }
+  mangled_gears=[]
   $ALL_USERS.each do |u|
     dnsfile = File.join($GEAR_BASE_DIR, u, '.env', 'OPENSHIFT_GEAR_DNS')
+    if not File.exists?(dnsfile)
+      do_fail("Gear does not have an OPENSHIFT_GEAR_DNS variable: '#{u}'")
+      mangled_gears << u
+      next
+    end
+
     fqdn = File.read(dnsfile)
     if fqdn.start_with?('export ')
       fqdn = fqdn.sub(/^.*=/,'').gsub('\'','').gsub('"','').strip.downcase
+    else
+      fqdn.chomp!
+      fqdn.downcase!
     end
 
     begin
       has_websocket = false
       has_framework = false
 
-      carts = Dir.glob(File.join($GEAR_BASE_DIR, u, '*')).map { |p|
+      carts = Dir.glob(File.join($GEAR_BASE_DIR, u, '*')).select { |p|
+        not File.symlink?(p)
+      }.map { |p|
         File.basename(p)
       }.map { |p|
         cpath = nil
@@ -530,7 +571,7 @@ def check_system_httpd_configs
           end
         }
 
-        if is_framework
+        if is_framework && !has_websocket
           hook = File.join(p, 'info', 'hooks', 'deploy-httpd-proxy')
           deploy = File.join(p, 'info', 'bin', 'deploy_httpd_proxy.sh')
           alt_deploy = File.join(ENV['CARTRIDGE_BASE_PATH'], 'abstract', 'info', 'bin', 'deploy_httpd_proxy.sh')
@@ -583,7 +624,9 @@ def check_system_httpd_configs
 
 
   httpconfs['geardb.json'].each do |k, v|
-    do_fail("httpd config references UUID without associated gear: '#{k}'")
+    if not mangled_gears.include?(k)
+      do_fail("httpd config references UUID without associated gear: '#{k}'")
+    end
     fail_dns_names.delete(v["fqdn"])
   end
 

@@ -10,6 +10,7 @@ class ConsoleController < Console.config.parent_controller.constantize
   include DomainAware
   include SshkeyAware
   include CommunityAware
+  include LogHelper
 
   layout 'console'
 

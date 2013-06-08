@@ -2,7 +2,7 @@
 
 Summary:       Provides JBossEWS2.0 support
 Name:          openshift-origin-cartridge-jbossews
-Version: 0.4.1
+Version: 0.5.1
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -21,28 +21,21 @@ Requires:      maven3
 %if 0%{?fedora}
 Requires:      maven
 %endif
-BuildRequires: git
 BuildRequires: jpackage-utils
 BuildArch:     noarch
 
 %description
 Provides JBossEWS1.0 and JBossEWS2.0 support to OpenShift. (Cartridge Format V2)
 
-
 %prep
 %setup -q
 
-
 %build
+%__rm %{name}.spec
 
 %install
-rm -rf %{buildroot}
-mkdir -p %{buildroot}%{cartridgedir}
-mkdir -p %{buildroot}/%{_sysconfdir}/openshift/cartridges
-cp -r * %{buildroot}%{cartridgedir}/
-
-%clean
-rm -rf %{buildroot}
+%__mkdir -p %{buildroot}%{cartridgedir}
+%__cp -r * %{buildroot}%{cartridgedir}
 
 %post
 # To modify an alternative you should:
@@ -69,25 +62,59 @@ alternatives --remove jbossews-2.0 /usr/share/tomcat7
 alternatives --install /etc/alternatives/jbossews-2.0 jbossews-2.0 /usr/share/tomcat7 102
 alternatives --set jbossews-2.0 /usr/share/tomcat7
 
-%{_sbindir}/oo-admin-cartridge --action install --offline --source /usr/libexec/openshift/cartridges/v2/jbossews
+%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
 
 
 %files
-%defattr(-,root,root,-)
 %dir %{cartridgedir}
-%dir %{cartridgedir}/bin
-%dir %{cartridgedir}/hooks
-%dir %{cartridgedir}/env
-%dir %{cartridgedir}/metadata
-%dir %{cartridgedir}/template
 %attr(0755,-,-) %{cartridgedir}/bin/
 %attr(0755,-,-) %{cartridgedir}/hooks/
-%attr(0755,-,-) %{cartridgedir}
-%{cartridgedir}/metadata/manifest.yml
+%{cartridgedir}
 %doc %{cartridgedir}/README.md
-
+%doc %{cartridgedir}/COPYRIGHT
+%doc %{cartridgedir}/LICENSE
 
 %changelog
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 0.5.1-1
+- bump_minor_versions for sprint 29 (admiller@redhat.com)
+
+* Wed May 29 2013 Adam Miller <admiller@redhat.com> 0.4.6-1
+- Bug 965591 (dmcphers@redhat.com)
+
+* Thu May 23 2013 Adam Miller <admiller@redhat.com> 0.4.5-1
+- Merge pull request #2605 from ironcladlou/dev/v2carts/jbossews
+  (dmcphers+openshiftbot@redhat.com)
+- Support OPENSHIFT_INTERNAL_* variables in jbossews v2 (ironcladlou@gmail.com)
+- Bug 966255: Remove OPENSHIFT_INTERNAL_* references from v2 carts
+  (ironcladlou@gmail.com)
+
+* Wed May 22 2013 Adam Miller <admiller@redhat.com> 0.4.4-1
+- Bug 962662 (dmcphers@redhat.com)
+- Merge pull request #2560 from bdecoste/master
+  (dmcphers+openshiftbot@redhat.com)
+- add generic-java hook (bdecoste@gmail.com)
+- Merge pull request #2554 from pmorie/bugs/964348
+  (dmcphers+openshiftbot@redhat.com)
+- Fix bug 964348 (pmorie@gmail.com)
+- Merge pull request #2550 from ironcladlou/bz/965012
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 965012: Generate initial ROOT.war dynamically on install for jboss
+  cartridges (ironcladlou@gmail.com)
+
+* Mon May 20 2013 Dan McPherson <dmcphers@redhat.com> 0.4.3-1
+- Bug 964093: Generate OPENSHIFT_JBOSSEWS_VERSION during jbossews install
+  (ironcladlou@gmail.com)
+- spec file cleanup (tdawson@redhat.com)
+
+* Thu May 16 2013 Adam Miller <admiller@redhat.com> 0.4.2-1
+- Bug 962324: Fix jbossews stop logic to tolerate missing pidfile
+  (ironcladlou@gmail.com)
+- process-version -> update-configuration (dmcphers@redhat.com)
+- Bug 963156 (dmcphers@redhat.com)
+- <cartridge-jbossews> Bug 961628 - Fix Categories listed (jdetiber@redhat.com)
+- WIP Cartridge Refactor -- Cleanup spec files (jhonce@redhat.com)
+- Minor compatibility fixes for jbossews (ironcladlou@gmail.com)
+
 * Wed May 08 2013 Adam Miller <admiller@redhat.com> 0.4.1-1
 - bump_minor_versions for sprint 28 (admiller@redhat.com)
 

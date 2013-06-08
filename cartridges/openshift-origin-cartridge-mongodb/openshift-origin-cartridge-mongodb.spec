@@ -1,9 +1,8 @@
 %global cartridgedir %{_libexecdir}/openshift/cartridges/v2/mongodb
-%global frameworkdir %{_libexecdir}/openshift/cartridges/v2/mongodb
 
 Summary:       Embedded mongodb support for OpenShift
 Name:          openshift-origin-cartridge-mongodb
-Version: 1.8.1
+Version: 1.9.1
 Release:       1%{?dist}
 Group:         Network/Daemons
 License:       ASL 2.0
@@ -13,56 +12,59 @@ Requires:      mongodb-server
 Requires:      mongodb-devel
 Requires:      libmongodb
 Requires:      mongodb
-Requires:      git
 Requires:      rubygem(openshift-origin-node)
 Requires:      openshift-origin-node-util
 BuildArch:     noarch
 
-
 %description
 Provides mongodb cartridge support to OpenShift
-
 
 %prep
 %setup -q
 
-
 %build
-
+%__rm %{name}.spec
 
 %install
-rm -rf %{buildroot}
-mkdir -p %{buildroot}%{cartridgedir}
-mkdir -p %{buildroot}/%{_sysconfdir}/openshift/cartridges/v2
-cp -r * %{buildroot}%{cartridgedir}/
-ln -s %{cartridgedir}/conf/ %{buildroot}/%{_sysconfdir}/openshift/cartridges/v2/%{name}
-
-
-%clean
-rm -rf %{buildroot}
-
+%__mkdir -p %{buildroot}%{cartridgedir}
+%__cp -r * %{buildroot}%{cartridgedir}
 
 %post
-%{_sbindir}/oo-admin-cartridge --action install --offline --source /usr/libexec/openshift/cartridges/v2/mongodb
+%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
 
 %files
-%defattr(-,root,root,-)
 %dir %{cartridgedir}
-%dir %{cartridgedir}/bin
-%dir %{cartridgedir}/conf
-%dir %{cartridgedir}/env
-%dir %{cartridgedir}/metadata
-%config(noreplace) %{cartridgedir}/conf/
 %attr(0755,-,-) %{cartridgedir}/bin/
-%attr(0755,-,-) %{frameworkdir}
-%{_sysconfdir}/openshift/cartridges/v2/%{name}
-%{cartridgedir}/metadata/manifest.yml
+%attr(0755,-,-) %{cartridgedir}/hooks/
+%{cartridgedir}
 %doc %{cartridgedir}/README.md
 %doc %{cartridgedir}/COPYRIGHT
 %doc %{cartridgedir}/LICENSE
 
-
 %changelog
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 1.9.1-1
+- bump_minor_versions for sprint 29 (admiller@redhat.com)
+
+* Tue May 28 2013 Adam Miller <admiller@redhat.com> 1.8.6-1
+- Bug 962657: Add client result for mongodb credentials during install
+  (ironcladlou@gmail.com)
+
+* Fri May 24 2013 Adam Miller <admiller@redhat.com> 1.8.5-1
+- Bug 967017: Use underscores for v2 cart script names (ironcladlou@gmail.com)
+- remove install build required for non buildable carts (dmcphers@redhat.com)
+
+* Wed May 22 2013 Adam Miller <admiller@redhat.com> 1.8.4-1
+- Bug 962662 (dmcphers@redhat.com)
+
+* Mon May 20 2013 Dan McPherson <dmcphers@redhat.com> 1.8.3-1
+- spec file cleanup (tdawson@redhat.com)
+
+* Thu May 16 2013 Adam Miller <admiller@redhat.com> 1.8.2-1
+- locking fixes and adjustments (dmcphers@redhat.com)
+- Add erb processing to managed_files.yml Also fixed and added some test cases
+  (fotios@redhat.com)
+- WIP Cartridge Refactor -- Cleanup spec files (jhonce@redhat.com)
+
 * Wed May 08 2013 Adam Miller <admiller@redhat.com> 1.8.1-1
 - bump_minor_versions for sprint 28 (admiller@redhat.com)
 

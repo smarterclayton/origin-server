@@ -29,6 +29,7 @@ module OpenShift
   #    :port => portnumber,
   #    :keyname => "TSIG key name",
   #    :keyvalue => "TSIG key string",
+  #    :keyalgorithm => ["HMAC-MD5"|"HMAC-SHA1"|"HMAC-SHA256"|"HMAC-SHA512"]
   #    :zone => "zone to update",
   #    # only when configuring with parameters
   #    :domain_suffix => "suffix for application domain names"
@@ -52,6 +53,8 @@ module OpenShift
   #   @return [String] the TSIG key name
   # @!attribute [r] keyvalue
   #   @return [String] the TSIG key value
+  # @!attribute [r] keyalgorithm
+  #   @return [String] the TSIG key algorithm
   # @!attribute [r] krb_principal
   #   @return [String] A Kerberos 5 principal
   # @!attribute [r] krb_keytab
@@ -61,7 +64,7 @@ module OpenShift
     @provider = OpenShift::NsupdatePlugin
 
     attr_reader :server, :port, :zone, :domain_suffix
-    attr_reader :keyname, :keyvalue
+    attr_reader :keyname, :keyvalue, :keyalgorithm
     attr_reader :krb_principal, :krb_keytab
 
     # Establish the parameters for a connection to the DNS update service
@@ -75,16 +78,30 @@ module OpenShift
         access_info = Rails.application.config.dns
         @domain_suffix = Rails.application.config.openshift[:domain_suffix]
       else
-        raise Exception.new("Nsupdate DNS updates are not initialized")
+        raise DNSException.new("Nsupdate DNS updates are not initialized")
       end
 
       @server = access_info[:server]
       @port = access_info[:port].to_i
       @keyname = access_info[:keyname]
       @keyvalue = access_info[:keyvalue]
+      @keyalgorithm = access_info[:keyalgorithm] || "HMAC-MD5"
       @krb_principal = access_info[:krb_principal]
       @krb_keytab = access_info[:krb_keytab]
       @zone = access_info[:zone]
+
+      # verify that the plugin can read the keytab file, if specified
+      if @krb_keytab
+        if not File.exists? @krb_keytab
+          raise DNSException.new "missing GSS keytab file: #{@krb_keytab}"
+        
+        elsif not File.readable? @krb_keytab
+          raise DNSException.new(
+              "keytab file #{@krb_keytab} is not readable by UID #{Process.uid}"
+              )
+        end
+      end
+         
     end
 
     private
@@ -106,7 +123,7 @@ module OpenShift
       end
 
       # If the config gave a TSIG key, use it
-      keystring = @keyname ? "key #{@keyname} #{keyvalue}" : "gsstsig"
+      keystring = @keyname ? "key #{@keyalgorithm}:#{@keyname} #{keyvalue}" : "gsstsig"
 
       # compose the nsupdate add command
       cmd += %{nsupdate <<EOF
@@ -170,7 +187,7 @@ EOF
 
       success = system cmd
       if not success
-        raise DnsException.new("error adding app record #{fqdn}")
+        raise DNSException.new("error adding app record #{fqdn}")
       end
     end
 
@@ -195,7 +212,7 @@ EOF
 
       success = system cmd
       if not success
-        raise DnsException.new("error deleting app record #{fqdn}")
+        raise DNSException.new("error deleting app record #{fqdn}")
       end  
     end
 

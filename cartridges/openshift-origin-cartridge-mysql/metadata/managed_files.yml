@@ -2,6 +2,13 @@
 snapshot_exclusions:
 - mysql/*
 locked_files:
-- env/OPENSHIFT_MYSQL_DB_USERNAME
-- env/OPENSHIFT_MYSQL_DB_PASSWORD
-- env/OPENSHIFT_MYSQL_DB_URL
+- bin/
+- bin/*
+- env/
+- env/*
+- metadata/
+- metadata/*
+- hooks/
+- hooks/*
+processed_templates:
+- '**/*.erb'

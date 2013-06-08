@@ -1,11 +1,10 @@
 %global cartridgedir %{_libexecdir}/openshift/cartridges/v2/jbosseap
-%global frameworkdir %{_libexecdir}/openshift/cartridges/v2/jbosseap
 %global jbossver 6.0.1.GA
 %global oldjbossver 6.0.0.GA
 
 Summary:       Provides JBossEAP6.0 support
 Name:          openshift-origin-cartridge-jbosseap
-Version: 2.3.1
+Version: 2.4.1
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -35,25 +34,21 @@ Requires:      maven3
 %if 0%{?fedora}
 Requires:      maven
 %endif
-BuildRequires: git
 BuildRequires: jpackage-utils
 BuildArch:     noarch
 
 %description
 Provides JBossEAP support to OpenShift. (Cartridge Format V2)
 
-
 %prep
 %setup -q
 
-
 %build
-
+%__rm %{name}.spec
 
 %install
-mkdir -p %{buildroot}%{cartridgedir}
-mkdir -p %{buildroot}/%{_sysconfdir}/openshift/cartridges
-cp -r * %{buildroot}%{cartridgedir}/
+%__mkdir -p %{buildroot}%{cartridgedir}
+%__cp -r * %{buildroot}%{cartridgedir}
 
 %post
 %if 0%{?rhel}
@@ -77,23 +72,81 @@ mkdir -p /etc/alternatives/jbosseap-6.0/modules/org/postgresql/jdbc/main
 ln -fs /usr/share/java/postgresql-jdbc3.jar /etc/alternatives/jbosseap-6.0/modules/org/postgresql/jdbc/main
 cp -p %{cartridgedir}/versions/6.0/modules/postgresql_module.xml /etc/alternatives/jbosseap-6.0/modules/org/postgresql/jdbc/main/module.xml
 
-%{_sbindir}/oo-admin-cartridge --action install --offline --source /usr/libexec/openshift/cartridges/v2/jbosseap
-
+%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
 
 %files
-%defattr(-,root,root,-)
 %dir %{cartridgedir}
-%dir %{cartridgedir}/bin
-%dir %{cartridgedir}/metadata
-%dir %{cartridgedir}/versions
-%attr(0755,-,-) %{frameworkdir}
-%{cartridgedir}/metadata/manifest.yml
+%attr(0755,-,-) %{cartridgedir}/bin/
+%attr(0755,-,-) %{cartridgedir}/versions/6.0/bin/
+%attr(0755,-,-) %{cartridgedir}/hooks/
+%{cartridgedir}
 %doc %{cartridgedir}/README.md
 %doc %{cartridgedir}/COPYRIGHT
 %doc %{cartridgedir}/LICENSE
 
-
 %changelog
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 2.4.1-1
+- bump_minor_versions for sprint 29 (admiller@redhat.com)
+
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 2.3.8-1
+- Merge pull request #2672 from pmorie/bugs/968343
+  (dmcphers+openshiftbot@redhat.com)
+- Fix bug 968343 (pmorie@gmail.com)
+
+* Wed May 29 2013 Adam Miller <admiller@redhat.com> 2.3.7-1
+- Bug 968279: Fix jboss[as|eap] java7 marker detection (ironcladlou@gmail.com)
+- Merge pull request #2655 from ironcladlou/bz/967532
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 967532: Fix initial ROOT.war deployment for jboss cartridges
+  (ironcladlou@gmail.com)
+- Bug 966876 - Fix AVC denial in jbossas7 and jbosseap6 carts on startup
+  (jdetiber@redhat.com)
+
+* Thu May 23 2013 Adam Miller <admiller@redhat.com> 2.3.6-1
+- Bug 966065: Make python-2.6 install script executable (ironcladlou@gmail.com)
+- Merge pull request #2604 from ironcladlou/bz/966255
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 966255: Remove OPENSHIFT_INTERNAL_* references from v2 carts
+  (ironcladlou@gmail.com)
+
+* Wed May 22 2013 Adam Miller <admiller@redhat.com> 2.3.5-1
+- Merge pull request #2593 from danmcp/master
+  (dmcphers+openshiftbot@redhat.com)
+- Fixing perms (dmcphers@redhat.com)
+- fixing perms (dmcphers@redhat.com)
+
+* Wed May 22 2013 Adam Miller <admiller@redhat.com> 2.3.4-1
+- Bug 962662 (dmcphers@redhat.com)
+- Merge pull request #2560 from bdecoste/master
+  (dmcphers+openshiftbot@redhat.com)
+- add generic-java hook (bdecoste@gmail.com)
+- Merge pull request #2554 from pmorie/bugs/964348
+  (dmcphers+openshiftbot@redhat.com)
+- Fix bug 964348 (pmorie@gmail.com)
+- Merge pull request #2550 from ironcladlou/bz/965012
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 965012: Generate initial ROOT.war dynamically on install for jboss
+  cartridges (ironcladlou@gmail.com)
+
+* Mon May 20 2013 Dan McPherson <dmcphers@redhat.com> 2.3.3-1
+- spec file cleanup (tdawson@redhat.com)
+- Make jboss cluster variables cartridge-scoped (ironcladlou@gmail.com)
+
+* Thu May 16 2013 Adam Miller <admiller@redhat.com> 2.3.2-1
+- process-version -> update-configuration (dmcphers@redhat.com)
+- Bug 963156 (dmcphers@redhat.com)
+- locking fixes and adjustments (dmcphers@redhat.com)
+- Merge pull request #2454 from fotioslindiakos/locked_files
+  (dmcphers+openshiftbot@redhat.com)
+- Add erb processing to managed_files.yml Also fixed and added some test cases
+  (fotios@redhat.com)
+- messaging_scheduled_thread_pool_max_size=5 (bdecoste@gmail.com)
+- WIP Cartridge Refactor -- Cleanup spec files (jhonce@redhat.com)
+- fix module path (bdecoste@gmail.com)
+- Merge pull request #2411 from bdecoste/master
+  (dmcphers+openshiftbot@redhat.com)
+- fix clustering for non-scaled AS/EAP (bdecoste@gmail.com)
+
 * Wed May 08 2013 Adam Miller <admiller@redhat.com> 2.3.1-1
 - bump_minor_versions for sprint 28 (admiller@redhat.com)
 - Bug 956572 (bdecoste@gmail.com)

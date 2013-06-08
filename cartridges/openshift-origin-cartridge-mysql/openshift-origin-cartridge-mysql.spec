@@ -1,9 +1,8 @@
 %global cartridgedir %{_libexecdir}/openshift/cartridges/v2/mysql
-%global frameworkdir %{_libexecdir}/openshift/cartridges/v2/mysql
 
 Summary:       Provides embedded mysql support
 Name:          openshift-origin-cartridge-mysql
-Version: 0.3.1
+Version: 0.4.1
 Release:       1%{?dist}
 Group:         Network/Daemons
 License:       ASL 2.0
@@ -15,48 +14,57 @@ Requires:      rubygem(openshift-origin-node)
 Requires:      openshift-origin-node-util
 BuildArch:     noarch
 
-
 %description
 Provides mysql cartridge support to OpenShift. (Cartridge Format V2)
-
 
 %prep
 %setup -q
 
-
 %build
-
+%__rm %{name}.spec
 
 %install
-rm -rf %{buildroot}
-mkdir -p %{buildroot}%{cartridgedir}
-mkdir -p %{buildroot}/%{_sysconfdir}/openshift/cartridges/v2
-cp -r * %{buildroot}%{cartridgedir}/
-ln -s %{cartridgedir}/conf/ %{buildroot}/%{_sysconfdir}/openshift/cartridges/v2/%{name}
+%__mkdir -p %{buildroot}%{cartridgedir}
+%__cp -r * %{buildroot}%{cartridgedir}
 
 %post
-%{_sbindir}/oo-admin-cartridge --action install --offline --source /usr/libexec/openshift/cartridges/v2/mysql
-
-%clean
-rm -rf %{buildroot}
-
+%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
 
 %files
-%defattr(-,root,root,-)
 %dir %{cartridgedir}
-%dir %{cartridgedir}/bin
-%dir %{cartridgedir}/conf
-%dir %{cartridgedir}/env
-%dir %{cartridgedir}/metadata
-%config(noreplace) %{cartridgedir}/conf/
 %attr(0755,-,-) %{cartridgedir}/bin/
-%attr(0755,-,-) %{frameworkdir}
-%{_sysconfdir}/openshift/cartridges/v2/%{name}
-%{cartridgedir}/metadata/manifest.yml
+%attr(0755,-,-) %{cartridgedir}/hooks/
+%{cartridgedir}
 %doc %{cartridgedir}/README.md
-
+%doc %{cartridgedir}/COPYRIGHT
+%doc %{cartridgedir}/LICENSE
 
 %changelog
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 0.4.1-1
+- bump_minor_versions for sprint 29 (admiller@redhat.com)
+
+* Fri May 24 2013 Adam Miller <admiller@redhat.com> 0.3.6-1
+- Bug 967017: Use underscores for v2 cart script names (ironcladlou@gmail.com)
+- remove install build required for non buildable carts (dmcphers@redhat.com)
+
+* Thu May 23 2013 Adam Miller <admiller@redhat.com> 0.3.5-1
+- Merge pull request #2596 from fotioslindiakos/Bug960707
+  (dmcphers+openshiftbot@redhat.com)
+- Bug960707: MySQL snapshot and restore across applications (fotios@redhat.com)
+
+* Wed May 22 2013 Adam Miller <admiller@redhat.com> 0.3.4-1
+- Bug 962662 (dmcphers@redhat.com)
+- Fix bug 964348 (pmorie@gmail.com)
+
+* Mon May 20 2013 Dan McPherson <dmcphers@redhat.com> 0.3.3-1
+- spec file cleanup (tdawson@redhat.com)
+
+* Thu May 16 2013 Adam Miller <admiller@redhat.com> 0.3.2-1
+- locking fixes and adjustments (dmcphers@redhat.com)
+- Add erb processing to managed_files.yml Also fixed and added some test cases
+  (fotios@redhat.com)
+- WIP Cartridge Refactor -- Cleanup spec files (jhonce@redhat.com)
+
 * Wed May 08 2013 Adam Miller <admiller@redhat.com> 0.3.1-1
 - bump_minor_versions for sprint 28 (admiller@redhat.com)
 

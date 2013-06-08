@@ -6,7 +6,7 @@
 
 Summary:       Utility scripts for the OpenShift Origin broker
 Name:          openshift-origin-broker-util
-Version: 1.9.1
+Version: 1.10.1
 Release:       1%{?dist}
 Group:         Network/Daemons
 License:       ASL 2.0
@@ -19,6 +19,7 @@ Requires:      %{?scl:%scl_prefix}ruby(abi) >= %{rubyabi}
 %endif
 Requires:      openshift-origin-broker
 Requires:      %{?scl:%scl_prefix}rubygem-rest-client
+Requires:      mongodb
 # For oo-register-dns
 Requires:      bind-utils
 # For oo-admin-broker-auth
@@ -49,7 +50,7 @@ cp man/*.8 %{buildroot}%{_mandir}/man8/
 %files
 %doc LICENSE
 %attr(0750,-,-) %{_sbindir}/oo-admin-chk
-%attr(0750,-,-) %{_sbindir}/oo-admin-fix-sshkeys
+%attr(0750,-,-) %{_sbindir}/oo-admin-repair
 %attr(0750,-,-) %{_sbindir}/oo-admin-clear-pending-ops
 %attr(0750,-,-) %{_sbindir}/oo-admin-ctl-app
 %attr(0750,-,-) %{_sbindir}/oo-admin-ctl-authorization
@@ -69,7 +70,7 @@ cp man/*.8 %{buildroot}%{_mandir}/man8/
 %attr(0750,-,-) %{_sbindir}/oo-stats
 
 %{_mandir}/man8/oo-admin-chk.8.gz
-%{_mandir}/man8/oo-admin-fix-sshkeys.8.gz
+%{_mandir}/man8/oo-admin-repair.8.gz
 %{_mandir}/man8/oo-admin-ctl-app.8.gz
 %{_mandir}/man8/oo-admin-ctl-district.8.gz
 %{_mandir}/man8/oo-admin-ctl-domain.8.gz
@@ -85,6 +86,62 @@ cp man/*.8 %{buildroot}%{_mandir}/man8/
 %{_mandir}/man8/oo-stats.8.gz
 
 %changelog
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 1.10.1-1
+- bump_minor_versions for sprint 29 (admiller@redhat.com)
+
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 1.9.7-1
+- Checking consumed gears mismatch only if requested (abhgupta@redhat.com)
+
+* Wed May 29 2013 Adam Miller <admiller@redhat.com> 1.9.6-1
+- fix clear-pending-ops script to handle created_at.nil? (rchopra@redhat.com)
+
+* Thu May 23 2013 Adam Miller <admiller@redhat.com> 1.9.5-1
+- Merge pull request #2607 from rajatchopra/master (dmcphers@redhat.com)
+- Merge pull request #2602 from tbielawa/grammarfix
+  (dmcphers+openshiftbot@redhat.com)
+- fix bz965949 - include Mongo as object qualifier (rchopra@redhat.com)
+- Rebuild that man page (tbielawa@redhat.com)
+- Grammar fix in oo-admin-ctl-user man page (tbielawa@redhat.com)
+- Renaming oo-admin-fix to oo-admin-repair (abhgupta@redhat.com)
+
+* Wed May 22 2013 Adam Miller <admiller@redhat.com> 1.9.4-1
+- clean pending ops script to ensure rollbacks when needed; fix downloaded
+  manifest screening (rchopra@redhat.com)
+- Merge pull request #2499 from lnader/master
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 957164 (lnader@redhat.com)
+
+* Mon May 20 2013 Dan McPherson <dmcphers@redhat.com> 1.9.3-1
+- Merge pull request #2540 from pravisankar/dev/ravi/bug963981
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 963981 - Fix app events controller Use canonical_name/canonical_namespace
+  for application/domain respectively when using find_by op.
+  (rpenta@redhat.com)
+- Fixes based on review by Ravi (abhgupta@redhat.com)
+
+* Thu May 16 2013 Adam Miller <admiller@redhat.com> 1.9.2-1
+- Fix for bug 963654 (abhgupta@redhat.com)
+- add parent_user_id to user collection for export (rchopra@redhat.com)
+- Fixing broken check to confirm gear UID existence in mongo
+  (abhgupta@redhat.com)
+- Merge pull request #2477 from detiber/bz958573
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2470 from lnader/536 (dmcphers+openshiftbot@redhat.com)
+- <oo-admin-chk> Bug 958573 - Fix output when ssh key mismatch found
+  (jdetiber@redhat.com)
+- online_broker_536 (lnader@redhat.com)
+- Initial implementation for fixing district available UID mismatch
+  (abhgupta@redhat.com)
+- Initial implementation for fixing consumed gears mismatch
+  (abhgupta@redhat.com)
+- Merge pull request #2444 from detiber/bz961255
+  (dmcphers+openshiftbot@redhat.com)
+- <controller,broker-util> Bug 961255 - DataStore fixes for mongo ssl
+  (jdetiber@redhat.com)
+- <oo-accept-broker> Bug 959164 - Fix mongo test with replica sets
+  (jdetiber@redhat.com)
+- analytics should contain user login too (rchopra@redhat.com)
+
 * Wed May 08 2013 Adam Miller <admiller@redhat.com> 1.9.1-1
 - bump_minor_versions for sprint 28 (admiller@redhat.com)
 

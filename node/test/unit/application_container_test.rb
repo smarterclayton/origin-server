@@ -25,7 +25,7 @@ module OpenShift
   ;
 end
 
-class ApplicationContainerTest < Test::Unit::TestCase
+class ApplicationContainerTest < OpenShift::NodeTestCase
 
   def setup
     # Set up the config
@@ -61,7 +61,7 @@ class ApplicationContainerTest < Test::Unit::TestCase
     OpenShift::ApplicationContainer.stubs(:get_build_model).returns(:v2)
 
     @container = OpenShift::ApplicationContainer.new(@gear_uuid, @gear_uuid, @user_uid,
-        @app_name, @gear_uuid, @namespace, nil, nil, nil)
+        @app_name, @gear_uuid, @namespace, nil, nil)
 
     @mock_manifest = %q{#
         Name: mock
@@ -220,5 +220,17 @@ class ApplicationContainerTest < Test::Unit::TestCase
     @container.state.expects(:value=).with(OpenShift::State::STOPPED)
     @container.cartridge_model.expects(:create_stop_lock)
     @container.force_stop
+  end
+
+  def test_connector_execute
+    cart_name = 'mock-0.1'
+    pub_cart_name = 'mock-plugin-0.1'
+    connector_type = 'ENV:NET_TCP'
+    connector = 'set-db-connection-info'
+    args = 'foo'
+
+    @container.cartridge_model.expects(:connector_execute).with(cart_name, pub_cart_name, connector_type, connector, args)
+
+    @container.connector_execute(cart_name, pub_cart_name, connector_type, connector, args)
   end
 end

@@ -9,7 +9,7 @@
 
 Summary:       Cloud Development Controller
 Name:          rubygem-%{gem_name}
-Version: 1.9.1
+Version: 1.10.1
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -84,6 +84,217 @@ mkdir -p %{buildroot}/etc/openshift/
 %{gem_dir}/doc/%{gem_name}-%{version}
 
 %changelog
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 1.10.1-1
+- bump_minor_versions for sprint 29 (admiller@redhat.com)
+- Merge pull request #2695 from fotioslindiakos/runtime_extended
+  (dmcphers+openshiftbot@redhat.com)
+- Fix failing runtime_extended test (fotios@redhat.com)
+
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 1.9.10-1
+- Merge pull request #2694 from pmorie/dev/v2_switchyard
+  (dmcphers+openshiftbot@redhat.com)
+- Add V2 tests for switchyard (pmorie@gmail.com)
+- Merge pull request #2679 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- fix search for components given in group overrides (rchopra@redhat.com)
+- Merge pull request #2677 from pravisankar/dev/ravi/bug968283
+  (dmcphers+openshiftbot@redhat.com)
+- Fix track_usage rollback (rpenta@redhat.com)
+- Bug 968283 - before_filter check_version must be applied before check_outage
+  to ensure @requested_api_version is populated (rpenta@redhat.com)
+
+* Wed May 29 2013 Adam Miller <admiller@redhat.com> 1.9.9-1
+- Merge pull request #2664 from abhgupta/bug_967426
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2662 from abhgupta/abhgupta-dev
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2654 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2660 from ironcladlou/dev/v2carts/cucumber
+  (dmcphers+openshiftbot@redhat.com)
+- Fix for bug 967426 (abhgupta@redhat.com)
+- Fix for bug 966750 (abhgupta@redhat.com)
+- fix bz 967779, 967409, 967395 (rchopra@redhat.com)
+- Fix client message translation function and add tests (ironcladlou@gmail.com)
+- Bug 962657 (dmcphers@redhat.com)
+
+* Tue May 28 2013 Adam Miller <admiller@redhat.com> 1.9.8-1
+- Bug 967518 (dmcphers@redhat.com)
+- Bug 966963: Remove unnecessary versioned conf files from php cart
+  (ironcladlou@gmail.com)
+- Various cleanup (dmcphers@redhat.com)
+- Merge pull request #2641 from ironcladlou/dev/v2carts/build-system
+  (dmcphers+openshiftbot@redhat.com)
+- Replace pre-receive cart control action with pre-repo-archive
+  (ironcladlou@gmail.com)
+- vendoring of cartridges (rchopra@redhat.com)
+
+* Fri May 24 2013 Adam Miller <admiller@redhat.com> 1.9.7-1
+- Merge pull request #2614 from
+  smarterclayton/add_unique_header_to_cart_download
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2621 from abhgupta/abhgupta-dev
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2612 from jwhonce/bug/964347
+  (dmcphers+openshiftbot@redhat.com)
+- Fix for bug 959976 (abhgupta@redhat.com)
+- Bug 964347 - Run cartridge scripts from cartridge home directory
+  (jhonce@redhat.com)
+- Add a unique header X-OpenShift-Cartridge-Download to all cart download
+  requests (ccoleman@redhat.com)
+
+* Thu May 23 2013 Adam Miller <admiller@redhat.com> 1.9.6-1
+- Merge pull request #2611 from pravisankar/dev/ravi/unsubscribe_fix
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2606 from abhgupta/abhgupta-dev
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2596 from fotioslindiakos/Bug960707
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 966007 - Fix old connections for unsubscribe event (rpenta@redhat.com)
+- Merge pull request #2597 from lnader/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2600 from mrunalp/bugs/966068
+  (dmcphers+openshiftbot@redhat.com)
+- Fix for bug 960757  - Sending init_git_url only for deployable cartridge
+  configure/post-configure  - Removing is_primary_cart method in favor of
+  is_deployable (abhgupta@redhat.com)
+- Add force-reload functionality. (mrunalp@gmail.com)
+- Fix test case in extended postgres tests (fotios@redhat.com)
+- Bug960707: MySQL snapshot and restore across applications (fotios@redhat.com)
+- Bug 964337 (lnader@redhat.com)
+
+* Wed May 22 2013 Adam Miller <admiller@redhat.com> 1.9.5-1
+- Merge pull request #2595 from abhgupta/abhgupta-dev
+  (dmcphers+openshiftbot@redhat.com)
+- Moving code that throws exception into the begin-rescue block
+  (abhgupta@redhat.com)
+
+* Wed May 22 2013 Adam Miller <admiller@redhat.com> 1.9.4-1
+- Merge pull request #2581 from abhgupta/abhgupta-dev-3
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2576 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- Ignoring if initial_git_url specified as an empty string
+  (abhgupta@redhat.com)
+- clean pending ops script to ensure rollbacks when needed; fix downloaded
+  manifest screening (rchopra@redhat.com)
+- Removing externally_reserved_uids_size attribute from districts
+  (abhgupta@redhat.com)
+- Merge pull request #2564 from abhgupta/abhgupta-dev
+  (dmcphers+openshiftbot@redhat.com)
+- split cartridge cache per feature (rchopra@redhat.com)
+- Merge pull request #2559 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2562 from fotioslindiakos/Bug964116
+  (dmcphers+openshiftbot@redhat.com)
+- do not save connections in mongo; regenerate them everytime we need to
+  execute them (rchopra@redhat.com)
+- Fixes to cleanup during app operation failures (abhgupta@redhat.com)
+- Bug 964116: Postgres failed to restore snapshot (fotios@redhat.com)
+- Merge pull request #2542 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2499 from lnader/master
+  (dmcphers+openshiftbot@redhat.com)
+- safe yaml for parsing of downloaded yaml (rchopra@redhat.com)
+- added validation for initial git url (lnader@redhat.com)
+- Bug 961475 (lnader@redhat.com)
+
+* Mon May 20 2013 Dan McPherson <dmcphers@redhat.com> 1.9.3-1
+- Skipping the as7 cukes on OpenShift Enterprise (bleanhar@redhat.com)
+- Adjusting test case allocations (dmcphers@redhat.com)
+- Merge pull request #2539 from ironcladlou/bz/963646
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 963981 - Fix app events controller Use canonical_name/canonical_namespace
+  for application/domain respectively when using find_by op.
+  (rpenta@redhat.com)
+- Bug 963646: Quote env var contents to avoid undesirable array evals
+  (ironcladlou@gmail.com)
+- Merge pull request #2524 from pravisankar/dev/ravi/guard-usage-records
+  (dmcphers+openshiftbot@redhat.com)
+- no need for semicolon check (rchopra@redhat.com)
+- refix 961904 (rchopra@redhat.com)
+- Add fault tolerance code to UsageRecord model (rpenta@redhat.com)
+- fix for bz963035, bz963607 - use spawn and rate limit for curl
+  (rchopra@redhat.com)
+- Merge pull request #2520 from jwhonce/wip/rm_post_setup
+  (dmcphers+openshiftbot@redhat.com)
+- WIP Cartridge Refactor - remove post-setup support (jhonce@redhat.com)
+
+* Thu May 16 2013 Adam Miller <admiller@redhat.com> 1.9.2-1
+- Merge pull request #2481 from smarterclayton/add_param_for_downloadable_carts
+  (dmcphers@redhat.com)
+- Merge pull request #2511 from danmcp/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2494 from abhgupta/abhgupta-dev
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 963463 (dmcphers@redhat.com)
+- Bug 959123: Unable to restore Postgres snapshot to new application
+  (fotios@redhat.com)
+- Merge pull request #2503 from danmcp/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2496 from rajatchopra/fix_963080
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2482 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2492 from mrunalp/dev/pybugs
+  (dmcphers+openshiftbot@redhat.com)
+- process-version -> update-configuration (dmcphers@redhat.com)
+- fix 963080 - url is given for downloaded url carts (rchopra@redhat.com)
+- fix bz962453 - allow rhc tools to work with url cartridges
+  (rchopra@redhat.com)
+- Merge pull request #2486 from danmcp/master
+  (dmcphers+openshiftbot@redhat.com)
+- Specifying applicable actions on controller (abhgupta@redhat.com)
+- Merge pull request #2479 from ironcladlou/dev/v2carts/cuke/trap-user
+  (dmcphers+openshiftbot@redhat.com)
+- Move env var creation to correct install file. (mrunalp@gmail.com)
+- Adding upgrade_in_progress at the gear level (dmcphers@redhat.com)
+- Review comment (ccoleman@redhat.com)
+- Add 'cartridges[][url]' as an optional parameter on ADD_APPLICATION and 'url'
+  as an optional parameter on ADD_CARTRIDGE (ccoleman@redhat.com)
+- Refactor trap-user tests (ironcladlou@gmail.com)
+- Fix platform-scalable-snapshot.feature (pmorie@gmail.com)
+- add update in progress mechanism (dmcphers@redhat.com)
+- Merge pull request #2466 from fotioslindiakos/rhcsh_test
+  (dmcphers+openshiftbot@redhat.com)
+- Use rhcsh for ssh commands (fotios@redhat.com)
+- WIP cuke reorganization (ironcladlou@gmail.com)
+- Fix bug 958977 (pmorie@gmail.com)
+- Merge pull request #2444 from detiber/bz961255
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2450 from lnader/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2451 from danmcp/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2426 from abhgupta/abhgupta-dev
+  (dmcphers+openshiftbot@redhat.com)
+- Disabling v1 operations when in v2 mode (dmcphers@redhat.com)
+- Added API for cartridge search (lnader@redhat.com)
+- minor correction (lnader@redhat.com)
+- Make process label checks in cuke tests v1/v2 compatible
+  (ironcladlou@gmail.com)
+- <controller,broker-util> Bug 961255 - DataStore fixes for mongo ssl
+  (jdetiber@redhat.com)
+- get runtime extended other working (dmcphers@redhat.com)
+- removing extra accept node calls (dmcphers@redhat.com)
+- Switching v2 to be the default (dmcphers@redhat.com)
+- Merge pull request #2431 from calfonso/master
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #2236 from ncdc/applications-controller-destroy-comment-
+  typo (dmcphers+openshiftbot@redhat.com)
+- Removing code dealing with namespace updates for applications
+  (abhgupta@redhat.com)
+- Adding a rewrite to allow X-OpenShift-Host override the HTTP_HOST
+  (calfonso@redhat.com)
+- Merge pull request #2412 from pravisankar/dev/ravi/bug961220-misc
+  (dmcphers+openshiftbot@redhat.com)
+- Cleanup: get/set/unset group overrides methods (rpenta@redhat.com)
+- fix bz961216 and others related to url based apps (rchopra@redhat.com)
+- Merge pull request #2400 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- fix bz959221 - embedded cartridge map (rchopra@redhat.com)
+- Corrected comment for destroy method (andy.goldstein@redhat.com)
+
 * Wed May 08 2013 Adam Miller <admiller@redhat.com> 1.9.1-1
 - bump_minor_versions for sprint 28 (admiller@redhat.com)
 - Merge pull request #2341 from lnader/master

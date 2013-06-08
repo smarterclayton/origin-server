@@ -158,7 +158,7 @@ class Haproxy
         end
 
         @sessions_per_gear = @sessions / @gear_count
-        @session_capacity_pct = @session_capacity_pct = (@sessions_per_gear / MAX_SESSIONS_PER_GEAR ) * 100
+        @session_capacity_pct = (@sessions_per_gear / MAX_SESSIONS_PER_GEAR ) * 100
 
     end
 
@@ -197,20 +197,30 @@ class Haproxy
     end
 
     def add_gear(verbose=false)
+      if File.exists? '/var/lib/openshift/.settings/v1_cartridge_format'
         @last_scale_up_time = Time.now
         @log.info("GEAR_UP - capacity: #{self.session_capacity_pct}% gear_count: #{self.gear_count} sessions: #{self.sessions} up_thresh: #{@gear_up_pct}%")
         res=`add-gear -n #{self.gear_namespace}  -a #{ENV['OPENSHIFT_APP_NAME']} -u #{ENV['OPENSHIFT_APP_UUID']}`
         @log.debug("GEAR_UP - add-gear: exit: #{$?}  stdout: #{res}")
         $stderr.puts(res) if verbose and res != ""
         self.print_gear_stats
+      else
+        puts "Scale up of a V1 app is disabled in v2 mode"
+        exit 1
+      end
     end
 
     def remove_gear(verbose=false)
+      if File.exists? '/var/lib/openshift/.settings/v1_cartridge_format'
         @log.info("GEAR_DOWN - capacity: #{self.session_capacity_pct}% gear_count: #{self.gear_count} sessions: #{self.sessions} remove_thresh: #{@gear_remove_pct}%")
         res=`remove-gear -n #{self.gear_namespace} -a #{ENV['OPENSHIFT_APP_NAME']} -u #{ENV['OPENSHIFT_APP_UUID']}`
         @log.debug("GEAR_DOWN - remove-gear: exit: #{$?}  stdout: #{res}")
         $stderr.puts(res) if verbose and res != ""
         self.print_gear_stats
+      else
+        puts "Scale down of a V1 app is disabled in v2 mode"
+        exit 1
+      end
     end
 
     def print_gear_stats

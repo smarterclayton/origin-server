@@ -1,7 +1,12 @@
 ---
 locked_files:
+- bin/
+- bin/*
 - metadata/
-- conf/
 - conf.d/
 - phpMyAdmin/
+- phpMyAdmin/*
 - env/
+- env/*
+processed_templates:
+- '**/*.erb'

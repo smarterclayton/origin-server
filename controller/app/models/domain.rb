@@ -71,48 +71,23 @@ class Domain
     super 
   end
   
-  # Change the namespace for this Domain and all applications under it. 
-  # The namespace update happens in 2 steps:
-  #   1. Add the new namespace to all applications
-  #   2. Remove the old namespace from all applications. See {#complete_namespace_update}
+  # Change the namespace for this Domain if there are no applications under it. 
   #
   # == Parameters:
-  #   new_namespace::
+  # new_namespace::
   #   The new namespace to use for the domain
-  #
-  # == Returns:
-  #   The domain operation which tracks the first step of the update.
   def update_namespace(new_namespace)
     if Application.with(consistency: :strong).where(domain_id: self._id).count > 0
       raise OpenShift::UserException.new("Domain contains applications. Delete applications first before changing the domain namespace.", 128)
     end
-    if Domain.with(consistency: :strong).where(canonical_namespace: new_namespace).count > 0 
+    if Domain.with(consistency: :strong).where(canonical_namespace: new_namespace.downcase).count > 0 
       raise OpenShift::UserException.new("Namespace '#{new_namespace}' is already in use. Please choose another.", 103, "id") 
     end
-    old_ns = namespace
     self.namespace = new_namespace
     self.save
     notify_observers(:domain_update_success)
-    #pending_op = PendingDomainOps.new(op_type: :update_namespace, arguments: {"old_ns" => old_ns, "new_ns" => new_namespace}, parent_op: nil, on_apps: applications, on_completion_method: :complete_namespace_update, state: "init")
-    #self.pending_ops.push pending_op
-    #self.run_jobs
   end
 
-  # Completes the second step of the namespace update. See {#update_namespace}
-  #
-  # == Parameters:
-  #   op::
-  #   The namespace update operation created in step 1.
-  #
-  # == Returns:
-  #   The domain operation which tracks the second step of the update.
-  def complete_namespace_update(op)
-    pending_op = PendingDomainOps.new(op_type: :complete_namespace_update, arguments: {"old_ns" => op.arguments["old_ns"], "new_ns" => op.arguments["new_ns"]}, parent_op: nil, on_apps: op.on_apps, state: "init")
-    self.pending_ops.push pending_op
-    self.run_jobs
-    notify_observers(:domain_update_success)
-  end
-  
   # Adds a user to the access list for this domain.
   #
   # == Parameters:
@@ -193,7 +168,7 @@ class Domain
   def add_system_ssh_keys(ssh_keys)
     keys_attrs = ssh_keys.map{|k| k.attributes.dup}
     pending_op = PendingDomainOps.new(op_type: :add_domain_ssh_keys, arguments: { "keys_attrs" => keys_attrs }, on_apps: applications, created_at: Time.now, state: "init")
-    Domain.where(_id: self.id).update_all({ "$push" => { pending_ops: pending_op.serializable_hash }, "$pushAll" => { system_ssh_keys: keys_attrs }})
+    Domain.where(_id: self.id).update_all({ "$push" => { pending_ops: pending_op.serializable_hash_with_timestamp }, "$pushAll" => { system_ssh_keys: keys_attrs }})
   end
 
   def remove_system_ssh_keys(remove_key)
@@ -206,7 +181,7 @@ class Domain
     return if ssh_keys.empty?
     keys_attrs = ssh_keys.map{|k| k.attributes.dup}
     pending_op = PendingDomainOps.new(op_type: :delete_domain_ssh_keys, arguments: {"keys_attrs" => keys_attrs}, on_apps: applications, created_at: Time.now, state: "init")
-    Domain.where(_id: self.id).update_all({ "$push" => { pending_ops: pending_op.serializable_hash }, "$pullAll" => { system_ssh_keys: keys_attrs }})
+    Domain.where(_id: self.id).update_all({ "$push" => { pending_ops: pending_op.serializable_hash_with_timestamp }, "$pullAll" => { system_ssh_keys: keys_attrs }})
   end
 
   def add_env_variables(variables)
@@ -220,7 +195,7 @@ class Domain
     end
 
     pending_op = PendingDomainOps.new(op_type: :add_env_variables, arguments: {"variables" => variables}, on_apps: applications, created_at: Time.now, state: "init")
-    Domain.where(_id: self.id).update_all({ "$push" => { pending_ops: pending_op.serializable_hash }, "$pushAll" => { env_vars: variables }})
+    Domain.where(_id: self.id).update_all({ "$push" => { pending_ops: pending_op.serializable_hash_with_timestamp }, "$pushAll" => { env_vars: variables }})
 
     # if this is an update to an existing environment variable, remove the previous ones
     Domain.where(_id: self.id).update_all({ "$pullAll" => { env_vars: env_vars_to_rm }}) unless env_vars_to_rm.empty?
@@ -234,7 +209,7 @@ class Domain
     end
     return if variables.empty?
     pending_op = PendingDomainOps.new(op_type: :remove_env_variables, arguments: {"variables" => variables}, on_apps: applications, created_at: Time.now, state: "init")
-    Domain.where(_id: self.id).update_all({ "$push" => { pending_ops: pending_op.serializable_hash }, "$pullAll" => { env_vars: variables }})
+    Domain.where(_id: self.id).update_all({ "$push" => { pending_ops: pending_op.serializable_hash_with_timestamp }, "$pullAll" => { env_vars: variables }})
   end
 
   # Runs all jobs in "init" phase and stops at the first failure.
@@ -292,12 +267,6 @@ class Domain
           op.pending_apps.each { |app| app.add_env_variables(op.arguments["variables"], op) }
         when :remove_env_variables
           op.pending_apps.each { |app| app.remove_env_variables(op.arguments["variables"], op) }
-        when :update_namespace
-          op.pending_apps.each { |app| app.update_namespace(op.arguments["old_ns"], op.arguments["new_ns"], op) }
-        when :complete_namespace_update
-          op.pending_apps.each { |app|
-            app.complete_update_namespace(op.arguments["old_ns"], op.arguments["new_ns"], op) 
-          }
         end
 
         # reloading the op reloads the domain and then incorrectly reloads (potentially)

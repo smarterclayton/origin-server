@@ -6,8 +6,10 @@ require 'zlib'
 require 'base64'
 require 'openshift-origin-node'
 require 'openshift-origin-node/model/cartridge_repository'
+require 'openshift-origin-node/utils/hourglass'
 require 'shellwords'
 require 'facter'
+require 'openshift-origin-common/utils/file_needs_sync'
 
 module MCollective
   module Agent
@@ -18,7 +20,7 @@ module MCollective
                :license     => "ASL 2.0",
                :version     => "0.1",
                :url         => "http://www.openshift.com",
-               :timeout     => 240
+               :timeout     => 360
 
       activate_when do
         @cartridge_repository = ::OpenShift::CartridgeRepository.instance
@@ -26,6 +28,13 @@ module MCollective
         Log.instance.info(
             "#{@cartridge_repository.count} cartridge(s) installed in #{@cartridge_repository.path}")
         true
+      end
+
+      def before_processing_hook(msg, connection)
+        # Set working directory to a 'safe' directory to prevent Dir.chdir
+        # calls with block from changing back to a directory which doesn't exist.
+        Log.instance.debug("Changing working directory to /tmp")
+        Dir.chdir('/tmp')
       end
 
       def echo_action
@@ -44,7 +53,7 @@ module MCollective
         Log.instance.info("cartridge_do_action validation = #{request[:cartridge]} #{request[:action]} #{request[:args]}")
         validate :cartridge, /\A[a-zA-Z0-9\.\-\/]+\z/
         validate :cartridge, :shellsafe
-        validate :action, /\A(app-create|app-destroy|env-var-add|env-var-remove|broker-auth-key-add|broker-auth-key-remove|authorized-ssh-key-add|authorized-ssh-key-remove|ssl-cert-add|ssl-cert-remove|configure|post-configure|deconfigure|unsubscribe|update-namespace|tidy|deploy-httpd-proxy|remove-httpd-proxy|restart-httpd-proxy|info|post-install|post-remove|pre-install|reload|restart|start|status|stop|force-stop|add-alias|remove-alias|threaddump|cartridge-list|expose-port|frontend-backup|frontend-restore|frontend-create|frontend-destroy|frontend-update-name|frontend-update-namespace|frontend-connect|frontend-disconnect|frontend-connections|frontend-idle|frontend-unidle|frontend-check-idle|frontend-sts|frontend-no-sts|frontend-get-sts|aliases|ssl-cert-add|ssl-cert-remove|ssl-certs|frontend-to-hash|system-messages|connector-execute|get-quota|set-quota)\Z/
+        validate :action, /\A(app-create|app-destroy|env-var-add|env-var-remove|broker-auth-key-add|broker-auth-key-remove|authorized-ssh-key-add|authorized-ssh-key-remove|ssl-cert-add|ssl-cert-remove|configure|post-configure|deconfigure|unsubscribe|tidy|deploy-httpd-proxy|remove-httpd-proxy|restart-httpd-proxy|info|post-install|post-remove|pre-install|reload|restart|start|status|stop|force-stop|add-alias|remove-alias|threaddump|cartridge-list|expose-port|frontend-backup|frontend-restore|frontend-create|frontend-destroy|frontend-update-name|frontend-connect|frontend-disconnect|frontend-connections|frontend-idle|frontend-unidle|frontend-check-idle|frontend-sts|frontend-no-sts|frontend-get-sts|aliases|ssl-cert-add|ssl-cert-remove|ssl-certs|frontend-to-hash|system-messages|connector-execute|get-quota|set-quota)\Z/
         validate :action, :shellsafe
         cartridge                  = request[:cartridge]
         action                     = request[:action]
@@ -72,6 +81,7 @@ module MCollective
       # Returns [exitcode, output] from the resulting action execution.
       def execute_action(action, args)
         action_method = "oo_#{action.gsub('-', '_')}"
+        request_id    = args['--with-request-id'].to_s if args['--with-request-id']
 
         exitcode = 0
         output   = ""
@@ -82,12 +92,18 @@ module MCollective
         else
           Log.instance.info("Executing action [#{action}] using method #{action_method} with args [#{args}]")
           begin
+            OpenShift::NodeLogger.context[:request_id]    = request_id if request_id
+            OpenShift::NodeLogger.context[:action_method] = action_method if action_method
+
             exitcode, output = self.send(action_method.to_sym, args)
           rescue => e
             Log.instance.error("Unhandled action execution exception for action [#{action}]: #{e.message}")
             Log.instance.error(e.backtrace)
             exitcode = 127
             output   = "An internal exception occured processing action #{action}: #{e.message}"
+          ensure
+            OpenShift::NodeLogger.context.delete(:request_id)
+            OpenShift::NodeLogger.context.delete(:action_method)
           end
           Log.instance.info("Finished executing action [#{action}] (#{exitcode})")
         end
@@ -126,11 +142,18 @@ module MCollective
         reply[:exitcode] = 0
       end
 
+      #
       # Builds a new ApplicationContainer instance from the standard
       # argument payload which is expected for any message used for
       # gear/cart operations.
       #
       # Use this to get a new ApplicationContainer instance in all cases.
+      #
+      # A new OpenShift::Runtime::Hourglass will be initialized and passed
+      # to the ApplicationContainerInstance to allow for timing consistency.
+      # The hourglass will be initialized with a duration shorter than the
+      # configured MCollective agent timeout.
+      #
       def get_app_container_from_args(args)
         app_uuid = args['--with-app-uuid'].to_s if args['--with-app-uuid']
         app_name = args['--with-app-name'].to_s if args['--with-app-name']
@@ -146,24 +169,23 @@ module MCollective
         uid = nil if uid && uid.to_s.empty?
 
         OpenShift::ApplicationContainer.new(app_uuid, gear_uuid, uid, app_name, gear_name,
-                                            namespace, quota_blocks, quota_files, Log.instance)
+                                            namespace, quota_blocks, quota_files, OpenShift::Utils::Hourglass.new(235))
       end
 
       def with_container_from_args(args)
-        container = get_app_container_from_args(args)
+        container  = get_app_container_from_args(args)
 
         output = ''
         begin
           container = get_app_container_from_args(args)
           yield(container, output)
+          return 0, output
         rescue OpenShift::Utils::ShellExecutionException => e
           return e.rc, "#{e.message}\n#{e.stdout}\n#{e.stderr}"
         rescue Exception => e
           Log.instance.error e.message
           Log.instance.error e.backtrace.join("\n")
           return -1, e.message
-        else
-          return 0, output
         end
       end
 
@@ -401,13 +423,6 @@ module MCollective
         end
       end
 
-      def oo_frontend_update_namespace(args)
-        new_namespace = args['--with-new-namespace']
-        with_frontend_from_args(args) do |f, o|
-          f.update_namespace(new_namespace)
-        end
-      end
-
       #
       # The path-target-option is an array of the path, target and
       # options.  Multiple arrays may be specified and they are in
@@ -573,16 +588,6 @@ module MCollective
 
         with_container_from_args(args) do |container, output|
           output << container.connector_execute(cart_name, pub_cart_name, connection_type, hook_name, input_args)
-        end
-      end
-
-      def oo_update_namespace(args)
-        cart_name = args['--cart-name']
-        old_ns    = args['--with-old-namespace']
-        new_ns    = args['--with-new-namespace']
-
-        with_container_from_args(args) do |container, output|
-          output << container.update_namespace(cart_name, old_ns, new_ns)
         end
       end
 

@@ -214,6 +214,9 @@ module RestApi
       def []=(s, v)
         super s.to_s, v
       end
+      def delete(s)
+        super s.to_s
+      end
     end
 
     def initialize(attributes = {}, persisted=false)
@@ -544,7 +547,7 @@ module RestApi
           end
         end
         message = I18n.t(code, :scope => [:rest_api, :errors], :default => text.to_s)
-        field = (field || 'base').to_sym
+        field = (field && field.respond_to?(:to_sym) ? field : 'base').to_sym
         errors.add(field, message) unless message.blank?
 
         codes = errors.instance_variable_get(:@codes)
@@ -802,7 +805,7 @@ module RestApi
   class Base
     self.idle_timeout = 4
     self.open_timeout = 3
-    self.read_timeout = 180
+    self.read_timeout = 240
 
     #
     # Update the configuration of the Rest API.  Use instead of

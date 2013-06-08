@@ -16,22 +16,24 @@
 
 require 'rubygems'
 require 'openshift-origin-node/model/frontend_proxy'
+require 'openshift-origin-node/model/frontend_httpd'
 require 'openshift-origin-node/model/unix_user'
 require 'openshift-origin-node/model/v1_cart_model'
 require 'openshift-origin-node/model/v2_cart_model'
 require 'openshift-origin-common/models/manifest'
-require 'openshift-origin-node/model/default_builder'
 require 'openshift-origin-node/utils/shell_exec'
 require 'openshift-origin-node/utils/application_state'
 require 'openshift-origin-node/utils/environ'
 require 'openshift-origin-node/utils/sdk'
 require 'openshift-origin-node/utils/node_logger'
+require 'openshift-origin-node/utils/hourglass'
 require 'openshift-origin-common'
 require 'yaml'
 require 'active_model'
 require 'json'
 require 'rest-client'
 require 'openshift-origin-node/utils/managed_files'
+require 'timeout'
 
 module OpenShift
   # == Application Container
@@ -46,7 +48,7 @@ module OpenShift
     attr_reader :uuid, :application_uuid, :user, :state, :container_name, :cartridge_model
 
     def initialize(application_uuid, container_uuid, user_uid = nil,
-        app_name = nil, container_name = nil, namespace = nil, quota_blocks = nil, quota_files = nil, logger = nil)
+        app_name = nil, container_name = nil, namespace = nil, quota_blocks = nil, quota_files = nil, hourglass = nil)
 
       @config           = OpenShift::Config.new
       @uuid             = container_uuid
@@ -56,18 +58,16 @@ module OpenShift
                                        app_name, container_name, namespace, quota_blocks, quota_files)
       @state            = OpenShift::Utils::ApplicationState.new(container_uuid)
       @build_model      = self.class.get_build_model(@user, @config)
+      @hourglass        = hourglass || Utils::Hourglass.new(3600)
 
-      # When v2 is the default cartridge format flip the test...
       if @build_model == :v1
         @cartridge_model = V1CartridgeModel.new(@config, @user)
       else
-        @cartridge_model = V2CartridgeModel.new(@config, @user, @state)
+        @cartridge_model = V2CartridgeModel.new(@config, @user, @state, @hourglass)
       end
-      NodeLogger.logger.debug("Created #{@build_model} model for #{container_uuid}")
     end
 
     def self.get_build_model(user, config)
-      # TODO: When v2 is the default cartridge format change this default...
       build_model = :v1
 
       if user.homedir && File.exist?(user.homedir)
@@ -107,28 +107,43 @@ module OpenShift
           output = @cartridge_model.resolve_application_dependencies(cart_name) if cartridge.buildable?        
         end
       else
-      
         cartridge = @cartridge_model.get_cartridge(cart_name)
+        cartridge_home = PathUtils.join(@user.homedir, cartridge.directory)
 
         # Only perform an initial build if the manifest explicitly specifies a need,
         # or if a template Git URL is provided and the cart is capable of builds or deploys.
-        if cartridge.install_build_required || (template_git_url && cartridge.buildable?)
-          gear_script_log = '/tmp/initial-build.log'
-          env             = Utils::Environ.for_gear(@user.homedir)
+        if (cartridge.install_build_required || template_git_url) && cartridge.buildable?
+          build_log = '/tmp/initial-build.log'
+          env       = Utils::Environ.for_gear(@user.homedir)
   
-          logger.info "Executing initial gear prereceive for #{@uuid}"
-          Utils.oo_spawn("gear prereceive >>#{gear_script_log} 2>&1",
-                         env:                 env,
-                         chdir:               @user.homedir,
-                         uid:                 @user.uid,
-                         expected_exitstatus: 0)
+          begin
+            logger.info "Executing initial gear prereceive for #{@uuid}"
+            Utils.oo_spawn("gear prereceive >> #{build_log} 2>&1",
+                           env:                 env,
+                           chdir:               @user.homedir,
+                           uid:                 @user.uid,
+                           timeout:             @hourglass.remaining,
+                           expected_exitstatus: 0)
 
-          logger.info "Executing initial gear postreceive for #{@uuid}"
-          Utils.oo_spawn("gear postreceive >>#{gear_script_log} 2>&1",
-                         env:                 env,
-                         chdir:               @user.homedir,
-                         uid:                 @user.uid,
-                         expected_exitstatus: 0)
+            logger.info "Executing initial gear postreceive for #{@uuid}"
+            Utils.oo_spawn("gear postreceive >> #{build_log} 2>&1",
+                           env:                 env,
+                           chdir:               @user.homedir,
+                           uid:                 @user.uid,
+                           timeout:             @hourglass.remaining,
+                           expected_exitstatus: 0)
+          rescue Utils::ShellExecutionException => e
+            max_bytes = 10 * 1024
+            out, _, _ = Utils.oo_spawn("tail -c #{max_bytes} #{build_log} 2>&1",
+                           env:                 env,
+                           chdir:               @user.homedir,
+                           uid:                 @user.uid,
+                           timeout:             @hourglass.remaining)
+
+            message = "The initial build for the application failed: #{e.message}\n\n.Last #{max_bytes/1024} kB of build output:\n#{out}"
+
+            raise Utils::Sdk.translate_out_for_client(message, :error)
+          end
         end
 
         output = @cartridge_model.post_configure(cart_name)
@@ -321,7 +336,45 @@ module OpenShift
     # Sets the application state to +STOPPED+ and stops the gear. Gear stop implementation
     # is model specific, but +options+ is provided to the implementation.
     def stop_gear(options={})
-      @cartridge_model.stop_gear(options)
+      buffer = @cartridge_model.stop_gear(options)
+      unless buffer.empty?
+        buffer.chomp!
+        buffer << "\n"
+      end
+      buffer << stopped_status_attr
+      buffer
+    end
+
+    ##
+    # Idles the gear if there is no stop lock and state is not already +STOPPED+.
+    #
+    def idle_gear(options={})
+      if not stop_lock? and (state.value != State::STOPPED)
+        frontend = FrontendHttpServer.new(@uuid)
+        frontend.idle
+        begin
+          output = stop_gear
+        ensure
+          state.value = State::IDLE
+        end
+        output
+      end
+    end
+
+    ##
+    # Unidles the gear.
+    #
+    def unidle_gear(options={})
+      output = ""
+      if stop_lock? and (state.value == State::IDLE)
+        state.value = State::STARTED
+        output = start_gear
+      end
+      frontend = FrontendHttpServer.new(@uuid)
+      if frontend.idle?
+        frontend.unidle
+      end
+      output
     end
 
     ##
@@ -342,13 +395,13 @@ module OpenShift
     def gear_level_tidy_git(gear_repo_dir)
       # Git pruning
       tidy_action do
-        Utils.oo_spawn("git prune", uid: @user.uid, chdir: gear_repo_dir, expected_exitstatus: 0)
+        Utils.oo_spawn('git prune', uid: @user.uid, chdir: gear_repo_dir, expected_exitstatus: 0, timeout: @hourglass.remaining)
         logger.debug("Pruned git directory at #{gear_repo_dir}")
       end
 
       # Git GC
       tidy_action do
-        Utils.oo_spawn("git gc --aggressive", uid: @user.uid, chdir: gear_repo_dir, expected_exitstatus: 0)
+        Utils.oo_spawn('git gc --aggressive', uid: @user.uid, chdir: gear_repo_dir, expected_exitstatus: 0, timeout: @hourglass.remaining)
         logger.debug("Executed git gc for repo #{gear_repo_dir}")
       end
     end
@@ -367,10 +420,6 @@ module OpenShift
       end
     end
 
-    def update_namespace(cart_name, old_namespace, new_namespace)
-      @cartridge_model.update_namespace(cart_name, old_namespace, new_namespace)
-    end
-
     def connector_execute(cart_name, pub_cart_name, connector_type, connector, args)
       @cartridge_model.connector_execute(cart_name, pub_cart_name, connector_type, connector, args)
     end
@@ -387,6 +436,18 @@ module OpenShift
       @cartridge_model.restart_httpd_proxy(cart_name)
     end
 
+    #
+    # Handles the pre-receive portion of the Git push lifecycle.
+    #
+    # If a builder cartridge is present, the +pre-receive+ control action is invoked on
+    # the builder cartridge. If no builder is present, a user-initiated gear stop is
+    # invoked.
+    #
+    # options: hash
+    #   :out        : an IO to which any stdout should be written (default: nil)
+    #   :err        : an IO to which any stderr should be written (default: nil)
+    #   :hot_deploy : a boolean to toggle hot deploy for the operation (default: false)
+    #
     def pre_receive(options={})
       builder_cartridge = @cartridge_model.builder_cartridge
 
@@ -396,19 +457,29 @@ module OpenShift
                                     out: options[:out],
                                     err: options[:err])
       else
-        DefaultBuilder.new(self).pre_receive(out:        options[:out],
-                                             err:        options[:err],
-                                             hot_deploy: options[:hot_deploy])
-
-        @cartridge_model.do_control('pre-receive',
-                                    @cartridge_model.primary_cartridge,
-                                    out:                       options[:out],
-                                    err:                       options[:err],
-                                    pre_action_hooks_enabled:  false,
-                                    post_action_hooks_enabled: false)
+        stop_gear(user_initiated: true,
+                  hot_deploy:     options[:hot_deploy],
+                  out:            options[:out],
+                  err:            options[:err])
       end
     end
 
+    #
+    # Handles the post-receive portion of the Git push lifecycle.
+    #
+    # If a builder cartridge is present, the +post-receive+ control action is invoked on
+    # the builder cartridge. If no builder is present, the following sequence occurs:
+    #
+    #   1. Executes the primary cartridge +pre-repo-archive+ control action
+    #   2. Archives the application Git repository, redeploying the code
+    #   3. Executes +build+
+    #   4. Executes +deploy+
+    #
+    # options: hash
+    #   :out        : an IO to which any stdout should be written (default: nil)
+    #   :err        : an IO to which any stderr should be written (default: nil)
+    #   :hot_deploy : a boolean to toggle hot deploy for the operation (default: false)
+    #
     def post_receive(options={})
       builder_cartridge = @cartridge_model.builder_cartridge
 
@@ -418,37 +489,45 @@ module OpenShift
                                     out: options[:out],
                                     err: options[:err])
       else
-        DefaultBuilder.new(self).post_receive(out:        options[:out],
-                                              err:        options[:err],
-                                              hot_deploy: options[:hot_deploy])
+        @cartridge_model.do_control('pre-repo-archive',
+                                    @cartridge_model.primary_cartridge,
+                                    out:                       options[:out],
+                                    err:                       options[:err],
+                                    pre_action_hooks_enabled:  false,
+                                    post_action_hooks_enabled: false)
+
+        ApplicationRepository.new(@user).archive
+
+        build(options)
+
+        deploy(options)
       end
+
+      report_build_analytics
     end
 
+    #
+    # A deploy variant intended for use by builder cartridges. This method is useful when
+    # the build has already occured elsewhere, and the gear now needs a local deployment.
+    #
+    #   1. Runs the primary cartridge +update-configuration+ control action
+    #   2. Executes +deploy+
+    #   3. (optional) Executes the primary cartridge post-install steps
+    #
+    # options: hash
+    #   :out  : an IO to which any stdout should be written (default: nil)
+    #   :err  : an IO to which any stderr should be written (default: nil)
+    #   :init : boolean; if true, post-install steps will be executed (default: false)
+    # 
     def remote_deploy(options={})
-      @cartridge_model.do_control('process-version',
+      @cartridge_model.do_control('update-configuration',
                                   @cartridge_model.primary_cartridge,
                                   pre_action_hooks_enabled:  false,
                                   post_action_hooks_enabled: false,
                                   out:                       options[:out],
                                   err:                       options[:err])
 
-      start_gear(secondary_only: true,
-                 user_initiated: true,
-                 hot_deploy:     options[:hot_deploy],
-                 out:            options[:out],
-                 err:            options[:err])
-
-      deploy(out: options[:out],
-             err: options[:err])
-
-      start_gear(primary_only:   true,
-                 user_initiated: true,
-                 hot_deploy:     options[:hot_deploy],
-                 out:            options[:out],
-                 err:            options[:err])
-
-      post_deploy(out: options[:out],
-                  err: options[:err])
+      deploy(options)
 
       if options[:init]
         primary_cart_env_dir = File.join(@user.homedir, @cartridge_model.primary_cartridge.directory, 'env')
@@ -456,35 +535,32 @@ module OpenShift
         ident                = primary_cart_env.keys.grep(/^OPENSHIFT_.*_IDENT/)
         _, _, version, _     = Runtime::Manifest.parse_ident(primary_cart_env[ident.first])
 
-        @cartridge_model.post_setup(@cartridge_model.primary_cartridge,
-                                    version,
-                                    out: options[:out],
-                                    err: options[:err])
-
         @cartridge_model.post_install(@cartridge_model.primary_cartridge,
                                       version,
                                       out: options[:out],
                                       err: options[:err])
+
       end
     end
 
-    ##
+    #
     # Implements the following build process:
     #
     #   1. Set the application state to +BUILDING+
-    #   2. Run the cartridge +process-version+ control action
+    #   2. Run the cartridge +update-configuration+ control action
     #   3. Run the cartridge +pre-build+ control action
-    #   4. Run the +pre-build+ user action hook
+    #   4. Run the +pre_build+ user action hook
     #   5. Run the cartridge +build+ control action
     #   6. Run the +build+ user action hook
     #
     # Returns the combined output of all actions as a +String+.
+    #
     def build(options={})
       @state.value = OpenShift::State::BUILDING
 
       buffer = ''
 
-      buffer << @cartridge_model.do_control('process-version',
+      buffer << @cartridge_model.do_control('update-configuration',
                                             @cartridge_model.primary_cartridge,
                                             pre_action_hooks_enabled:  false,
                                             post_action_hooks_enabled: false,
@@ -508,50 +584,68 @@ module OpenShift
       buffer
     end
 
-    ##
+    #
     # Implements the following deploy process:
     #
-    #   1. Set the application state to +DEPLOYING+
-    #   2. Run the web proxy cartridge +deploy+ control action
-    #   3. Run the primary cartridge +deploy+ control action
-    #   4. Run the +deploy+ user action hook
+    #   1. Start secondary cartridges on the gear
+    #   2. Set the application state to +DEPLOYING+
+    #   3. Run the web proxy cartridge +deploy+ control action (if such a cartridge is present)
+    #   4. Run the primary cartridge +deploy+ control action
+    #   5. Run the +deploy+ user action hook
+    #   6. Start the primary cartridge on the gear
+    #   7. Run the primary cartridge +post-deploy+ control action
+    #
+    # options: hash
+    #   :out        : an IO to which any stdout should be written (default: nil)
+    #   :err        : an IO to which any stderr should be written (default: nil)
+    #   :hot_deploy : a boolean to toggle hot deploy for the operation (default: false)
     #
     # Returns the combined output of all actions as a +String+.
+    #
     def deploy(options={})
+      buffer = ''
+
+      buffer << start_gear(secondary_only: true,
+                           user_initiated: true,
+                           hot_deploy:     options[:hot_deploy],
+                           out:            options[:out],
+                           err:            options[:err])
+
       @state.value = OpenShift::State::DEPLOYING
 
       web_proxy_cart = @cartridge_model.web_proxy
       if web_proxy_cart
-        @cartridge_model.do_control('deploy',
-                                    web_proxy_cart,
-                                    pre_action_hooks_enabled: false,
-                                    prefix_action_hooks:      false,
-                                    out:                      options[:out],
-                                    err:                      options[:err])
+        buffer << @cartridge_model.do_control('deploy',
+                                              web_proxy_cart,
+                                              pre_action_hooks_enabled: false,
+                                              prefix_action_hooks:      false,
+                                              out:                      options[:out],
+                                              err:                      options[:err])
       end
 
-      @cartridge_model.do_control('deploy',
-                                  @cartridge_model.primary_cartridge,
-                                  pre_action_hooks_enabled: false,
-                                  prefix_action_hooks:      false,
-                                  out:                      options[:out],
-                                  err:                      options[:err])
+      buffer << @cartridge_model.do_control('deploy',
+                                            @cartridge_model.primary_cartridge,
+                                            pre_action_hooks_enabled: false,
+                                            prefix_action_hooks:      false,
+                                            out:                      options[:out],
+                                            err:                      options[:err])
 
+      buffer << start_gear(primary_only:   true,
+                           user_initiated: true,
+                           hot_deploy:     options[:hot_deploy],
+                           out:            options[:out],
+                           err:            options[:err])
+
+      buffer << @cartridge_model.do_control('post-deploy',
+                                            @cartridge_model.primary_cartridge,
+                                            pre_action_hooks_enabled: false,
+                                            prefix_action_hooks:      false,
+                                            out:                      options[:out],
+                                            err:                      options[:err])
+
+      buffer
     end
 
-    ##
-    # Implements the following post-deploy process:
-    #
-    #   1. Run the cartridge +post-deploy+ action
-    #   2. Run the +post-deploy+ user action hook
-    def post_deploy(options={})
-      @cartridge_model.do_control('post-deploy',
-                                  @cartridge_model.primary_cartridge,
-                                  pre_action_hooks_enabled: false,
-                                  prefix_action_hooks:      false,
-                                  out:                      options[:out],
-                                  err:                      options[:err])
-    end
 
     # === Cartridge control methods
 
@@ -582,7 +676,7 @@ module OpenShift
       if State::STARTED == state.value
         return @cartridge_model.do_control('reload', cart_name)
       else
-        return "Application or component not running. Cannot reload."
+        return @cartridge_model.do_control('force-reload', cart_name)
       end
     end
 
@@ -651,6 +745,7 @@ module OpenShift
                         uid: @user.uid,
                         gid: @user.gid,
                         err: $stderr,
+                        timeout: @hourglass.remaining,
                         expected_exitstatus: 0)
       end
     end
@@ -739,6 +834,7 @@ module OpenShift
                      out: $stdout,
                      chdir: @config.get('GEAR_BASE_DIR'),
                      uid: @user.uid,
+                     timeout: @hourglass.remaining,
                      expected_exitstatus: 0)
     end
 
@@ -836,7 +932,7 @@ module OpenShift
 
       tar_cmd = %Q{/bin/tar --strip=2 --overwrite -xmz #{includes} #{transforms} #{excludes} 1>&2}
 
-      Utils.oo_spawn(tar_cmd, 
+      Utils.oo_spawn(tar_cmd,
                      env: gear_env,
                      unsetenv_others: true,
                      out: $stdout,
@@ -844,6 +940,7 @@ module OpenShift
                      in: $stdin,
                      chdir: @user.homedir,
                      uid: @user.uid,
+                     timeout: @hourglass.remaining,
                      expected_exitstatus: 0)
 
       FileUtils.cd File.join(@user.homedir, 'app-root', 'runtime') do
@@ -864,12 +961,30 @@ module OpenShift
                         uid: @user.uid,
                         gid: @user.gid,
                         err: $stderr,
+                        timeout: @hourglass.remaining,
                         expected_exitstatus: 0)
       end
     end
 
     def status(cart_name)
-      @cartridge_model.do_control("status", cart_name)
+      buffer = ''
+      buffer << stopped_status_attr
+      quota_cmd = "/bin/sh #{File.join('/usr/libexec/openshift/lib', "quota_attrs.sh")} #{user.name}"
+      out,err,rc = shellCmd(quota_cmd)
+      raise "ERROR: Error fetching quota (#{rc}): #{quota_cmd.squeeze(" ")} stdout: #{out} stderr: #{err}" unless rc == 0
+      buffer << out
+      buffer << @cartridge_model.do_control("status", cart_name)
+      buffer
+    end
+
+    def stopped_status_attr
+      if state.value == State::STOPPED || stop_lock?
+        "ATTR: status=ALREADY_STOPPED\n"
+      elsif state.value == State::IDLE
+        "ATTR: status=ALREADY_IDLED\n"
+      else
+        ''
+      end
     end
 
     def threaddump(cart_name)
@@ -882,6 +997,43 @@ module OpenShift
 
     def stop_lock?
       @cartridge_model.stop_lock?
+    end
+
+    #
+    # Send a fire-and-forget request to the broker to report build analytics.
+    #
+    def report_build_analytics
+      broker_addr = @config.get('BROKER_HOST')
+      url         = "https://#{broker_addr}/broker/nurture"
+
+      payload = {
+        "json_data" => {
+          "app_uuid" => @application_uuid,
+          "action"   => "push"
+        }.to_json
+      }
+      
+      request = RestClient::Request.new(:method => :post, 
+                                        :url => url, 
+                                        :timeout => 30,
+                                        :open_timeout => 30,
+                                        :headers => { :user_agent => 'OpenShift' },
+                                        :payload => payload)
+
+      pid = fork do
+        Process.daemon
+        begin
+          Timeout::timeout(60) do
+            response = request.execute()
+          end
+        rescue
+          # ignore it
+        end
+
+        exit!
+      end
+
+      Process.detach(pid)
     end
 
     #
@@ -902,14 +1054,14 @@ module OpenShift
     #
     # Caveat: the quota information will not be populated.
     #
-    def self.all(logger=nil)
+    def self.all(hourglass=nil)
       Enumerator.new do |yielder|
         UnixUser.all.each do |u|
           a=nil
           begin
             a=ApplicationContainer.new(u.application_uuid, u.container_uuid, u.uid,
                                        u.app_name, u.container_name, u.namespace,
-                                       nil, nil, logger)
+                                       nil, nil, hourglass)
           rescue => e
             if logger
               logger.error("Failed to instantiate ApplicationContainer for #{u.application_uuid}: #{e}")

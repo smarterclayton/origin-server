@@ -104,11 +104,12 @@ module OpenShift
             # Only switch contexts if necessary
             if (current_context != target_context) || (Process.uid != options[:uid])
               target_name = Etc.getpwuid(options[:uid]).name
-              command     = %Q{/sbin/runuser -m -s /bin/sh #{target_name} -c "exec /usr/bin/runcon '#{target_context}' /bin/sh -c \\"#{command}\\""}
+              exec        = %Q{exec /usr/bin/runcon '#{target_context}' /bin/sh -c \\"#{command}\\"}
+              command     = %Q{/sbin/runuser -s /bin/sh #{target_name} -c "#{exec}"}
             end
           end
 
-          NodeLogger.trace_logger.debug { "oo_spawn running #{command}: #{opts}" }
+          NodeLogger.logger.trace { "oo_spawn running #{command}: #{opts}" }
           pid = Kernel.spawn(options[:env], command, opts)
 
           unless pid
@@ -133,7 +134,7 @@ module OpenShift
           rescue TimeoutExceeded => e
             ShellExec.kill_process_tree(pid)
             raise OpenShift::Utils::ShellExecutionException.new(
-                      "Shell command '#{command}'' exceeded timeout of #{e.seconds}", -1, out, err)
+                      "Shell command '#{command}' exceeded timeout of #{e.seconds}", -1, out, err)
           end
         end
       end
@@ -170,7 +171,7 @@ module OpenShift
                   partial = fd.readpartial(options[:buffer_size])
                   buffer << partial
 
-                  NodeLogger.trace_logger.debug { "oo_spawn buffer(#{fd.fileno}/#{fd.pid}) #{partial}" }
+                  NodeLogger.logger.trace { "oo_spawn buffer(#{fd.fileno}/#{fd.pid}) #{partial}" }
                 rescue Errno::EAGAIN, Errno::EINTR
                 rescue EOFError
                   readers.delete(fd)

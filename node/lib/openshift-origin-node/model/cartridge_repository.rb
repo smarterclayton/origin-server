@@ -71,6 +71,8 @@ require 'uri'
 require 'rubygems/package'
 require 'openssl'
 
+$OpenShift_CartridgeRepository_SEMAPHORE = Mutex.new
+
 module OpenShift
 
   # Singleton to provide management of cartridges installed on the system
@@ -87,7 +89,6 @@ module OpenShift
     attr_reader :path
 
     def initialize # :nodoc:
-      @semaphore = Mutex.new
       @path      = CARTRIDGE_REPO_DIR
 
       FileUtils.mkpath(@path) unless File.exist? @path
@@ -112,7 +113,7 @@ module OpenShift
     #
     #   CartridgeRepository.instance.load("/var/lib/openshift/.cartridge_repository")  #=> 24
     def load(directory = nil)
-      @semaphore.synchronize do
+      $OpenShift_CartridgeRepository_SEMAPHORE.synchronize do
         load_via_url = directory.nil?
         find_manifests(directory || @path) do |manifest_path|
           logger.debug { "Loading cartridge from #{manifest_path}" }
@@ -150,7 +151,7 @@ module OpenShift
     #   CartridgeRepository.instance['php', '3.5']                #=> Cartridge
     #   CartridgeRepository.instance['php']                       #=> Cartridge
                     #
-    def select(cartridge_name, version = nil, cartridge_version = nil)
+    def select(cartridge_name, version = '_', cartridge_version = '_')
       unless exist?(cartridge_name, cartridge_version, version)
         raise KeyError.new("key not found: (#{cartridge_name}, #{version}, #{cartridge_version})")
       end
@@ -175,7 +176,7 @@ module OpenShift
       raise ArgumentError.new("Cartridge manifest.yml missing: '#{manifest_path}'") unless File.file?(manifest_path)
 
       entry = nil
-      @semaphore.synchronize do
+      $OpenShift_CartridgeRepository_SEMAPHORE.synchronize do
         entry = insert(OpenShift::Runtime::Manifest.new(manifest_path, nil, @path))
 
         FileUtils.rm_r(entry.repository_path) if File.exist?(entry.repository_path)
@@ -199,7 +200,7 @@ module OpenShift
       end
 
       entry = nil
-      @semaphore.synchronize do
+      $OpenShift_CartridgeRepository_SEMAPHORE.synchronize do
         # find a "template" entry
         entry = select(cartridge_name, version, cartridge_version)
 
@@ -243,7 +244,7 @@ module OpenShift
 
       # wildcards: cartridges and cartridge versions
       glob = PathUtils.join(directory, '*', '*', 'metadata', 'manifest.yml')
-      Dir[glob].each { |e| yield e }
+      Dir[glob].sort.each { |e| yield e }
     end
 
     # :call-seq:
@@ -268,8 +269,8 @@ module OpenShift
     def insert(cartridge) # :nodoc:
       cartridge.versions.each do |version|
         @index[cartridge.name][version][cartridge.cartridge_version] = cartridge
-        @index[cartridge.name][version][nil]                         = cartridge
-        @index[cartridge.name][nil][nil]                             = cartridge
+        @index[cartridge.name][version]['_']                         = cartridge
+        @index[cartridge.name]['_']['_']                             = cartridge
       end
       cartridge
     end
@@ -315,6 +316,20 @@ module OpenShift
     end
 
     # :call-seq:
+    #   CartridgeRepository.overlay_cartridge(cartridge, path) -> nil
+    #
+    # Overlay new code over existing cartridge in a gear;
+    #   If the cartridge manifest_path is :url then source_url is used to obtain cartridge source
+    #   Otherwise the cartridge source is copied from the cartridge_repository
+    #
+    #   source_hash is used to ensure the download was successful.
+    #
+    #   CartridgeRepository.overlay_cartridge(perl_cartridge, '/var/lib/.../mock') => nil
+    def self.overlay_cartridge(cartridge, target)
+      instantiate_cartridge(cartridge, target, false)
+    end
+
+    # :call-seq:
     #   CartridgeRepository.instantiate_cartridge(cartridge, path) -> nil
     #
     # Instantiate a cartridge in a gear;
@@ -324,7 +339,7 @@ module OpenShift
     #   source_hash is used to ensure the download was successful.
     #
     #   CartridgeRepository.instantiate_cartridge(perl_cartridge, '/var/lib/.../mock') => nil
-    def self.instantiate_cartridge(cartridge, target)
+    def self.instantiate_cartridge(cartridge, target, failure_remove = true)
       FileUtils.mkpath target
 
       if :url == cartridge.manifest_path
@@ -371,20 +386,23 @@ module OpenShift
             filesystem_copy(entries, target, %w(. ..))
 
           else
-            raise ArgumentError.new("Unsupported URL(#{cartridge.source_url}) for downloading a private cartridge")
+            raise ArgumentError.new("CLIENT_ERROR: Unsupported URL(#{cartridge.source_url}) for downloading a private cartridge")
         end
       else
         entries = Dir.glob(PathUtils.join(cartridge.repository_path, '*'), File::FNM_DOTMATCH)
         filesystem_copy(entries, target, %w(. .. usr))
 
-        usr_path = File.join(cartridge.repository_path, 'usr')
-        FileUtils.symlink(usr_path, File.join(target, 'usr')) if File.exist? usr_path
+        source_usr = File.join(cartridge.repository_path, 'usr')
+        target_usr = File.join(target, 'usr')
+
+        FileUtils.rm(target_usr) if File.symlink?(target_usr)
+        FileUtils.symlink(source_usr, target_usr) if File.exist?(source_usr) && !File.exist?(target_usr)
       end
 
       valid_cartridge_home(cartridge, target)
-    rescue
-      FileUtils.rm_rf target
-      raise
+    rescue => e
+      FileUtils.rm_rf target if failure_remove
+      raise e
     end
 
     private
@@ -403,7 +421,7 @@ module OpenShift
               total   += output.write partial
 
               if content_length && content_length < total
-                raise Net::HTTPBadResponse.new("Download of '#{uri}' exceeded Content-Length of #{content_length}. Download aborted.")
+                raise Net::HTTPBadResponse.new("CLIENT_ERROR: Download of '#{uri}' exceeded Content-Length of #{content_length}. Download aborted.")
               end
             end
           rescue EOFError
@@ -414,13 +432,13 @@ module OpenShift
 
       if content_length && content_length != File.size(temporary)
         raise Net::HTTPBadResponse.new(
-                  "Download of '#{uri}' failed, expected Content-Length of #{content_length} received #{File.size(temporary)}")
+                  "CLIENT_ERROR: Download of '#{uri}' failed, expected Content-Length of #{content_length} received #{File.size(temporary)}")
       end
 
       if md5
         digest = Digest::MD5.file(temporary).hexdigest
         if digest != md5
-          raise IOError.new("Failed to download cartridge, checksum failed: #{md5} expected, #{digest} actual")
+          raise IOError.new("CLIENT_ERROR: Failed to download cartridge, checksum failed: #{md5} expected, #{digest} actual")
         end
       end
     end
@@ -430,7 +448,7 @@ module OpenShift
         black_list.include? File.basename(e)
       end
 
-      raise ArgumentError.new('No cartridge sources found to install.') if entries.empty?
+      raise ArgumentError.new('CLIENT_ERROR: No cartridge sources found to install.') if entries.empty?
 
       Utils.oo_spawn("/bin/cp -ad #{entries.join(' ')} #{target}",
                      expected_exitstatus: 0)
@@ -474,7 +492,7 @@ module OpenShift
           [File, :directory?, %w(metadata)],
           [File, :directory?, %w(bin)],
           [File, :file?, %w(metadata manifest.yml)],
-          # [File, :executable?, %w(bin control)],
+          #[File, :executable?, %w(bin control)],
       ].each do |clazz, method, target|
         relative = PathUtils.join(target)
         absolute = PathUtils.join(path, relative)
@@ -484,9 +502,14 @@ module OpenShift
         end
       end
 
+      control_script = PathUtils.join(path, 'bin', 'control')
+      if File.exists?(control_script) && !File.executable?(control_script)
+        errors << 'bin/control is not executable'
+      end
+
       unless errors.empty?
         raise MalformedCartridgeError.new(
-                  "Malformed cartridge (#{cartridge.name}, #{cartridge.version}, #{cartridge.cartridge_version})",
+                  "CLIENT_ERROR: Malformed cartridge (#{cartridge.name}, #{cartridge.version}, #{cartridge.cartridge_version})",
                   errors
               )
       end

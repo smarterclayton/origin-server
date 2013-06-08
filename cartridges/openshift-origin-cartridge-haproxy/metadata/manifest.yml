@@ -46,7 +46,7 @@ Endpoints:
     Mappings:
       - Frontend:      ""
         Backend:       ""
-        Options:       { websockets: true }
+        Options:       { target_update: true, connections: -1 }
       - Frontend:      "/health"
         Backend:       "configuration/health"
         Options:       { file: true }
@@ -59,4 +59,3 @@ Endpoints:
       - Frontend:      "/health"
         Backend:       ""
         Options:       { health: true }
-Install-Build-Required: false

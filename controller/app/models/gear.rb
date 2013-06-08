@@ -15,6 +15,7 @@ class Gear
   field :uuid, type: String, default: ""
   field :uid, type: Integer
   field :name, type: String, default: ""
+  field :quarantined, type: Boolean, default: false
   field :host_singletons, type: Boolean, default: false
   field :app_dns, type: Boolean, default: false
 
@@ -105,7 +106,7 @@ class Gear
   end
   
   def status(component_instance)
-    @container.status(self, component_instance.cartridge_name)
+    @container.status(self, component_instance)
   end
   
   # Installs the specified component on the gear.
@@ -119,7 +120,7 @@ class Gear
   #   success = 0
   # @raise [OpenShift::NodeException] on failure
   def add_component(component, init_git_url=nil)
-    result_io = get_proxy.configure_cartridge(self, component.cartridge_name, init_git_url)
+    result_io = get_proxy.configure_cartridge(self, component, init_git_url)
     component.process_properties(result_io)
     app.process_commands(result_io, component._id)
     raise OpenShift::NodeException.new("Unable to add component #{component.cartridge_name}::#{component.component_name}", result_io.exitcode, result_io) if result_io.exitcode != 0
@@ -137,7 +138,7 @@ class Gear
   #   success = 0
   # @raise [OpenShift::NodeException] on failure
   def post_configure_component(component, init_git_url=nil)
-    result_io = get_proxy.post_configure_cartridge(self, component.cartridge_name, init_git_url)
+    result_io = get_proxy.post_configure_cartridge(self, component, init_git_url)
     component.process_properties(result_io)
     app.process_commands(result_io, component._id)
     raise OpenShift::NodeException.new("Unable to post-configure component #{component.cartridge_name}::#{component.component_name}", result_io.exitcode, result_io) if result_io.exitcode != 0
@@ -155,7 +156,7 @@ class Gear
   #   success = 0
   # @raise [OpenShift::NodeException] on failure
   def remove_component(component)
-    result_io = get_proxy.deconfigure_cartridge(self, component.cartridge_name)
+    result_io = get_proxy.deconfigure_cartridge(self, component)
     app.process_commands(result_io)
     result_io
   end
@@ -255,25 +256,6 @@ class Gear
     RemoteJob.add_parallel_job(remote_job_handle, "addtl-fs-gb", self, get_proxy.get_update_gear_quota_job(self, total_fs_gb, ""))
   end
 
-  def update_namespace(args)
-    old_ns = args["old_namespace"]
-    new_ns = args["new_namespace"]
-    cart = args["cartridge"]
-
-    dns = OpenShift::DnsService.instance
-    begin
-      dns.deregister_application(self.name, old_ns)
-      dns.register_application(self.name, new_ns, public_hostname)
-      dns.publish
-    ensure
-      dns.close
-    end  
-
-    result = ResultIO.new
-    result.append get_proxy.update_namespace(self, cart, new_ns, old_ns)
-    self.app.process_commands(result)
-  end
-  
   def server_identities
     identities = self.group_instance.gears.map{|gear| gear.server_identity}
     identities.uniq!

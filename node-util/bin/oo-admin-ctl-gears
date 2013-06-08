@@ -20,6 +20,7 @@ require 'openshift-origin-node/utils/node_logger'
 require 'openshift-origin-node/utils/application_state'
 require 'openshift-origin-node/model/application_container'
 require 'openshift-origin-node/model/frontend_httpd'
+require 'openshift-origin-common/utils/file_needs_sync'
 
 module OpenShift
   class AdminGearsControl
@@ -38,9 +39,9 @@ module OpenShift
       @gear_timeout = @@DEFAULT_GEAR_TIMEOUT
 
       if container_uuids.nil?
-        NodeLogger.logger.debug("Setting for all gears with #{@nslots} parallel")
+        NodeLogger.logger.debug("AdminGearsControl: initialized for all gears with #{@nslots} parallel")
       else
-        NodeLogger.logger.debug("Setting for gear(s) #{container_uuids.join(" ")}")
+        NodeLogger.logger.debug("AdminGearsControl: initialized for gear(s) #{container_uuids.join(' ')}")
       end
 
       @readers_mutex = Mutex.new
@@ -106,13 +107,7 @@ module OpenShift
     def idle
       p_runner(false) do |gear|
         output_pass_fail("Idling", gear) do
-          if not gear.stop_lock? and (gear.state.value != State::STOPPED) # TODO: "== started" instead?
-            frontend = FrontendHttpServer.new(gear.uuid)
-            frontend.idle
-            out = gear.stop_gear
-            gear.state.value = State::IDLE
-            out
-          end
+          gear.idle_gear
         end
       end
     end
@@ -120,15 +115,7 @@ module OpenShift
     def unidle
       p_runner(false) do |gear|
         output_pass_fail("Unidling", gear) do
-          out = ""
-          if gear.stop_lock? and (gear.state.value == State::IDLE)
-            out = gear.start_gear
-          end
-          frontend = FrontendHttpServer.new(gear.uuid)
-          if frontend.idle?
-            frontend.unidle
-          end
-          out
+          gear.unidle_gear
         end
       end
     end
@@ -217,19 +204,19 @@ module OpenShift
     # Private: Respond with pass/fail status depending on whether an exception was raised.
     def output_pass_fail(message, gear)
       rc = 0
-      @timeout_handlers << lambda { $stderr.puts "Timeout #{message} #{gear}...  [ #{@RED}FAILED#{@NORM} ]" }
+      @timeout_handlers << lambda { $stderr.puts "Timeout #{message} gear #{gear}...  [ #{@RED}FAILED#{@NORM} ]" }
       begin
-        $stdout.write("#{message} #{gear.uuid}... ")
+        $stdout.write("#{message} gear #{gear.uuid}... ")
         if block_given?
           output = yield
         end
-        NodeLogger.logger.info("#{message} #{gear.uuid}... [ OK ]")
+        NodeLogger.logger.info("#{message} gear #{gear.uuid}... [ OK ]")
         $stdout.write("[ #{@GREEN}OK#{@NORM} ]\n")
       rescue => e
         NodeLogger.logger.debug("Gear: #{gear.uuid} Exception #{e.inspect}")
         NodeLogger.logger.debug("Gear: #{gear.uuid} Backtrace #{e.backtrace}")
-        NodeLogger.logger.error("#{message} #{gear.uuid}: [ FAIL ]")
-        NodeLogger.logger.error("#{message} #{gear.uuid}: Error: #{e}")
+        NodeLogger.logger.error("#{message} gear #{gear.uuid}: [ FAIL ]")
+        NodeLogger.logger.error("#{message} gear #{gear.uuid}: Error: #{e}")
         $stdout.write("[ #{@RED}FAILED#{@NORM} ]\n")
         e.to_s.lines.each do |el|
           $stdout.write("      #{el}\n")
@@ -273,7 +260,7 @@ module OpenShift
               next if [$stdin, $stdout, $stderr, writer].map { |f| f.fileno }.include?(i.fileno)
               i.close
             end
-            NodeLogger.logger_rebuild
+            NodeLogger.logger.reinitialize
 
             # Signal USR1 causes us to report a timeout error and detach
             @timeout_handlers = []
@@ -408,7 +395,6 @@ end
 
 
 $lockfile = "/var/lock/subsys/openshift-gears"
-$gearsfile = "/var/log/openshift-gears-async-start.log"
 
 def lock_if_good
   if block_given?
@@ -441,7 +427,6 @@ begin
     cpid = fork do
       Dir.chdir('/')
       $stdin.reopen('/dev/null', 'r')
-      $stdout.reopen($gearsfile, 'w')
       $stderr.reopen($stdout)            
       ObjectSpace.each_object(IO) do |i|
         next if i.closed?
@@ -449,16 +434,15 @@ begin
         i.close
       end
       Process.setsid
-      OpenShift::NodeLogger.logger_rebuild
+      OpenShift::NodeLogger.logger.reinitialize
       exitval = lock_if_good do
         OpenShift::AdminGearsControl.new.start
       end
       exit(exitval)
     end
     OpenShift::NodeLogger.logger.info("Background start initiated - process id = #{cpid}")
-    OpenShift::NodeLogger.logger.info("Check #{$gearsfile} for more details.")
     $stdout.puts "Background start initiated - process id = #{cpid}"
-    $stdout.puts "Check #{$gearsfile} for more details."
+    $stdout.puts "Check /var/log/openshift/node/platform.log for more details."
     $stdout.puts
     $stdout.puts "Note: In the future, if you wish to start the OpenShift services in the"
     $stdout.puts "      foreground (waited), use:  service openshift-gears waited-start"

@@ -39,21 +39,6 @@ class CartridgeCache
     end
   end
   
-  def self.find_cartridge_by_component(component_name, app=nil)
-    if app
-      app.downloaded_cartridges.values.each do |cart|
-        return cart if cart.has_component?(component_name)
-        return cart if cart.name == component_name
-      end
-    end
-    carts = self.cartridges
-    carts.each do |cart|
-      return cart if cart.has_component?(component_name)
-      return cart if cart.name == component_name
-    end
-    return nil
-  end
-  
   def self.find_cartridge_by_category(cat, app=nil)
     global_carts = CacheHelper.get_cached("cartridges_by_cat_#{cat}", :expires_in => 1.day) {cartridges.select{|cart| cart.categories.include?(cat) }}
     if app
@@ -78,22 +63,10 @@ class CartridgeCache
       return cart if cart.name == requested_feature
     end if app
     
-    carts = self.cartridges
-    vendor, feature, version = self.extract_vendor_feature_version(requested_feature)
-    matching_carts = []
-    
-    carts.each do |cart|
-      #v1 cartridges
-      return cart if cart.name == requested_feature
-      #v2 cartridges
-      matching_carts << cart if (cart.features.include?(feature) and 
-                                (vendor.nil? or cart.cartridge_vendor == vendor) and 
-                                (version.nil? or cart.version.to_s == version.to_s or (cart.versions and cart.versions.include?(version))))
-    end
+    matching_carts = CacheHelper.get_cached("carts_by_feature_#{requested_feature}", :expires_in => 1.day) { self.find_all_cartridges(requested_feature) }
     
     return nil if matching_carts.empty?
     
-    #return if only one match
     return matching_carts[0] if matching_carts.length == 1
     
     #if any is by redhat return that one
@@ -109,15 +82,63 @@ class CartridgeCache
     raise OpenShift::UserException.new("More that one cartridge was found matching #{requested_feature}.  Please select one of #{choices.to_s}")
     
   end
+  
+  def self.find_all_cartridges(requested_feature)
+    
+    carts = self.cartridges
+
+    with_vendor_hash = {}
+    without_vendor_hash = {}
+    carts.each { |c|
+      without_vendor_hash[c.original_name] = [] if !without_vendor_hash[c.original_name]
+      without_vendor_hash[c.original_name] = (without_vendor_hash[c.original_name] << c)
+      next if c.cartridge_vendor.to_s.empty?
+      vcartname = (c.cartridge_vendor + "-" + c.original_name)
+      with_vendor_hash[vcartname] = [] if !with_vendor_hash[vcartname]
+      with_vendor_hash[vcartname] = (with_vendor_hash[vcartname] << c)
+    }
+
+    return with_vendor_hash[requested_feature] if with_vendor_hash[requested_feature]
+    return without_vendor_hash[requested_feature] if without_vendor_hash[requested_feature]
+
+    matching_carts = []
+    
+    carts.each do |cart|
+      matching_carts << cart if cart.features.include?(requested_feature) 
+    end
+    
+    return matching_carts
+  end
+
 
   def self.download_from_url(url)
     max_dl_time = (Rails.application.config.downloaded_cartridges[:max_download_time] rescue 10) || 10
     max_file_size = (Rails.application.config.downloaded_cartridges[:max_cart_size] rescue 20480) || 20480
     max_redirs = (Rails.application.config.downloaded_cartridges[:max_download_redirects] rescue 2) || 2
+    rate_limit = (Rails.application.config.downloaded_cartridges[:max_download_rate] rescue "100k") || "100k" 
     manifest = ""
+    
     uri_obj = URI.parse(url)
     if uri_obj.kind_of? URI::HTTP or uri_obj.kind_of? URI::FTP
-      manifest = `curl --max-time #{max_dl_time} --connect-timeout 2 --location --max-redirs #{max_redirs} --max-filesize #{max_file_size} -k #{url}`
+      rout,wout = IO.pipe
+      rerr,werr = IO.pipe
+      pid = Process.spawn("curl", "-H", "X-OpenShift-Cartridge-Download:1", "--max-time", max_dl_time.to_s, "--limit-rate", rate_limit.to_s, "--connect-timeout", "2", "--location", "--max-redirs", max_redirs.to_s, "--max-filesize", max_file_size.to_s, "-k", url, :out => wout, :err => werr)
+      begin
+        Timeout::timeout(max_dl_time) {
+          p,status = Process.waitpid2(pid)
+          wout.close
+          werr.close
+          if status.exitstatus==0
+            manifest = rout.read
+          end
+          rout.close
+          rerr.close
+        }
+      rescue Timeout::Error
+        Process.kill('SIGKILL', pid)
+      end
+
+      # manifest = `curl --max-time #{max_dl_time} --limit-rate #{rate_limit} --connect-timeout 2 --location --max-redirs #{max_redirs} --max-filesize #{max_file_size} -k #{url}`
     end
     manifest
   end
@@ -131,15 +152,16 @@ class CartridgeCache
       v1_manifest            = Marshal.load(Marshal.dump(cooked.manifest))
       v1_manifest['Name']    = "#{cooked.name}-#{cooked.version}"
       v1_manifest['Version'] = cooked.version
-      yield v1_manifest,cooked.name,version
+      vendored_name =  v1_manifest["Cartridge-Vendor"].to_s.empty? ? v1_manifest["Name"] : "#{cooked.cartridge_vendor}-#{cooked.name}-#{cooked.version}"
+      yield v1_manifest,cooked.name,version,vendored_name
     end
   end
 
   def self.validate_yaml(url, str)
     raise OpenShift::UserException.new("Invalid cartridge, error downloading from url '#{url}' ", 109)  if str.nil? or str.length==0
-    raise OpenShift::UserException.new("Invalid manifest file from url '#{url}' - no structural directives allowed.") if str.include?("---")
+    # raise OpenShift::UserException.new("Invalid manifest file from url '#{url}' - no structural directives allowed.") if str.include?("---")
     begin
-      chash = YAML.load(str) #, options: {:safe => true})
+      chash = OpenShift::Runtime::Manifest.manifest_from_yaml(str) 
     rescue Exception=>e
       raise OpenShift::UserException.new("Invalid manifest file from url '#{url}'")
     end
@@ -152,9 +174,19 @@ class CartridgeCache
     urls.each do |url|
        manifest_str = download_from_url(url)
        chash = validate_yaml(url, manifest_str)
+       
+       # check if Cartridge-Vendor is reserved
+       manifest = OpenShift::Runtime::Manifest.new(manifest_str)
+       begin
+         manifest.check_reserved_vendor_name
+       rescue OpenShift::InvalidElementError => iee
+         # cloaking it as a UserException until Manifest starts raising subclasses of OOException 
+         raise OpenShift::UserException.new(iee.message, 109)
+       end
+       
        # TODO: check versions and create multiple of them
-       self.foreach_cart_version(manifest_str) do |chash,name,version|
-         cmap[name] = { "versioned_name" => chash["Name"], "url" => url, "original_manifest" => manifest_str, "version" => version}
+       self.foreach_cart_version(manifest_str) do |chash,name,version,vendored_name|
+         cmap[name] = { "versioned_name" => vendored_name, "url" => url, "original_manifest" => manifest_str, "version" => version}
          # no versioning support on downloaded cartridges yet.. use the default one
          break
        end
@@ -162,21 +194,4 @@ class CartridgeCache
     return cmap
   end
   
-  def self.extract_vendor_feature_version(requested_feature)
-    vendor, feature, version = nil
-    return vendor, feature, version if requested_feature.nil?
-    a = requested_feature.split("-")
-    if a.length == 1 
-      feature = a[0]
-    elsif a.length == 2 
-      feature = a[0]
-      version = a[1]
-    elsif a.length >= 3
-      vendor = a[0]
-      version = a[a.length - 1] 
-      feature = a[1..(a.length - 2)].join("-")
-    end
-    return vendor, feature, version
-  end
-
 end

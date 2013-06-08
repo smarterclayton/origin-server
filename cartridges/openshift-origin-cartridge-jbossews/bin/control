@@ -57,7 +57,7 @@ function ishttpup() {
 function start_app() {
     # Check for running app
     if isrunning; then
-        echo "Application is already running" 1>&2
+        echo "The jbossews cartridge is already running" 1>&2
     else
         # Start
         export CATALINA_HOME=$OPENSHIFT_JBOSSEWS_DIR
@@ -77,8 +77,7 @@ function start_app() {
 
 function stop_app() {
     if ! isrunning; then
-        jbpid=$(cat $JBOSS_PID_FILE);
-        echo "Application($jbpid) is already stopped" 1>&2
+        echo "The jbossews cartridge is already stopped" 1>&2
     elif [ -f "$JBOSS_PID_FILE" ]; then
         pid=$(cat $JBOSS_PID_FILE);
         echo "Sending SIGTERM to jboss:$pid ..." 1>&2
@@ -90,7 +89,7 @@ function stop_app() {
 
 function threaddump() {
     if ! isrunning; then
-        echo "Application is stopped"
+        echo "The jbossews cartridge is stopped"
         exit 1
     elif [ -f "$JBOSS_PID_FILE" ]; then
         pid=$(cat $JBOSS_PID_FILE);
@@ -113,7 +112,7 @@ function tidy() {
 }
 
 # Reconstruct JAVA_HOME and PATH based on the current version/marker selection
-function process_version {
+function update_configuration {
     export_java_home
     reinstall_path
 }
@@ -142,13 +141,13 @@ case "$1" in
     ;;
     status)
         if ! isrunning; then
-            echo "The application is either stopped or inaccessible"
+            client_result "The application is either stopped or inaccessible"
             exit 0
         fi
 
-        echo tailing "$OPENSHIFT_JBOSSEWS_DIR/logs/catalina.out"
-        echo "------ Tail of JBoss catalina.out ------"
-        tail "$OPENSHIFT_JBOSSEWS_DIR/logs/catalina.out"
+        client_result tailing "$OPENSHIFT_JBOSSEWS_DIR/logs/catalina.out"
+        client_result "------ Tail of JBoss catalina.out ------"
+        client_result $(tail "$OPENSHIFT_JBOSSEWS_DIR/logs/catalina.out")
         exit 0
     ;;
     build)
@@ -159,8 +158,8 @@ case "$1" in
         ${OPENSHIFT_JBOSSEWS_DIR}/bin/deploy
         exit 0
     ;;
-    process-version)
-        process_version
+    update-configuration)
+        update_configuration
         exit 0
     ;;
 esac

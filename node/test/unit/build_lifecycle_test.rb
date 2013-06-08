@@ -25,7 +25,7 @@ module OpenShift
   ;
 end
 
-class BuildLifecycleTest < Test::Unit::TestCase
+class BuildLifecycleTest < OpenShift::NodeTestCase
 
   def setup
     # Set up the config
@@ -52,7 +52,7 @@ class BuildLifecycleTest < Test::Unit::TestCase
     OpenShift::Utils::ApplicationState.stubs(:new).returns(@state)
 
     @container = OpenShift::ApplicationContainer.new(@gear_uuid, @gear_uuid, @user_uid,
-        @app_name, @gear_uuid, @namespace, nil, nil, nil)
+        @app_name, @gear_uuid, @namespace, nil, nil)
 
     @frontend = mock('OpenShift::FrontendHttpServer')
     OpenShift::FrontendHttpServer.stubs(:new).returns(@frontend)
@@ -61,34 +61,33 @@ class BuildLifecycleTest < Test::Unit::TestCase
   def test_pre_receive_default_builder
     @cartridge_model.expects(:builder_cartridge).returns(nil)
     
-    primary = mock()
-    @cartridge_model.expects(:primary_cartridge).returns(primary)
-
     @container.expects(:stop_gear).with(user_initiated: true, hot_deploy: nil, out: $stdout, err: $stderr)
-    @cartridge_model.expects(:do_control).with('pre-receive',
-                                               primary,
-                                               out:                       $stdout,
-                                               err:                       $stderr,
-                                               pre_action_hooks_enabled:  false,
-                                               post_action_hooks_enabled: false)
 
     @container.pre_receive(out: $stdout, err: $stderr)
   end
 
   def test_post_receive_default_builder
     repository = mock()
+
     OpenShift::ApplicationRepository.expects(:new).returns(repository)
 
     @cartridge_model.expects(:builder_cartridge).returns(nil)
 
-    repository.expects(:deploy)
-    @container.expects(:build).with(out: $stdout, err: $stderr)
-    @container.expects(:start_gear).with(secondary_only: true, user_initiated: true, hot_deploy: nil, out: $stdout, err: $stderr)
-    @container.expects(:deploy).with(out: $stdout, err: $stderr)
-    @container.expects(:start_gear).with(primary_only: true, user_initiated: true, hot_deploy: nil, out: $stdout, err: $stderr)
-    @container.expects(:post_deploy).with(out: $stdout, err: $stderr)
+    primary = mock()
+    @cartridge_model.stubs(:primary_cartridge).returns(primary)
 
-    @frontend.expects(:unprivileged_unidle)
+    @cartridge_model.expects(:do_control).with('pre-repo-archive',
+                                                primary,
+                                                out:                       $stdout,
+                                                err:                       $stderr,
+                                                pre_action_hooks_enabled:  false,
+                                                post_action_hooks_enabled: false)
+
+    repository.expects(:archive)
+
+    @container.expects(:build).with(out: $stdout, err: $stderr)
+    @container.expects(:deploy).with(out: $stdout, err: $stderr)
+    @container.expects(:report_build_analytics)
 
     @container.post_receive(out: $stdout, err: $stderr)
   end
@@ -108,6 +107,8 @@ class BuildLifecycleTest < Test::Unit::TestCase
 
     @cartridge_model.expects(:do_control).with('post-receive', builder, out: $stdout, err: $stderr)
 
+    @container.expects(:report_build_analytics)
+
     @container.post_receive(out: $stdout, err: $stderr)
   end
 
@@ -117,13 +118,13 @@ class BuildLifecycleTest < Test::Unit::TestCase
     primary = mock()
     @cartridge_model.expects(:primary_cartridge).returns(primary).times(3)
 
-    @cartridge_model.expects(:do_control).with('process-version',
+    @cartridge_model.expects(:do_control).with('update-configuration',
                                                primary,
                                                pre_action_hooks_enabled:  false,
                                                post_action_hooks_enabled: false,
                                                out:                       $stdout,
                                                err:                       $stderr)
-                                          .returns('process-version|')
+                                          .returns('update-configuration|')
 
     @cartridge_model.expects(:do_control).with('pre-build',
                                                primary,
@@ -143,15 +144,17 @@ class BuildLifecycleTest < Test::Unit::TestCase
 
     output = @container.build(out: $stdout, err: $stderr)
 
-    assert_equal "process-version|pre-build|build", output
+    assert_equal "update-configuration|pre-build|build", output
   end
 
   def test_deploy_no_web_proxy_success
     @state.expects(:value=).with(OpenShift::State::DEPLOYING)
 
     primary = mock()
-    @cartridge_model.expects(:primary_cartridge).returns(primary)
-    @cartridge_model.expects(:web_proxy).returns(nil)
+    @cartridge_model.stubs(:primary_cartridge).returns(primary)
+    @cartridge_model.stubs(:web_proxy).returns(nil)
+
+    @container.expects(:start_gear).with(secondary_only: true, user_initiated: true, hot_deploy: nil, out: $stdout, err: $stderr).returns('start_gear|')
 
     @cartridge_model.expects(:do_control).with('deploy',
                                                primary,
@@ -159,45 +162,9 @@ class BuildLifecycleTest < Test::Unit::TestCase
                                                prefix_action_hooks:      false,
                                                out:                      $stdout,
                                                err:                      $stderr)
-                                           .returns('deploy')
+                                           .returns('deploy|')
 
-    output = @container.deploy(out: $stdout, err: $stderr)
-
-    assert_equal "deploy", output
-  end
-
-  def test_deploy_web_proxy_success
-    @state.expects(:value=).with(OpenShift::State::DEPLOYING)
-
-    primary = mock()
-    @cartridge_model.expects(:primary_cartridge).returns(primary)
-    proxy = mock()
-    @cartridge_model.expects(:web_proxy).returns(proxy)
-
-    @cartridge_model.expects(:do_control).with('deploy',
-                                               proxy,
-                                               pre_action_hooks_enabled: false,
-                                               prefix_action_hooks:      false,
-                                               out:                      $stdout,
-                                               err:                      $stderr)
-                                           .returns('deploy')
-
-    @cartridge_model.expects(:do_control).with('deploy',
-                                               primary,
-                                               pre_action_hooks_enabled: false,
-                                               prefix_action_hooks:      false,
-                                               out:                      $stdout,
-                                               err:                      $stderr)
-                                           .returns('deploy')
-
-    output = @container.deploy(out: $stdout, err: $stderr)
-
-    assert_equal "deploy", output
-  end
-
-  def test_post_deploy_success
-    primary = mock()
-    @cartridge_model.expects(:primary_cartridge).returns(primary)
+    @container.expects(:start_gear).with(primary_only: true, user_initiated: true, hot_deploy: nil, out: $stdout, err: $stderr).returns('start_gear|')
 
     @cartridge_model.expects(:do_control).with('post-deploy',
                                                primary,
@@ -207,16 +174,58 @@ class BuildLifecycleTest < Test::Unit::TestCase
                                                err:                      $stderr)
                                            .returns('post-deploy')
 
-    output = @container.post_deploy(out: $stdout, err: $stderr)
+    output = @container.deploy(out: $stdout, err: $stderr)
 
-    assert_equal "post-deploy", output
+    assert_equal "start_gear|deploy|start_gear|post-deploy", output
   end
+
+  def test_deploy_web_proxy_success
+    @state.expects(:value=).with(OpenShift::State::DEPLOYING)
+
+    primary = mock()
+    @cartridge_model.stubs(:primary_cartridge).returns(primary)
+    proxy = mock()
+    @cartridge_model.stubs(:web_proxy).returns(proxy)
+
+    @container.expects(:start_gear).with(secondary_only: true, user_initiated: true, hot_deploy: nil, out: $stdout, err: $stderr).returns("start_gear|")
+
+    @cartridge_model.expects(:do_control).with('deploy',
+                                               proxy,
+                                               pre_action_hooks_enabled: false,
+                                               prefix_action_hooks:      false,
+                                               out:                      $stdout,
+                                               err:                      $stderr)
+                                           .returns('deploy|')
+
+    @cartridge_model.expects(:do_control).with('deploy',
+                                               primary,
+                                               pre_action_hooks_enabled: false,
+                                               prefix_action_hooks:      false,
+                                               out:                      $stdout,
+                                               err:                      $stderr)
+                                           .returns('deploy|')
+
+    @container.expects(:start_gear).with(primary_only: true, user_initiated: true, hot_deploy: nil, out: $stdout, err: $stderr).returns("start_gear|")
+
+    @cartridge_model.expects(:do_control).with('post-deploy',
+                                               primary,
+                                               pre_action_hooks_enabled: false,
+                                               prefix_action_hooks:      false,
+                                               out:                      $stdout,
+                                               err:                      $stderr)
+                                           .returns('post-deploy')
+
+    output = @container.deploy(out: $stdout, err: $stderr)
+
+    assert_equal "start_gear|deploy|deploy|start_gear|post-deploy", output
+  end
+
 
   def test_remote_deploy_success
     primary = mock()
     @cartridge_model.expects(:primary_cartridge).returns(primary)
     
-    @cartridge_model.expects(:do_control).with('process-version',
+    @cartridge_model.expects(:do_control).with('update-configuration',
                                                primary,
                                                pre_action_hooks_enabled:  false,
                                                post_action_hooks_enabled: false,
@@ -224,10 +233,7 @@ class BuildLifecycleTest < Test::Unit::TestCase
                                                err:                       $stderr)
                                           .returns('')
 
-    @container.expects(:start_gear).with(secondary_only: true, user_initiated: true, hot_deploy: nil, out: $stdout, err: $stderr)
     @container.expects(:deploy).with(out: $stdout, err: $stderr)
-    @container.expects(:start_gear).with(primary_only: true, user_initiated: true, hot_deploy: nil, out: $stdout, err: $stderr)
-    @container.expects(:post_deploy).with(out: $stdout, err: $stderr)
 
     @container.remote_deploy(out: $stdout, err: $stderr)
   end

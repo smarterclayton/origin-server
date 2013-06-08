@@ -46,10 +46,10 @@ class ApplicationsController < BaseController
   #
   # @return [RestReply<RestApplication>] Application object
   def create
-    app_name = params[:name].downcase if params[:name]
+    app_name = params[:name].downcase if params[:name].presence
     features = []
     downloaded_cart_urls = []
-    cart_params = [(params[:cartridges] || params[:cartridge])].flatten
+    cart_params = [(params[:cartridges].presence || params[:cartridge].presence)].flatten
     cart_params.each do |c| 
       if c.is_a?(Hash) 
         if c[:name]
@@ -61,8 +61,12 @@ class ApplicationsController < BaseController
         features << c
       end  
     end 
-    init_git_url = params[:initial_git_url]
-    default_gear_size = params[:gear_profile]
+    init_git_url = params[:initial_git_url].presence
+    
+    return render_error(:unprocessable_entity, "Invalid initial git URL",
+                        216, "initial_git_url") if (not init_git_url.blank?) and (not init_git_url =~ /^#{URI::regexp}$/)
+                        
+    default_gear_size = params[:gear_profile].presence
     default_gear_size.downcase! if default_gear_size
 
     return render_error(:unprocessable_entity, "Application name is required and cannot be blank",
@@ -89,9 +93,9 @@ class ApplicationsController < BaseController
                             109, "cartridge") if download_cartridges_enabled ? (downloaded_cart_urls.empty? and features.empty?) : features.empty?
 
     begin
-      app_creation_result = ResultIO.new
+      result = ResultIO.new
       scalable = get_bool(params[:scale])
-      application = Application.create_app(app_name, features, @domain, default_gear_size, scalable, app_creation_result, [], init_git_url, request.headers['User-Agent'], downloaded_cart_urls)
+      application = Application.create_app(app_name, features, @domain, default_gear_size, scalable, result, [], init_git_url, request.headers['User-Agent'], downloaded_cart_urls)
 
       @application_name = application.name
       @application_uuid = application.uuid
@@ -107,36 +111,28 @@ class ApplicationsController < BaseController
     end
     application.user_agent= request.headers['User-Agent']
     
-    current_ip = application.group_instances.first.gears.first.get_public_ip_address rescue nil
     include_cartridges = (params[:include] == "cartridges")
     
     app = get_rest_application(application, include_cartridges)
-    reply = new_rest_reply(:created, "application", app)
-  
-    messages = []
-    log_msg = "Application #{application.name} was created."
-    messages.push(Message.new(:info, log_msg))
-    messages.push(Message.new(:info, "#{current_ip}", 0, "current_ip")) unless !current_ip or current_ip.empty?
-
-    messages.push(Message.new(:info, app_creation_result.resultIO.string, 0, :result)) if app_creation_result
-    render_success(:created, "application", app, log_msg, nil, nil, messages)
+    render_success(:created, "application", app, "Application #{application.name} was created.", result)
   end
   
   ##
-  # Create a new application
+  # Delete an application
   # 
   # URL: /domains/:domain_id/applications/:id
   #
   # Action: DELETE
   def destroy
-    id = params[:id].downcase if params[:id] 
+    id = params[:id].downcase if params[:id].presence
     begin
-      @application.destroy_app
+      result = @application.destroy_app
     rescue OpenShift::LockUnavailableException => e
       return render_error(:service_unavailable, "Application is currently busy performing another operation. Please try again in a minute.", e.code)
     end
-    
-    render_success(:no_content, nil, nil, "Application #{id} is deleted.", true) 
+
+    status = requested_api_version <= 1.4 ? :no_content : :ok
+    return render_success(status, nil, nil, "Application #{id} is deleted.", result) 
   end
   
   def set_log_tag

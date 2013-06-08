@@ -22,10 +22,10 @@ Cart-Data:
   - Key: OPENSHIFT_REPO_DIR
     Type: environment
     Description: "Application root directory where application files reside. This directory is reset every time you do a git-push"
-  - Key: OPENSHIFT_INTERNAL_PORT
+  - Key: OPENSHIFT_JENKINS_PORT
     Type: environment
     Description: "Internal port to which the web-framework binds to."
-  - Key: OPENSHIFT_INTERNAL_IP
+  - Key: OPENSHIFT_JENKINS_IP
     Type: environment
     Description: "Internal IP to which the web-framework binds to."
   - Key: OPENSHIFT_APP_DNS
@@ -52,12 +52,6 @@ Cart-Data:
   - Key: JENKINS_PASSWORD
     Type: environment
     Description: "Admin user's password for jenkins server"
-  - Key: "username"
-    Type: cart_data
-    Description: "Admin user on jenkins server"
-  - Key: "password"
-    Type: cart_data
-    Description: "Admin user's password on jenkins server"
 Provides:
   - jenkins-1.4
   - "jenkins"
@@ -74,4 +68,6 @@ Endpoints:
       - Frontend:      "/health"
         Backend:       ""
         Options:       { health: true }
-Install-Build-Required: false
+Scaling:
+  Min: 1
+  Max: 1

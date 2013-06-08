@@ -1,5 +1,6 @@
 #!/bin/bash
 
+source $OPENSHIFT_CARTRIDGE_SDK_BASH
 cartridge_type="python-$OPENSHIFT_PYTHON_VERSION"
 
 #  Source in the utility functions.
@@ -35,7 +36,6 @@ function _start_service() {
    echo "$pid" > "$pycart_dir/run/appserver.pid"
 
    sleep 5
-   tail "$pycart_dir/logs/appserver.log"
 
    #BZ 908673
    #popd > /dev/null
@@ -78,12 +78,12 @@ function _restart_service() {
 
 
 function status() {
-   if output=$(wget -q http://$OPENSHIFT_PYTHON_IP:$OPENSHIFT_PYTHON_PORT/)
+   if output=$(curl http://$OPENSHIFT_PYTHON_IP:$OPENSHIFT_PYTHON_PORT/ &> /dev/null)
    then
-      echo "Application is running"
-      echo $output
+      client_result "Application is running"
+      client_result $output
    else
-      echo "Application is either stopped or inaccessible"
+      client_result "Application is either stopped or inaccessible"
    fi
 }
 

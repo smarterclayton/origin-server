@@ -46,8 +46,6 @@ end
 #   @return [String] Stores the URL to the GIT url specified during application creation
 # @!attribute [r] analytics
 #   @return [Hash] Location to store analytics data relevant to the application
-# @!attribute [r] connections
-#   @return [Array<ConnectionInstance>] Array of connections between components of this application
 # @!attribute [r] component_instances
 #   @return [Array<ComponentInstance>] Array of components in this application
 # @!attribute [r] group_instances
@@ -92,7 +90,6 @@ class Application
   field :scalable, type: Boolean, default: false
   field :init_git_url, type: String, default: ""
   field :analytics, type: Hash, default: {}
-  embeds_many :connections, class_name: ConnectionInstance.name
   embeds_many :component_instances, class_name: ComponentInstance.name
   embeds_many :group_instances, class_name: GroupInstance.name
   embeds_many :app_ssh_keys, class_name: ApplicationSshKey.name
@@ -102,9 +99,10 @@ class Application
   index({'domain_id' => 1})
   create_indexes
 
-  # non-presisted field used to store user agent of current request
+  # non-persisted field used to store user agent of current request
   attr_accessor :user_agent
   attr_accessor :downloaded_cartridges
+  attr_accessor :connections
 
   validates :name,
     presence: {message: "Application name is required and cannot be blank."},
@@ -153,15 +151,15 @@ class Application
     app.analytics['user_agent'] = user_agent
     app.save
     features << "web_proxy" if scalable
-    app.downloaded_cartridges.each { |cname,c| features << c.name }
     if app.valid?
       begin
+        app.downloaded_cartridges.each { |cname,c| features << c.name }
         framework_carts = CartridgeCache.cartridge_names("web_framework", app)
         framework_cartridges = []
         features.each do |feature|
           cart = CartridgeCache.find_cartridge(feature, app)
           if cart
-            framework_cartridges.push(cart.name) unless not framework_carts.include?(cart.name)
+            framework_cartridges.push(cart.name) if cart.is_web_framework?
           else
             raise OpenShift::UserException.new("Invalid cartridge '#{feature}' specified.", 109, "cartridge")
           end
@@ -188,6 +186,17 @@ class Application
     end
     app
   end
+  
+  def quarantined
+    group_instances.each do |gi| 
+      gi.gears.each do |gear|
+        if gear.quarantined
+          return true
+        end
+      end
+    end
+    false
+  end
 
   def downloaded_cartridges
     cmap = self.downloaded_cart_map
@@ -199,7 +208,7 @@ class Application
       @downloaded_cartridges = {}
       cmap.each { |cartname, cartdata|
         manifest_str = cartdata["original_manifest"]
-        CartridgeCache.foreach_cart_version(manifest_str, cartdata["version"]) do |chash,name,version|
+        CartridgeCache.foreach_cart_version(manifest_str, cartdata["version"]) do |chash,name,version,vendored_name|
           cart = OpenShift::Cartridge.new.from_descriptor(chash)
           if @downloaded_cartridges.has_key?(cart.name) 
             Rails.logger.error("Duplicate community cartridge exists for application '#{self.name}'! Overwriting..")
@@ -256,39 +265,6 @@ class Application
   def name=(app_name)
     self.canonical_name = app_name.downcase
     super
-  end
-
-  ##
-  # Updates all Application and {Gear} DNS entries to reflect the new namespace. This function is the first step of the update namespace workflow.
-  # @param old_namespace [String] The old namespace of the [Domain] of this application. This field is used for rollback if namespace update fails
-  # @param new_namespace [String] The new namespace of the [Domain] of this application
-  # @param parent_op [PendingDomainOps] The pending domain operation that this update is part of
-  # @return [ResultIO] Output from cartridges during update namespace operation
-  def update_namespace(old_namespace, new_namespace, parent_op=nil)
-    Application.run_in_application_lock(self) do
-      result_io = ResultIO.new
-      op_group = PendingAppOpGroup.new(op_type: :update_namespace, args: {"old_namespace" => old_namespace, "new_namespace" => new_namespace}, parent_op: parent_op, user_agent: self.user_agent)
-      self.pending_op_groups.push op_group
-      self.run_jobs(result_io)
-      result_io
-    end
-  end
-
-  ##
-  # Updates all {ComponentInstance}s porperties to reflect the new namespace. This function is the second step of the update namespace workflow.
-  # @param old_namespace [String] The old namespace of the [Domain] of this application. This field is used for rollback if namespace update fails
-  # @param new_namespace [String] The new namespace of the [Domain] of this application
-  # @param parent_op [PendingDomainOps] The pending domain operation that this update is part of
-  # @return [ResultIO] Output from cartridges during update namespace operation
-  def complete_update_namespace(old_namespace, new_namespace, parent_op=nil)
-    Application.run_in_application_lock(self) do
-      result_io = ResultIO.new
-      op_group = PendingAppOpGroup.new(op_type: :complete_update_namespace, args: {"old_namespace" => old_namespace, "new_namespace" => new_namespace}, parent_op: parent_op, user_agent: self.user_agent)
-      self.pending_op_groups.push op_group
-      self.run_jobs(result_io)
-      self.save
-      result_io
-    end
   end
 
   ##
@@ -413,7 +389,7 @@ class Application
   # @param include_pending [Boolean] Include the pending changes when calculating the list of features
   # @return [Array<String>] List of features
   def requires(include_pending=false)
-    features = component_instances.map {|ci| get_feature(ci.cartridge_name, ci.component_name)}
+    features = component_instances.map {|ci| ci.cartridge_name} #get_feature(ci.cartridge_name, ci.component_name)}
 
     if include_pending
       self.pending_op_groups.each do |op_group|
@@ -437,6 +413,8 @@ class Application
   # @return [ResultIO] Output from cartridges
   # @raise [OpenShift::UserException] Exception raised if there is any reason the feature/cartridge cannot be added into the Application
   def add_features(features, group_overrides=[], init_git_url=nil)
+    ssl_endpoint = Rails.application.config.openshift[:ssl_endpoint]
+
     features.each do |feature_name|
       cart = CartridgeCache.find_cartridge(feature_name, self)
 
@@ -450,6 +428,19 @@ class Application
           if ci.is_web_framework?
             raise OpenShift::UserException.new("You can only have one framework cartridge in your application '#{name}'.", 109)
           end
+        end
+      end
+
+      if cart.is_web_framework? and defined?(cart.endpoints) and cart.endpoints.respond_to?(:each)
+        cart_req_ssl_endpoint = false
+        cart.endpoints.each do |endpoint|
+          if endpoint.options and endpoint.options["ssl_to_gear"]
+            cart_req_ssl_endpoint = true
+          end
+        end
+        if (((ssl_endpoint == "deny") and cart_req_ssl_endpoint ) or
+            ((ssl_endpoint == "force") and not cart_req_ssl_endpoint))
+          raise OpenShift::UserException.new("Invalid cartridge '#{feature_name}' conflicts with platform SSL_ENDPOINT setting.", 109, "cartridge")
         end
       end
 
@@ -484,7 +475,7 @@ class Application
       if cart.is_domain_scoped?
         begin
           if Application.where(domain_id: self.domain._id, "component_instances.cartridge_name" => cart.name).count() > 0
-            raise  .new("An application with #{feature_name} already exists within the domain. You can only have a single application with #{feature_name} within a domain.")
+            raise OpenShift::UserException.new("An application with #{feature_name} already exists within the domain. You can only have a single application with #{feature_name} within a domain.")
           end
         rescue Mongoid::Errors::DocumentNotFound
           #ignore
@@ -511,12 +502,19 @@ class Application
   # @param features [Array<String>] List of features to remove from the application. Each feature will be resolved to the cartridge which provides it
   # @param group_overrides [Array] List of group overrides
   # @param force [Boolean] Set to true when deleting an application. It allows removal of web_proxy and ignores missing features
+  # @param remove_all_features [Boolean] Set to true when deleting an application. 
+  #        It allows recomputing the list of features within the application after acquiring the lock. 
+  #        If set to true, this ignores the features argument 
   # @return [ResultIO] Output from cartridges
   # @raise [OpenShift::UserException] Exception raised if there is any reason the feature/cartridge cannot be removed from the Application
-  def remove_features(features, group_overrides=[], force=false)
+  def remove_features(features, group_overrides=[], force=false, remove_all_features=false)
     installed_features = self.requires
-    
     result_io = ResultIO.new
+
+    # FIXME: remove_all_features argument is ignored here
+    # For now, it is only used to check if we are removing a jenkins server application
+    # If the jenkins server app is still being created, jenkins clients cannot exist.
+    # But if this loop is modified to perform other checks/actions, we'll have to consider the remove_all_features flag
     features.each do |feature|
       cart = CartridgeCache.find_cartridge(feature, self)
       raise OpenShift::UserException.new("Invalid feature: #{feature}", 109) unless cart
@@ -527,6 +525,8 @@ class Application
         raise OpenShift::UserException.new("'#{feature}' is not a feature of '#{self.name}'", 135) unless installed_features.include? feature
       end
       
+      # FIXME: Instead of relying on individual cartridge categories to determine if any dependent features 
+      # need to be removed in other applications, we need to make it more generic by using the domain_scope category
       if cart.is_ci_server?
         self.domain.applications.each do |uapp|
           next if self.name == uapp.name
@@ -543,7 +543,7 @@ class Application
       end
     end
     Application.run_in_application_lock(self) do
-      self.pending_op_groups.push PendingAppOpGroup.new(op_type: :remove_features, args: {"features" => features, "group_overrides" => group_overrides}, user_agent: self.user_agent)
+      self.pending_op_groups.push PendingAppOpGroup.new(op_type: :remove_features, args: {"features" => features, "group_overrides" => group_overrides, "remove_all_features" => remove_all_features}, user_agent: self.user_agent)
       self.run_jobs(result_io)
     end
 
@@ -571,7 +571,8 @@ class Application
         end
       }
     }
-    self.remove_features(self.requires, [], true)
+    # specifying the remove_all_features flag as true to ensure removal of all features
+    self.remove_features(self.requires, [], true, true)
     Application.run_in_application_lock(self) do
       self.pending_op_groups.push PendingAppOpGroup.new(op_type: :delete_app, user_agent: self.user_agent)
       result_io = ResultIO.new
@@ -789,7 +790,7 @@ class Application
     result_io = ResultIO.new
     component_instances.each do |component_instance|
       GroupInstance.run_on_gears(component_instance.group_instance.gears, result_io, false) do |gear, r|
-        r.append gear.threaddump(component_instance.cartridge_name)
+        r.append gear.threaddump(component_instance)
         threaddump_available = true
       end if component_instance.get_additional_control_actions and component_instance.get_additional_control_actions.include? "threaddump"
     end
@@ -881,7 +882,7 @@ class Application
     # Since DNS is case insensitive, all names are downcased for
     # indexing/compares.
     server_alias = fqdn.downcase if fqdn
-    if !(server_alias =~ /\A[0-9a-zA-Z\-\.]+\z/) or
+    if !(server_alias =~ /\A[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)+\z/) or
         (server_alias =~ /#{Rails.configuration.openshift[:domain_suffix]}$/) or
         (server_alias.length > 255 ) or
         (server_alias.length == 0 ) or
@@ -960,19 +961,18 @@ class Application
     connections.each do |conn_info|
       from_comp_inst = self.component_instances.find_by(cartridge_name: conn_info["from_comp_inst"]["cart"], component_name: conn_info["from_comp_inst"]["comp"])
       to_comp_inst = self.component_instances.find_by(cartridge_name: conn_info["to_comp_inst"]["cart"], component_name: conn_info["to_comp_inst"]["comp"])
-      conns.push(ConnectionInstance.new(
-        from_comp_inst_id: from_comp_inst._id, to_comp_inst_id: to_comp_inst._id,
-        from_connector_name: conn_info["from_connector_name"], to_connector_name: conn_info["to_connector_name"],
-        connection_type: conn_info["connection_type"]))
+      conns.push(ConnectionInstance.new(from_comp_inst._id, to_comp_inst._id, 
+            conn_info["from_connector_name"], conn_info["to_connector_name"], conn_info["connection_type"]))
     end
     self.connections = conns
   end
 
-  def get_unsubscribe_info(comp_inst, old_connections)
+  def get_unsubscribe_info(comp_inst)
+    old_features = self.requires + [comp_inst.cartridge_name] #[get_feature(comp_inst.cartridge_name, comp_inst.component_name)]
+    old_connections, ignore, ignore = elaborate(old_features)
     sub_pub_hash = {}
     if self.scalable and old_connections
-      old_conn_hash = old_connections.map{|conn| conn.to_hash}
-      old_conn_hash.each do |old_conn|
+      old_connections.each do |old_conn|
         if (old_conn["from_comp_inst"]["cart"] == comp_inst.cartridge_name) and
            (old_conn["from_comp_inst"]["comp"] == comp_inst.component_name)
           to_cart_comp = old_conn["to_comp_inst"]["cart"] + old_conn["to_comp_inst"]["comp"]
@@ -1002,7 +1002,7 @@ class Application
         sub_ginst.gears.each_index do |idx|
           break if (sub_inst.is_singleton? && idx > 0)
           gear = sub_ginst.gears[idx]
-          job = gear.get_unsubscribe_job(sub_inst.cartridge_name, pub_cart_name)
+          job = gear.get_unsubscribe_job(sub_inst, pub_cart_name)
           RemoteJob.add_parallel_job(handle, tag, gear, job)
         end
       end
@@ -1018,6 +1018,9 @@ class Application
 
   def execute_connections
     if self.scalable
+      connections, new_group_instances, cleaned_group_overrides = elaborate(self.requires, self.group_overrides)
+      set_connections(connections)
+
       Rails.logger.debug "Running publishers"
       handle = RemoteJob.create_parallel_job
       #publishers
@@ -1031,14 +1034,14 @@ class Application
           break if (pub_inst.is_singleton? && idx > 0)
           gear = pub_ginst.gears[idx]
           input_args = [gear.name, self.domain.namespace, gear.uuid]
-          job = gear.get_execute_connector_job(pub_inst.cartridge_name, conn.from_connector_name, conn.connection_type, input_args)
+          job = gear.get_execute_connector_job(pub_inst, conn.from_connector_name, conn.connection_type, input_args)
           RemoteJob.add_parallel_job(handle, tag, gear, job)
         end
       end
       pub_out = {}
       RemoteJob.execute_parallel_jobs(handle)
       RemoteJob.get_parallel_run_results(handle) do |tag, gear_id, output, status|
-        conn_type = self.connections.find_by(:_id => tag).connection_type
+        conn_type = self.connections.find { |c| c._id.to_s == tag}.connection_type
         if status==0
           if conn_type.start_with?("ENV:")
             pub_out[tag] = {} if pub_out[tag].nil?
@@ -1071,7 +1074,7 @@ class Application
             gear = sub_ginst.gears[idx]
   
             input_args = [gear.name, self.domain.namespace, gear.uuid, input_to_subscriber]
-            job = gear.get_execute_connector_job(sub_inst.cartridge_name, conn.to_connector_name, conn.connection_type, input_args, pub_inst.cartridge_name)
+            job = gear.get_execute_connector_job(sub_inst, conn.to_connector_name, conn.connection_type, input_args, pub_inst.cartridge_name)
             RemoteJob.add_parallel_job(handle, tag, gear, job)
           end
         end
@@ -1112,21 +1115,21 @@ class Application
       when "BROKER_KEY_ADD"
         iv, token = OpenShift::Auth::BrokerKey.new.generate_broker_key(self)
         pending_op = PendingAppOpGroup.new(op_type: :add_broker_auth_key, args: { "iv" => iv, "token" => token }, user_agent: self.user_agent)
-        Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: pending_op.serializable_hash } })
+        Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: pending_op.serializable_hash_with_timestamp } })
       when "BROKER_KEY_REMOVE"
         pending_op = PendingAppOpGroup.new(op_type: :remove_broker_auth_key, args: { }, user_agent: self.user_agent)
-        Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: pending_op.serializable_hash } })
+        Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: pending_op.serializable_hash_with_timestamp } })
       end
     end
 
     if add_ssh_keys.length > 0
       keys_attrs = get_updated_ssh_keys(nil, add_ssh_keys)
       pending_op = PendingAppOpGroup.new(op_type: :update_configuration, args: {"add_keys_attrs" => keys_attrs}, user_agent: self.user_agent)
-      Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: pending_op.serializable_hash }, "$pushAll" => { app_ssh_keys: keys_attrs }})
+      Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: pending_op.serializable_hash_with_timestamp }, "$pushAll" => { app_ssh_keys: keys_attrs }})
     end
     if remove_env_vars.length > 0
       pending_op = PendingAppOpGroup.new(op_type: :update_configuration, args: {"remove_env_vars" => remove_env_vars})
-      Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: pending_op.serializable_hash }})
+      Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: pending_op.serializable_hash_with_timestamp }})
     end
 
     # Have to remember to run_jobs for the other apps involved at some point
@@ -1151,12 +1154,6 @@ class Application
         op_group.pending_ops
         if op_group.pending_ops.count == 0
           case op_group.op_type
-          when :update_namespace
-            ops = calculate_namespace_ops(op_group.args)
-            op_group.pending_ops.push(*ops)
-          when :complete_update_namespace
-            ops = calculate_complete_update_ns_ops(op_group.args)
-            op_group.pending_ops.push(*ops)
           when :update_configuration
             ops = calculate_update_existing_configuration_ops(op_group.args)
             op_group.pending_ops.push(*ops)
@@ -1168,7 +1165,8 @@ class Application
             try_reserve_gears(add_gear_count, rm_gear_count, op_group, ops)
           when :remove_features
             #need rollback
-            features = self.requires - op_group.args["features"]
+            features = []
+            features = self.requires - op_group.args["features"] unless op_group.args["remove_all_features"]
             group_overrides = (self.group_overrides || []) + (op_group.args["group_overrides"] || [])
             ops, add_gear_count, rm_gear_count = update_requirements(features, group_overrides)
             try_reserve_gears(add_gear_count, rm_gear_count, op_group, ops)
@@ -1268,6 +1266,7 @@ class Application
       #rollback
       begin
         op_group.execute_rollback(result_io)
+        op_group.delete
       rescue Exception => e_rollback
         Rails.logger.error "Error during rollback"
         Rails.logger.error e_rollback.message
@@ -1275,7 +1274,6 @@ class Application
       ensure
         num_gears_recovered = op_group.num_gears_added - op_group.num_gears_created + op_group.num_gears_rolled_back + op_group.num_gears_destroyed
         unreserve_gears(num_gears_recovered)
-        op_group.delete
       end
       raise e_orig
     end
@@ -1311,40 +1309,6 @@ class Application
     ops = calculate_gear_destroy_ops(group_instance._id.to_s, [gear_id], group_instance.addtl_fs_gb)
     all_ops_ids = ops.map{ |op| op._id.to_s }
     ops.push PendingAppOp.new(op_type: :execute_connections, prereq: all_ops_ids)
-    ops
-  end
-
-  def calculate_complete_update_ns_ops(args, prereqs={})
-    ops = []
-    last_op = nil
-    last_op_id = nil
-    old_ns = args["old_namespace"]
-    new_ns = args["new_namespace"]
-    self.group_instances.each do |group_instance|
-      args["group_instance_id"] = group_instance._id.to_s
-      group_instance.all_component_instances.each do |component_instance|
-        args["comp_spec"] = {"comp" => component_instance.component_name, "cart" => component_instance.cartridge_name}
-        last_op_id = last_op._id.to_s if last_op
-        last_op = PendingAppOp.new(op_type: :complete_update_namespace, args: args.dup, prereq: [last_op_id])
-        ops.push last_op
-      end
-    end
-    last_op_id = last_op._id.to_s if last_op
-    ops.push PendingAppOp.new(op_type: :execute_connections, prereq: [last_op_id])
-    # self.domain.namespace = new_ns
-    ops
-  end
-
-  def calculate_namespace_ops(args, prereqs={})
-    ops = []
-    self.group_instances.each do |group_instance|
-      args["group_instance_id"] = group_instance._id.to_s
-      args["cartridge"] = "abstract"
-      group_instance.gears.each do |gear|
-        args["gear_id"] = gear._id.to_s
-        ops.push(PendingAppOp.new(op_type: :update_namespace, args: args.dup, prereq: prereqs))
-      end
-    end
     ops
   end
 
@@ -1423,7 +1387,7 @@ class Application
     calculate_ops(changes)
   end
 
-  def calculate_remove_group_instance_ops(comp_specs, group_instance, connections)
+  def calculate_remove_group_instance_ops(comp_specs, group_instance)
     pending_ops = []
     gear_destroy_ops = calculate_gear_destroy_ops(group_instance._id.to_s, group_instance.gears.map{|g| g._id.to_s}, group_instance.addtl_fs_gb)
     pending_ops.push(*gear_destroy_ops)
@@ -1438,13 +1402,13 @@ class Application
       if remove_ssh_keys.length > 0
         keys_attrs = remove_ssh_keys.map{|k| k.attributes.dup}
         pending_op = PendingAppOpGroup.new(op_type: :update_configuration, args: {"remove_keys_attrs" => keys_attrs}, user_agent: self.user_agent)
-        Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: pending_op.serializable_hash }, "$pullAll" => { app_ssh_keys: keys_attrs }})
+        Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: pending_op.serializable_hash_with_timestamp }, "$pullAll" => { app_ssh_keys: keys_attrs }})
       end
       domain.remove_system_ssh_keys(comp_instance._id)
       domain.remove_env_variables(comp_instance._id)
       op = PendingAppOp.new(op_type: :del_component, args: {"group_instance_id"=> group_instance._id.to_s, "comp_spec" => comp_spec}, prereq: gear_destroy_op_ids)
       delete_comp_ops.push op
-      unsubscribe_conn_ops.push(PendingAppOp.new(op_type: :unsubscribe_connections, args: {"sub_pub_info" => get_unsubscribe_info(comp_instance, self.connections)}, prereq: [op._id.to_s]))
+      unsubscribe_conn_ops.push(PendingAppOp.new(op_type: :unsubscribe_connections, args: {"sub_pub_info" => get_unsubscribe_info(comp_instance)}, prereq: [op._id.to_s]))
     end
     pending_ops.push(*delete_comp_ops)
     pending_ops.push(*unsubscribe_conn_ops)
@@ -1552,7 +1516,7 @@ class Application
 
       new_component_op_id = []
       unless is_scale_up
-        new_component_op = PendingAppOp.new(op_type: :new_component, args: {"group_instance_id"=> group_instance_id, "comp_spec" => comp_spec}, prereq: [new_group_instance_op_id])
+        new_component_op = PendingAppOp.new(op_type: :new_component, args: {"group_instance_id"=> group_instance_id, "comp_spec" => comp_spec, "cartridge_vendor" => cartridge.cartridge_vendor, "version" => cartridge.version}, prereq: [new_group_instance_op_id])
         component_ops[comp_spec][:new_component] = new_component_op
         new_component_op_id = [new_component_op._id.to_s]
         ops.push new_component_op
@@ -1561,14 +1525,16 @@ class Application
       if is_singleton
         if gear_id_prereqs.keys.include?(singleton_gear_id)
           prereq_id = gear_id_prereqs[singleton_gear_id]
-          add_component_op = PendingAppOp.new(op_type: :add_component, args: {"group_instance_id"=> group_instance_id, "gear_id" => singleton_gear_id, "comp_spec" => comp_spec, "init_git_url"=>init_git_url}, prereq: new_component_op_id + [prereq_id])
+          git_url = nil
+          git_url = init_git_url if cartridge.is_deployable?
+          add_component_op = PendingAppOp.new(op_type: :add_component, args: {"group_instance_id"=> group_instance_id, "gear_id" => singleton_gear_id, "comp_spec" => comp_spec, "init_git_url" => git_url}, prereq: new_component_op_id + [prereq_id])
           ops.push add_component_op
           component_ops[comp_spec][:adds].push add_component_op
           usage_op_prereq = [add_component_op._id.to_s]
 
           # if its a singleton, then it cannot be a scaleup, 
-          # hence no need to check whether its a primary cart and scaleup 
-          post_configure_op = PendingAppOp.new(op_type: :post_configure_component, args: {"group_instance_id"=> group_instance_id, "gear_id" => singleton_gear_id, "comp_spec" => comp_spec, "init_git_url"=>init_git_url}, prereq: [add_component_op._id.to_s] + [prereq_id])
+          # hence no need to check whether its a deployable cart and scaleup case 
+          post_configure_op = PendingAppOp.new(op_type: :post_configure_component, args: {"group_instance_id"=> group_instance_id, "gear_id" => singleton_gear_id, "comp_spec" => comp_spec, "init_git_url" => git_url}, prereq: [add_component_op._id.to_s] + [prereq_id])
           ops.push post_configure_op 
           component_ops[comp_spec][:post_configures].push post_configure_op
           usage_op_prereq = [post_configure_op._id.to_s]
@@ -1580,14 +1546,14 @@ class Application
       else
         gear_id_prereqs.each do |gear_id, prereq_id|
           git_url = nil
-          git_url = init_git_url if gear_id == singleton_gear_id
-          add_component_op = PendingAppOp.new(op_type: :add_component, args: {"group_instance_id"=> group_instance_id, "gear_id" => gear_id, "comp_spec" => comp_spec, "init_git_url"=>git_url}, prereq: new_component_op_id + [prereq_id])
+          git_url = init_git_url if gear_id == singleton_gear_id && cartridge.is_deployable?
+          add_component_op = PendingAppOp.new(op_type: :add_component, args: {"group_instance_id"=> group_instance_id, "gear_id" => gear_id, "comp_spec" => comp_spec, "init_git_url" => git_url}, prereq: new_component_op_id + [prereq_id])
           ops.push add_component_op
           component_ops[comp_spec][:adds].push add_component_op
           usage_op_prereq = [add_component_op._id.to_s]
 
-          unless is_scale_up and cartridge.is_primary_cart?
-            post_configure_op = PendingAppOp.new(op_type: :post_configure_component, args: {"group_instance_id"=> group_instance_id, "gear_id" => gear_id, "comp_spec" => comp_spec, "init_git_url"=>init_git_url}, prereq: [add_component_op._id.to_s] + [prereq_id])
+          unless is_scale_up and cartridge.is_deployable?
+            post_configure_op = PendingAppOp.new(op_type: :post_configure_component, args: {"group_instance_id"=> group_instance_id, "gear_id" => gear_id, "comp_spec" => comp_spec, "init_git_url" => git_url}, prereq: [add_component_op._id.to_s] + [prereq_id])
             ops.push post_configure_op 
             component_ops[comp_spec][:post_configures].push post_configure_op
             usage_op_prereq = [post_configure_op._id.to_s]
@@ -1672,7 +1638,7 @@ class Application
     comp_op_type
   end
 
-  def calculate_remove_component_ops(comp_specs, group_instance, singleton_gear, connections)
+  def calculate_remove_component_ops(comp_specs, group_instance, singleton_gear)
     ops = []
     comp_specs.each do |comp_spec|
       component_instance = self.component_instances.find_by(cartridge_name: comp_spec["cart"], component_name: comp_spec["comp"])
@@ -1699,13 +1665,13 @@ class Application
       if remove_ssh_keys.length > 0
         keys_attrs = remove_ssh_keys.map{|k| k.attributes.dup}
         pending_op = PendingAppOpGroup.new(op_type: :update_configuration, args: {"remove_keys_attrs" => keys_attrs}, user_agent: self.user_agent)
-        Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: pending_op.serializable_hash }, "$pullAll" => { app_ssh_keys: keys_attrs }})
+        Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: pending_op.serializable_hash_with_timestamp }, "$pullAll" => { app_ssh_keys: keys_attrs }})
       end
       domain.remove_system_ssh_keys(component_instance._id)
       domain.remove_env_variables(component_instance._id)
       op = PendingAppOp.new(op_type: :del_component, args: {"group_instance_id"=> group_instance._id.to_s, "comp_spec" => comp_spec}, prereq: ops.map{|o| o._id.to_s})
       ops.push op
-      ops.push(PendingAppOp.new(op_type: :unsubscribe_connections, args: {"sub_pub_info" => get_unsubscribe_info(component_instance, self.connections)}, prereq: [op._id.to_s]))
+      ops.push(PendingAppOp.new(op_type: :unsubscribe_connections, args: {"sub_pub_info" => get_unsubscribe_info(component_instance)}, prereq: [op._id.to_s]))
     end
     ops
   end
@@ -1776,7 +1742,7 @@ class Application
         if change[:to].nil?
           remove_gears += change[:from_scale][:current]
 
-          group_instance_remove_ops = calculate_remove_group_instance_ops(change[:removed], group_instance, connections)
+          group_instance_remove_ops = calculate_remove_group_instance_ops(change[:removed], group_instance)
           pending_ops.push(*group_instance_remove_ops)
         else
           scale_change = 0
@@ -1792,7 +1758,7 @@ class Application
           end
 
           singleton_gear = group_instance.gears.find_by(host_singletons: true)
-          ops = calculate_remove_component_ops(change[:removed], group_instance, singleton_gear, connections)
+          ops = calculate_remove_component_ops(change[:removed], group_instance, singleton_gear)
           pending_ops.push(*ops)
 
           gear_id_prereqs = {}
@@ -1870,24 +1836,15 @@ class Application
 
     execute_connection_op = nil
     all_ops_ids = pending_ops.map{ |op| op._id.to_s }
-    unless connections.nil?
-      #needs to be set and run after all the gears are in place
-      saved_connections = self.connections.map{|conn| conn.to_hash}
-      set_connections_op = PendingAppOp.new(op_type: :set_connections, args: {"connections"=> connections}, prereq: all_ops_ids, saved_values: {connections: saved_connections})
-      execute_connection_op = PendingAppOp.new(op_type: :execute_connections, prereq: [set_connections_op._id.to_s])
-      pending_ops.push set_connections_op
-      pending_ops.push execute_connection_op
-    else
-      execute_connection_op = PendingAppOp.new(op_type: :execute_connections, prereq: all_ops_ids)
-      pending_ops.push execute_connection_op
-    end
+    execute_connection_op = PendingAppOp.new(op_type: :execute_connections, prereq: all_ops_ids)
+    pending_ops.push execute_connection_op
     
-    # check to see if there are any primary carts being configured
+    # check to see if there are any deployable carts being configured
     # if so, then make sure that the post-configure op for it is executed at the end
     # also, it should not be the prerequisite for any other pending_op 
     component_ops.keys.each do |comp_spec|
       cartridge = CartridgeCache.find_cartridge(comp_spec["cart"], self)
-      if cartridge.is_primary_cart?
+      if cartridge.is_deployable?
         component_ops[comp_spec][:post_configures].each do |pcop|
           pcop.prereq += [execute_connection_op._id.to_s]
           pending_ops.each { |op| op.prereq.delete_if { |prereq_id| prereq_id == pcop._id.to_s } }
@@ -2049,7 +2006,27 @@ class Application
       
       group_override["components"].map! do |comp_spec|
         comp_spec = {"comp" => comp_spec} if comp_spec.class == String
-        component = component_instances.select{|ci| ci["comp"] == comp_spec["comp"] && (comp_spec["cart"].nil? || ci["cart"] == comp_spec["cart"])}
+        component = component_instances.select { |ci| 
+          is_valid =  (ci["comp"] == comp_spec["comp"] && (comp_spec["cart"].nil? || ci["cart"] == comp_spec["cart"]))
+          unless is_valid
+            # try once more with comp_spec["comp"] possibly not the cartridge name
+            # basically some override (either by the user or through a group_override section in a cartridge)
+            # is referring to a component/feature that is not a cartridge name or component name of any of the cartridges
+            # installed on the system
+            ci_cart = CartridgeCache.find_cartridge(ci["cart"], self)
+            p = ci_cart.profile_for_feature(comp_spec["comp"])
+            unless p.nil? or p.is_a? Array
+              # this is the cartridge because we found a profile matching the feature, just double check on the component
+              # if this was an auto-generated component then we are good to choose this ci
+              begin
+                is_valid = true if p.get_component(ci["comp"]).generated
+              rescue Exception=>e
+                # ignore
+              end
+            end
+          end
+          is_valid
+        }
         next if component.size == 0
         component = component.first
 
@@ -2091,7 +2068,8 @@ class Application
     framework_carts = CartridgeCache.cartridge_names("web_framework", self)
     first_has_web_framework = false
     first["components"].each do |components|
-      if framework_carts.include?(components['cart'])
+      c = CartridgeCache.find_cartridge(components['cart'], self)
+      if c.is_web_framework? 
         first_has_web_framework = true
         break
       end

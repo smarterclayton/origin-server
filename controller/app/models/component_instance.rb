@@ -13,6 +13,8 @@ class ComponentInstance
 
   field :cartridge_name, type: String
   field :component_name, type: String
+  field :cartridge_vendor, type: String, default: ""
+  field :version, type: String, default: ""
   field :component_properties, type: Hash, default: {}
   field :group_instance_id, type: Moped::BSON::ObjectId
 
@@ -82,13 +84,5 @@ class ComponentInstance
   # @return [Hash] a simplified hash representing this {ComponentInstance} object which is used by {Application#compute_diffs}
   def to_hash
     {"cart" => cartridge_name, "comp" => component_name}
-  end
-
-  def complete_update_namespace(args)
-    old_ns = args["old_namespace"]
-    new_ns = args["new_namespace"]
-    self.component_properties.each do |prop_key, prop_value|
-      self.component_properties[prop_key] = prop_value.gsub(/-#{old_ns}.#{Rails.configuration.openshift[:domain_suffix]}/, "-#{new_ns}.#{Rails.configuration.openshift[:domain_suffix]}")
-    end
   end
 end

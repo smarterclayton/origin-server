@@ -193,7 +193,8 @@ class RestApplication < OpenShift::Model
             OptionalParam.new("scales_from", "integer", "Minimum number of gears to run the component on."),
             OptionalParam.new("scales_to", "integer", "Maximum number of gears to run the component on."),
             OptionalParam.new("additional_storage", "integer", "Additional GB of space to request on all gears running this component."),
-          ]
+            (OptionalParam.new("url", "string", "A URL to a downloadable cartridge.") if Rails.application.config.openshift[:download_cartridges_enabled]),
+          ].compact
         ),
         "LIST_CARTRIDGES" => Link.new("List embedded cartridges", "GET", URI::join(url, "domains/#{@domain_id}/applications/#{@name}/cartridges")),
         "DNS_RESOLVABLE" => Link.new("Resolve DNS", "GET", URI::join(url, "domains/#{@domain_id}/applications/#{@name}/dns_resolvable")),
@@ -202,7 +203,7 @@ class RestApplication < OpenShift::Model
           [OptionalParam.new("ssl_certificate", "string", "Content of SSL Certificate"), 
             OptionalParam.new("private_key", "string", "Private key for the certificate.  Required if adding a certificate"), 
             OptionalParam.new("pass_phrase", "string", "Optional passphrase for the private key")]),
-        "LIST_ALIASES" => Link.new("List applications", "GET", URI::join(url, "domains/#{@domain_id}/applications/#{@name}/aliases")),
+        "LIST_ALIASES" => Link.new("List application aliases", "GET", URI::join(url, "domains/#{@domain_id}/applications/#{@name}/aliases")),
       }
     end
   end

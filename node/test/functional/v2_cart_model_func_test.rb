@@ -18,7 +18,7 @@ require 'etc'
 require 'openshift-origin-node/utils/shell_exec'
 
 module OpenShift
-  class V2CartridgeModelFunctionalTest < OpenShift::V2SdkTestCase
+  class V2CartridgeModelFunctionalTest < OpenShift::NodeTestCase
     GEAR_BASE_DIR = '/var/lib/openshift'
 
     def before_setup
@@ -65,12 +65,17 @@ module OpenShift
 
       OpenShift::CartridgeRepository.instance.clear
       OpenShift::CartridgeRepository.instance.load
-      @model = OpenShift::V2CartridgeModel.new(@config, @user, OpenShift::Utils::ApplicationState.new(@uuid))
-      @model.configure('mock-0.1')
+
+      @hourglass = mock()
+      @hourglass.stubs(:remaining).returns(3600)
+
+      @model = OpenShift::V2CartridgeModel.new(@config, @user, OpenShift::Utils::ApplicationState.new(@uuid), @hourglass)
     end
 
     def teardown
       @model.deconfigure('mock-plugin-0.1') if File.exist?(File.join(@user.homedir, 'mock-plugin'))
+      @model.deconfigure('mock-0.1') if File.exist?(File.join(@user.homedir, 'mock'))
+      FileUtils.rm_rf(File.join(@user.homedir, 'git'))
     end
 
     def after_teardown
@@ -78,6 +83,8 @@ module OpenShift
     end
 
     def test_hidden_erb
+      @model.configure('mock-0.1')
+
       assert_path_exist(File.join(@user.homedir, 'mock', '.mock_hidden'),
                         'Failed to process .mock_hidden.erb')
 
@@ -85,32 +92,9 @@ module OpenShift
                         'Failed to delete .mock_hidden.erb after processing')
     end
 
-    def test_publish_db_connection_info
-      @model.configure('mock-plugin-0.1')
-
-      results = @model.connector_execute('mock-plugin-0.1', 'mysql-5.1', 'NET_TCP:db:connection-info', 'publish-db-connection-info', "")
-      refute_nil results
-
-      assert_match(
-          %r(OPENSHIFT_MOCK_PLUGIN_DB_USERNAME=UT_username; OPENSHIFT_MOCK_PLUGIN_DB_PASSWORD=UT_password; OPENSHIFT_MOCK_PLUGIN_GEAR_UUID=.*; OPENSHIFT_MOCK_PLUGIN_DB_HOST=\d+\.\d+\.\d+\.\d+; OPENSHIFT_MOCK_PLUGIN_DB_PORT=8080; OPENSHIFT_MOCK_PLUGIN_DB_URL=mock://\d+\.\d+\.\d+\.\d+:8080/unit_test;),
-          results)
-    end
-
-    def test_set_db_connection_info
-      @model.configure('mock-plugin-0.1')
-
-      @model.connector_execute('mock-0.1',
-                               'mysql-5.1',
-                               'NET_TCP:db:connection-info',
-                               'set-db-connection-info',
-                               "test testdomain 515c7e8bdf3e460939000001 \\'75e36e529c9211e29cc622000a8c0259\\'\\=\\'OPENSHIFT_MOCK_DB_GEAR_UUID\\=75e36e529c9211e29cc622000a8c0259\\;\\;\\ '\n'\\'")
-
-      uservar_file = File.join(@user.homedir, '.env', '.uservars', 'OPENSHIFT_MOCK_DB_GEAR_UUID')
-      assert_path_exist(uservar_file)
-      assert_equal '75e36e529c9211e29cc622000a8c0259', IO.read(uservar_file).chomp
-    end
-
     def test_configure_with_manifest
+      @model.configure('mock-0.1')
+
       refute_path_exist(File.join(@user.homedir, 'mock-plugin'))
 
       cartridge = OpenShift::CartridgeRepository.instance.select('mock-plugin', '0.1')
@@ -150,6 +134,70 @@ module OpenShift
 
       assert_path_exist(File.join(@user.homedir, 'mock-plugin'))
       assert_path_exist(File.join(@user.homedir, %w(mock-plugin bin control)))
+    end
+
+    def test_configure_with_no_template
+      cartridge = OpenShift::CartridgeRepository.instance.select('mock-plugin', '0.1')
+      skip 'Mock Plugin 0.1 cartridge required for this test' unless cartridge
+
+      cuckoo = File.join(@user.homedir, %w(app-root data cuckoo))
+      FileUtils.mkpath(cuckoo)
+      %x(shopt -s dotglob; cp -ad #{cartridge.repository_path}/* #{cuckoo})
+      refute_path_exist File.join(cuckoo, 'template')
+
+      # Point manifest at "remote" repository
+      manifest                     = YAML.load_file(File.join(cuckoo, 'metadata', 'manifest.yml'))
+      manifest['Name']             = 'cuckoo'
+      manifest['Source-Url']       = "file://#{cuckoo}"
+      manifest['Cartridge-Vendor'] = 'unittest'
+      manifest['Categories']       = %w(service cuckoo web_framework)
+      manifest                     = manifest.to_yaml
+
+      # install the cuckoo
+      begin
+        @model.configure('cuckoo-0.1', nil, manifest)
+      rescue OpenShift::Utils::ShellExecutionException => e
+        NodeLogger.logger.debug(e.message + "\n" +
+                                    e.stdout + "\n" +
+                                    e.stderr + "\n" +
+                                    e.backtrace.join("\n")
+        )
+      end
+
+      entries = Dir.entries(File.join(@user.homedir, 'git'))
+      assert_equal(2, entries.size, "Found application template: #{entries}")
+      assert_path_exist(File.join(@user.homedir, 'cuckoo'))
+      assert_path_exist(File.join(@user.homedir, %w(cuckoo bin control)))
+    end
+
+    def test_configure_with_short_name
+      cartridge = OpenShift::CartridgeRepository.instance.select('mock-plugin', '0.1')
+      skip 'Mock Plugin 0.1 cartridge required for this test' unless cartridge
+
+      # Point manifest at "remote" repository
+      manifest                     = YAML.load_file(File.join(cartridge.repository_path, 'metadata', 'manifest.yml'))
+      manifest['Name']             = 'cuckoo'
+      manifest['Source-Url']       = "file://#{cartridge.repository_path}"
+      manifest['Cartridge-Vendor'] = 'unittest'
+      manifest['Categories']       = %w(service cuckoo web_framework)
+      manifest                     = manifest.to_yaml
+
+      # install the cuckoo
+      begin
+        @model.configure('cuckoo-0.1', nil, manifest)
+      rescue OpenShift::Utils::ShellExecutionException => e
+        NodeLogger.logger.debug(e.message + "\n" +
+                                    e.stdout + "\n" +
+                                    e.stderr + "\n" +
+                                    e.backtrace.join("\n")
+        )
+      end
+
+      env = File.join(@user.homedir, 'cuckoo', 'env')
+      assert_path_exist File.join(env, 'OPENSHIFT_MOCK_PLUGIN_DIR')
+      assert_path_exist File.join(env, 'OPENSHIFT_MOCK_PLUGIN_IDENT')
+      refute_path_exist File.join(env, 'OPENSHIFT_CUCKOO_DIR')
+      refute_path_exist File.join(env, 'OPENSHIFT_CUCKOO_IDENT')
     end
   end
 end

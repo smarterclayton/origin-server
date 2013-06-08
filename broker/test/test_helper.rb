@@ -5,10 +5,32 @@ require File.expand_path('../../config/environment', __FILE__)
 require 'rails/test_help'
 require 'mocha'
 
-if(File.exist?('/etc/fedora-release'))
-  PHP_VERSION = 'php-5.4'
+if File.exist?("/var/lib/openshift/.settings/v2_cartridge_format")
+  manifest = YAML.load(File.open(Dir["/var/lib/openshift/.cartridge_repository/redhat-php/*/metadata/manifest.yml"].first))
+  PHP_VERSION = "php-" + manifest['Version']
 else
-  PHP_VERSION = 'php-5.3'
+  PHP_VERSION = File.basename(Dir['/usr/libexec/openshift/cartridges/php-*'][0])
+end
+
+if File.exist?("/var/lib/openshift/.settings/v2_cartridge_format")
+  manifest = YAML.load(File.open(Dir["/var/lib/openshift/.cartridge_repository/redhat-ruby/*/metadata/manifest.yml"].first))
+  RUBY_VERSION = "ruby-" + manifest['Version']
+else
+  RUBY_VERSION = File.basename(Dir['/usr/libexec/openshift/cartridges/ruby-*'][0])
+end
+
+if File.exist?("/var/lib/openshift/.settings/v2_cartridge_format")
+  if File.exist?("/var/lib/openshift/.cartridge_repository/redhat-mysql")
+    manifest = YAML.load(File.open(Dir["/var/lib/openshift/.cartridge_repository/redhat-mysql/*/metadata/manifest.yml"].first))
+    MYSQL_VERSION = "mysql-" + manifest['Version']
+  end
+
+  if File.exist?("/var/lib/openshift/.cartridge_repository/redhat-mariadb")
+    manifest = YAML.load(File.open(Dir["/var/lib/openshift/.cartridge_repository/redhat-mariadb/*/metadata/manifest.yml"].first))
+    MYSQL_VERSION = "mariadb-" + manifest['Version']
+  end
+else
+  MYSQL_VERSION = File.basename(Dir['/usr/libexec/openshift/cartridges/mysql-*'][0])
 end
 
 def gen_uuid
@@ -41,6 +63,7 @@ def stubber
   @container.stubs(:destroy).returns(ResultIO.new)
   @container.stubs(:update_namespace).returns(ResultIO.new)
   @container.stubs(:configure_cartridge).returns(ResultIO.new)
+  @container.stubs(:post_configure_cartridge).returns(ResultIO.new)
   @container.stubs(:deconfigure_cartridge).returns(ResultIO.new)
   @container.stubs(:get_public_hostname).returns("node_dns")
   @container.stubs(:set_quota).returns(ResultIO.new)

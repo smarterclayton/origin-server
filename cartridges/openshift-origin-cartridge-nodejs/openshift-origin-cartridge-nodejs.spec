@@ -1,17 +1,16 @@
 %global cartridgedir %{_libexecdir}/openshift/cartridges/v2/nodejs
-%global frameworkdir %{_libexecdir}/openshift/cartridges/v2/nodejs
 
 Summary:       Provides Node.js support
 Name:          openshift-origin-cartridge-nodejs
-Version: 1.10.1
+Version: 1.11.1
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
 URL:           http://www.openshift.com
 Source0:       http://mirror.openshift.com/pub/openshift-origin/source/%{name}/%{name}-%{version}.tar.gz
+BuildRequires: nodejs >= 0.6
 Requires:      rubygem(openshift-origin-node)
 Requires:      openshift-origin-node-util
-Requires:      nodejs >= 0.6
 Requires:      nodejs-async
 Requires:      nodejs-connect
 Requires:      nodejs-express
@@ -20,42 +19,74 @@ Requires:      nodejs-mysql
 Requires:      nodejs-node-static
 Requires:      nodejs-pg
 Requires:      nodejs-supervisor
-BuildRequires: git
+%if 0%{?fedora} >= 19
+Requires:      npm
+%endif
+
 BuildArch:     noarch
 
 %description
 Provides Node.js support to OpenShift. (Cartridge Format V2)
 
-
 %prep
 %setup -q
 
 %build
+%__rm %{name}.spec
 
 %install
-rm -rf %{buildroot}
-mkdir -p %{buildroot}%{cartridgedir}
-mkdir -p %{buildroot}/%{_sysconfdir}/openshift/cartridges
-cp -r * %{buildroot}%{cartridgedir}/
+%__mkdir -p %{buildroot}%{cartridgedir}
+%__cp -r * %{buildroot}%{cartridgedir}
 
-%clean
-rm -rf %{buildroot}
+echo "NodeJS version is `/usr/bin/node -v`"
+if [[ $(/usr/bin/node -v) == v0.6* ]]; then
+%__rm -f %{buildroot}%{cartridgedir}/versions/0.10
+%__mv %{buildroot}%{cartridgedir}/metadata/manifest.yml.0.6 %{buildroot}%{cartridgedir}/metadata/manifest.yml;
+fi
+
+if [[ $(/usr/bin/node -v) == v0.10* ]]; then
+%__rm -f %{buildroot}%{cartridgedir}/versions/0.6
+%__mv %{buildroot}%{cartridgedir}/metadata/manifest.yml.0.10 %{buildroot}%{cartridgedir}/metadata/manifest.yml;
+fi
+
+%post
+%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
 
 %files
-%defattr(-,root,root,-)
 %dir %{cartridgedir}
-%dir %{cartridgedir}/bin
-%dir %{cartridgedir}/hooks
-%dir %{cartridgedir}/env
-%dir %{cartridgedir}/metadata
-%dir %{cartridgedir}/versions
 %attr(0755,-,-) %{cartridgedir}/bin/
 %attr(0755,-,-) %{cartridgedir}/hooks/
-%attr(0755,-,-) %{frameworkdir}
-%{cartridgedir}/metadata/manifest.yml
+%{cartridgedir}
 %doc %{cartridgedir}/README.md
+%doc %{cartridgedir}/COPYRIGHT
+%doc %{cartridgedir}/LICENSE
 
 %changelog
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 1.11.1-1
+- bump_minor_versions for sprint 29 (admiller@redhat.com)
+
+* Thu May 23 2013 Adam Miller <admiller@redhat.com> 1.10.5-1
+- Bug 966255: Remove OPENSHIFT_INTERNAL_* references from v2 carts
+  (ironcladlou@gmail.com)
+
+* Wed May 22 2013 Adam Miller <admiller@redhat.com> 1.10.4-1
+- Bug 962662 (dmcphers@redhat.com)
+- Fix bug 964348 (pmorie@gmail.com)
+
+* Mon May 20 2013 Dan McPherson <dmcphers@redhat.com> 1.10.3-1
+- Merge pull request #2544 from mrunalp/bugs/nodejs
+  (dmcphers+openshiftbot@redhat.com)
+- Use correct variable in control script. (mrunalp@gmail.com)
+- spec file cleanup (tdawson@redhat.com)
+
+* Thu May 16 2013 Adam Miller <admiller@redhat.com> 1.10.2-1
+- Bug 963156 (dmcphers@redhat.com)
+- status call should echo expected message (asari.ruby@gmail.com)
+- locking fixes and adjustments (dmcphers@redhat.com)
+- Add erb processing to managed_files.yml Also fixed and added some test cases
+  (fotios@redhat.com)
+- WIP Cartridge Refactor -- Cleanup spec files (jhonce@redhat.com)
+
 * Wed May 08 2013 Adam Miller <admiller@redhat.com> 1.10.1-1
 - bump_minor_versions for sprint 28 (admiller@redhat.com)
 

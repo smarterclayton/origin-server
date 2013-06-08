@@ -3,13 +3,15 @@ module OpenShift
     attr_accessor :name, :version, :architecture, :display_name, :description, :vendor, :license,
                   :provides, :requires, :conflicts, :suggests, :native_requires, :default_profile,
                   :path, :license_url, :categories, :website, :suggests_feature,
-                  :help_topics, :cart_data_def, :additional_control_actions, :versions, :cartridge_vendor
+                  :help_topics, :cart_data_def, :additional_control_actions, :versions, :cartridge_vendor,
+                  :endpoints
     attr_reader   :profiles
     
     def initialize
       super
       @_profile_map = {}
       @profiles = []      
+      @endpoints = []
     end
     
     def features
@@ -21,7 +23,7 @@ module OpenShift
     end
     
     def profile_for_feature(feature)
-      if feature.nil? || self.provides.include?(feature) || self.name == feature
+      if feature.nil? || self.provides.include?(feature) || self.name == feature || feature == self.original_name || feature=="#{self.cartridge_vendor}-#{self.original_name}"
         return @_profile_map[self.default_profile]
       else
         self.profiles.each do |profile|
@@ -77,13 +79,6 @@ module OpenShift
       return categories.include?('web_framework')
     end
     
-    # creating a separate method for determining primary cart
-    # even though currently the web_framework category is used to define it
-    # later on, a different mechanism may be employed to determine the primary cart
-    def is_primary_cart?
-      return categories.include?('web_framework')
-    end
-
     def is_ci_server?
       return categories.include?('ci')
     end
@@ -96,6 +91,13 @@ module OpenShift
       return usage_rates.present?
     end
 
+    def is_deployable?
+      return categories.include?('web_framework')
+    end
+
+    # For now, these are synonyms
+    alias :is_buildable? :is_deployable?
+
     def usage_rates
       []
     end
@@ -105,7 +107,7 @@ module OpenShift
       self.version = spec_hash["Version"] || "0.0"
       self.versions = spec_hash["Versions"] || []
       self.architecture = spec_hash["Architecture"] || "noarch"
-      self.display_name = spec_hash["Display-Name"] || "#{self.name}-#{self.version}-#{self.architecture}"
+      self.display_name = spec_hash["Display-Name"] || "#{self.original_name}-#{self.version}-#{self.architecture}"
       self.license = spec_hash["License"] || "unknown"
       self.license_url = spec_hash["License-Url"] || ""
       self.vendor = spec_hash["Vendor"] || "unknown"
@@ -126,6 +128,13 @@ module OpenShift
       self.requires = [self.requires] if self.requires.class == String
       self.conflicts = [self.conflicts] if self.conflicts.class == String
       self.native_requires = [self.native_requires] if self.native_requires.class == String
+
+      self.endpoints = []
+      if spec_hash.has_key?("Endpoints") and spec_hash["Endpoints"].respond_to?(:each)
+        spec_hash["Endpoints"].each do |ep|
+          self.endpoints << Endpoint.new.from_descriptor(ep)
+        end
+      end
 
       if spec_hash.has_key?("Profiles")
         spec_hash["Profiles"].each do |pname, p|
@@ -148,10 +157,18 @@ module OpenShift
       self.default_profile = spec_hash["Default-Profile"] || self.profiles.first.name
       self
     end
-    
+
+    def name
+      (self.cartridge_vendor.to_s=="redhat" || self.cartridge_vendor.to_s.empty?) ? self.original_name : (self.cartridge_vendor + "-" + self.original_name)
+    end
+
+    def original_name
+      @name
+    end
+
     def to_descriptor
       h = {
-        "Name" => self.name,
+        "Name" => self.original_name,
         "Display-Name" => self.display_name,
       }
       
@@ -176,6 +193,10 @@ module OpenShift
       h["Cartridge-Vendor"] = self.cartridge_vendor if self.cartridge_vendor and !self.cartridge_vendor.empty? and self.cartridge_vendor != "unknown"
       h["Default-Profile"] = self.default_profile if !self.default_profile.nil? and !self.default_profile.empty? and !@_profile_map[@default_profile].generated
     
+      if self.endpoints.length > 0
+        h["Endpoints"] = self.endpoints.map { |e| e.to_descriptor }
+      end
+
       if self.profiles.length == 1 && self.profiles.first.generated
         profile_h = self.profiles.first.to_descriptor
         profile_h.delete("Name")

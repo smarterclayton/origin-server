@@ -1,9 +1,8 @@
 %global cartridgedir %{_libexecdir}/openshift/cartridges/v2/switchyard
-%global frameworkdir %{_libexecdir}/openshift/cartridges/v2/switchyard
 
 Summary:       Provides embedded switchyard support
 Name:          openshift-origin-cartridge-switchyard
-Version: 0.2.1
+Version: 0.3.1
 Release:       1%{?dist}
 Group:         Network/Daemons
 License:       ASL 2.0
@@ -24,14 +23,12 @@ Provides switchyard cartridge support to OpenShift
 
 
 %build
+%__rm %{name}.spec
 
 
 %install
-rm -rf %{buildroot}
-mkdir -p %{buildroot}%{cartridgedir}
-mkdir -p %{buildroot}/%{_sysconfdir}/openshift/cartridges/v2
-cp -r * %{buildroot}%{cartridgedir}/
-ln -s %{cartridgedir}/conf/ %{buildroot}/%{_sysconfdir}/openshift/cartridges/v2/%{name}
+%__mkdir -p %{buildroot}%{cartridgedir}
+%__cp -r * %{buildroot}%{cartridgedir}
 
 %post
 
@@ -39,24 +36,47 @@ alternatives --remove switchyard-0 /usr/share/switchyard
 alternatives --install /etc/alternatives/switchyard-0 switchyard-0 /usr/share/switchyard 102
 alternatives --set switchyard-0 /usr/share/switchyard
 
+alternatives --remove switchyard-0.6 /usr/share/switchyard
+alternatives --install /etc/alternatives/switchyard-0.6 switchyard-0 /usr/share/switchyard 102
+alternatives --set switchyard-0.6 /usr/share/switchyard
 
-%clean
-rm -rf %{buildroot}
+%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
 
 
 %files
-%defattr(-,root,root,-)
 %dir %{cartridgedir}
-%dir %{cartridgedir}/bin
-%dir %{cartridgedir}/metadata
 %attr(0755,-,-) %{cartridgedir}/bin/
-%attr(0755,-,-) %{frameworkdir}
-%{_sysconfdir}/openshift/cartridges/v2/%{name}
-%{cartridgedir}/metadata/manifest.yml
+%{cartridgedir}
 %doc %{cartridgedir}/README.md
-
+%doc %{cartridgedir}/COPYRIGHT
+%doc %{cartridgedir}/LICENSE
 
 %changelog
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 0.3.1-1
+- bump_minor_versions for sprint 29 (admiller@redhat.com)
+
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 0.2.6-1
+- Fix bug 965490 (pmorie@gmail.com)
+
+* Tue May 28 2013 Adam Miller <admiller@redhat.com> 0.2.5-1
+- Bug 967118 - Remove redundant entries from managed_files.yml
+  (jhonce@redhat.com)
+
+* Wed May 22 2013 Adam Miller <admiller@redhat.com> 0.2.4-1
+- Bug 962662 (dmcphers@redhat.com)
+
+* Mon May 20 2013 Dan McPherson <dmcphers@redhat.com> 0.2.3-1
+- spec file cleanup (tdawson@redhat.com)
+
+* Thu May 16 2013 Adam Miller <admiller@redhat.com> 0.2.2-1
+- move SY envs to erbs (bdecoste@gmail.com)
+- move SY envs to erbs (bdecoste@gmail.com)
+- locking fixes and adjustments (dmcphers@redhat.com)
+- Add erb processing to managed_files.yml Also fixed and added some test cases
+  (fotios@redhat.com)
+- WIP Cartridge Refactor -- Cleanup spec files (jhonce@redhat.com)
+- fix module path (bdecoste@gmail.com)
+
 * Wed May 08 2013 Adam Miller <admiller@redhat.com> 0.2.1-1
 - bump_minor_versions for sprint 28 (admiller@redhat.com)
 

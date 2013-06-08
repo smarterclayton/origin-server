@@ -1,54 +1,74 @@
 %global cartridgedir %{_libexecdir}/openshift/cartridges/v2/diy
 
-Name: openshift-origin-cartridge-diy
-Version: 0.4.1
-Release: 1%{?dist}
-Summary: DIY cartridge
-Group: Development/Languages
-License: ASL 2.0
-URL: https://www.openshift.com
-Source0: http://mirror.openshift.com/pub/origin-server/source/%{name}/%{name}-%{version}.tar.gz
+Summary:       DIY cartridge
+Name:          openshift-origin-cartridge-diy
+Version: 0.5.1
+Release:       1%{?dist}
+Group:         Development/Languages
+License:       ASL 2.0
+URL:           https://www.openshift.com
+Source0:       http://mirror.openshift.com/pub/openshift-origin/source/%{name}/%{name}-%{version}.tar.gz
 Requires:      rubygem(openshift-origin-node)
 Requires:      openshift-origin-node-util
-
-BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
-BuildArch: noarch
+BuildArch:     noarch
 
 %description
 DIY cartridge for openshift. (Cartridge Format V2)
-
 
 %prep
 %setup -q
 
 %build
+%__rm %{name}.spec
 
 %install
-rm -rf %{buildroot}
-mkdir -p %{buildroot}%{cartridgedir}
-mkdir -p %{buildroot}/%{_sysconfdir}/openshift/cartridges/v2
-cp -r * %{buildroot}%{cartridgedir}/
-
-
-%clean
-rm -rf %{buildroot}
-
+%__mkdir -p %{buildroot}%{cartridgedir}
+%__cp -r * %{buildroot}%{cartridgedir}
 
 %post
-%{_sbindir}/oo-admin-cartridge --action install --offline --source /usr/libexec/openshift/cartridges/v2/diy
+%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
 
 %files
-%defattr(-,root,root,-)
 %dir %{cartridgedir}
-%attr(0755,-,-) %{cartridgedir}
 %attr(0755,-,-) %{cartridgedir}/bin/
-%{cartridgedir}/metadata/manifest.yml
+%attr(0755,-,-) %{cartridgedir}/hooks/
+%{cartridgedir}
 %doc %{cartridgedir}/README.md
 %doc %{cartridgedir}/COPYRIGHT
 %doc %{cartridgedir}/LICENSE
 
-
 %changelog
+* Thu May 30 2013 Adam Miller <admiller@redhat.com> 0.5.1-1
+- bump_minor_versions for sprint 29 (admiller@redhat.com)
+
+* Wed May 29 2013 Adam Miller <admiller@redhat.com> 0.4.7-1
+- Bug 968071 - Restore message (jhonce@redhat.com)
+
+* Tue May 28 2013 Adam Miller <admiller@redhat.com> 0.4.6-1
+- Bug 967118 - Remove redundant entries from managed_files.yml
+  (jhonce@redhat.com)
+
+* Thu May 23 2013 Adam Miller <admiller@redhat.com> 0.4.5-1
+- Bug 966255: Remove OPENSHIFT_INTERNAL_* references from v2 carts
+  (ironcladlou@gmail.com)
+
+* Wed May 22 2013 Adam Miller <admiller@redhat.com> 0.4.4-1
+- Bug 962662 (dmcphers@redhat.com)
+- Fix bug 964348 (pmorie@gmail.com)
+
+* Mon May 20 2013 Dan McPherson <dmcphers@redhat.com> 0.4.3-1
+- spec file cleanup (tdawson@redhat.com)
+- Merge pull request #2522 from mrunalp/dev/haproxy_hook
+  (dmcphers+openshiftbot@redhat.com)
+- Remove unused hooks. (mrunalp@gmail.com)
+
+* Thu May 16 2013 Adam Miller <admiller@redhat.com> 0.4.2-1
+- locking fixes and adjustments (dmcphers@redhat.com)
+- Add erb processing to managed_files.yml Also fixed and added some test cases
+  (fotios@redhat.com)
+- WIP Cartridge Refactor -- Cleanup spec files (jhonce@redhat.com)
+- cron cleanup (dmcphers@redhat.com)
+
 * Wed May 08 2013 Adam Miller <admiller@redhat.com> 0.4.1-1
 - bump_minor_versions for sprint 28 (admiller@redhat.com)
 - removing version logic from diy (dmcphers@redhat.com)

@@ -224,8 +224,10 @@ fi
 /usr/sbin/semanage -i - <<_EOF
 fcontext -a -t httpd_log_t '%{_var}/log/openshift/console(/.*)?'
 fcontext -a -t httpd_log_t '%{_var}/log/openshift/console/httpd(/.*)?'
+fcontext -a -t httpd_var_run_t '%{consoledir}/httpd/run(/.*)?'
 _EOF
 /sbin/restorecon -R %{_var}/log/openshift/console
+/sbin/restorecon -R %{consoledir}
 
 /sbin/fixfiles -R %{?scl:%scl_prefix}rubygem-passenger restore
 /sbin/fixfiles -R %{?scl:%scl_prefix}mod_passenger restore

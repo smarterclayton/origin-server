@@ -1,6 +1,12 @@
 ---
 locked_files:
+- bin/
+- bin/*
 - metadata/
+- metadata/*
 - env/
+- env/OPENSHIFT_RUBY_DIR
+- env/OPENSHIFT_RUBY_LOG_DIR
 - etc/
-- template/
+processed_templates:
+- '**/*.erb'

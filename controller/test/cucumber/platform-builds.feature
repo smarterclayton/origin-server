@@ -1,4 +1,4 @@
-@runtime_other3
+@runtime3
 Feature: V2 SDK Mock Cartridge Build Tests
 
   Scenario: Exercise hot deployment
@@ -54,9 +54,6 @@ Feature: V2 SDK Mock Cartridge Build Tests
     And the mock install_called marker will exist
     And the mock install_version marker will exist
     And the mock install_failure marker will not exist
-    And the mock post_setup_called marker will exist
-    And the mock post_setup_version marker will exist
-    And the mock post_setup_failure marker will not exist
     And the mock post_install_called marker will exist
     And the mock post_install_version marker will exist
     And the mock post_install_failure marker will not exist
@@ -73,7 +70,7 @@ Feature: V2 SDK Mock Cartridge Build Tests
     And the mock action_hook_pre_start_mock marker will exist
     And the mock action_hook_post_start marker will exist
     And the mock action_hook_post_start_mock marker will exist
-    And the mock control_pre_receive marker will exist
+    And the mock control_pre_repo_archive marker will exist
     And the mock control_build marker will exist
     And the mock control_deploy marker will exist
     And the mock control_start marker will exist
