@@ -4,10 +4,11 @@
 # info down to the broker.  The broker should be configured to 
 # authenticate with those headers.
 # 
-module Console::Auth::RemoteUser
+module Console
+module Auth::RemoteUser
   extend ActiveSupport::Concern
 
-  class RemoteUser < Console::RestApi::Credentials
+  class RemoteUser < RestApi::Credentials
     extend ActiveModel::Naming
     include ActiveModel::Conversion
 
@@ -66,4 +67,5 @@ module Console::Auth::RemoteUser
   def previously_signed_in?
     cookies[:prev_login] ? true : false
   end
+end
 end
