@@ -157,6 +157,8 @@ module Console
         case config[:CONSOLE_SECURITY]
         when 'basic'
           self.security_controller = 'Console::Auth::Basic'
+        when 'broker'
+          self.security_controller = 'Console::Auth::Broker'
         when 'remote_user'
           self.security_controller = 'Console::Auth::RemoteUser'
           [:remote_user_copy_headers, :remote_user_header, :remote_user_name_header].each do |s|

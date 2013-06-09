@@ -1,0 +1,8 @@
+- content_for :title, 'Changing accounts'
+
+%p
+  You have clicked a URL that is associated with a different account and 
+  have been signed out of your current session.  The button below will
+  continue as this other account.  You may be prompted to log in.
+
+%p= link_to 'Continue to a different account', @redirect, :class => 'btn'

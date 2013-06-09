@@ -46,5 +46,9 @@ Console::Engine.routes.draw do
              :only => [:show]
   end
 
+  resource :session, :controller => :session, :only => [:new, :create] do
+    get :destroy
+  end
+
   root :to => 'console_index#index', :via => :get, :as => :console
 end

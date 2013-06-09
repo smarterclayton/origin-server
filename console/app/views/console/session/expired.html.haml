@@ -1,0 +1,7 @@
+- content_for :title, 'Session Expired'
+
+%p
+  Your session has expired or been forcibly ended. You can log in again and
+  continue your work using the button below.
+
+%p= link_to 'Continue working', @redirect, :class => 'btn'
