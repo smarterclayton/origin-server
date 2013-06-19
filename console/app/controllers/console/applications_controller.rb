@@ -76,8 +76,8 @@ class ApplicationsController < ConsoleController
 
     #@domain = user_default_domain rescue nil
     #@applications = @domain ? @domain.applications : []
-    cloud_user = ::CloudUser.find_by_identity(current_user.login)
-    @applications = Console::Application.from(cloud_user.domains.map(&:applications).flatten)
+    
+    @applications = Console::Application.from(current_user.as.domains.map(&:applications).flatten)
     
     return redirect_to application_types_path, :notice => 'Create your first application now!' if @applications.empty?
 
@@ -96,7 +96,6 @@ class ApplicationsController < ConsoleController
   end
 
   def delete
-    #@domain = Domain.find :one, :as => current_user
     user_default_domain
     @application = @domain.find_application params[:id]
 
