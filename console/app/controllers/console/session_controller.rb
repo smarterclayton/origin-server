@@ -41,7 +41,7 @@ module Console
 
     protected
       def supports_sessions
-        raise NotFound unless respond_to? :authenticated_user
+        raise NotFound unless respond_to?(:supports_simple_login?) && supports_simple_login?
       end
 
       def logout_complete

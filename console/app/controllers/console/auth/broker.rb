@@ -8,15 +8,25 @@ module Console
         include ActiveModel::Conversion
         include ActiveModel::Validations
 
+        attr_reader :provider
+
         def initialize(opts={})
-          opts.each_pair { |key,value| instance_variable_set("@#{key}", value) }
+          opts.each_pair { |key,value| send("#{key}=", value) }
         end
         def email_address
           nil
         end
 
         def authenticate
-          login.present?
+          if info = OpenShift::AuthService.instance.authenticate(login, password)
+            self.login = info[:username]
+            self.provider = info[:provider]
+            self.password = nil
+            true
+          else
+            errors[:base] = "The user name or password provided is not valid."
+            false
+          end
         end
 
         def as
@@ -27,17 +37,17 @@ module Console
           false
         end
 
-        def api_token
-          @api_token
-        end
-
         def to_headers
           if api_token.present?
             {'Authorization' => "Bearer #{api_token}"}
           else
             {}
           end
-        end        
+        end
+
+        protected
+          attr_writer :login, :password, :provider
+          attr_accessor :api_token
       end
 
       included do
@@ -84,6 +94,7 @@ module Console
 
           session[:api_token] = auth.token
           session[:login] = user.login
+          session[:provider] = user.provider
           true
         end
 
@@ -92,6 +103,14 @@ module Console
             ::Authorization.where(:token => token).delete_all rescue log_error($!, "Unable to remove API token")
           end
           session.delete :api_token
+        end
+
+        #
+        # Must be implemented for session controller to be accessible.
+        #
+        def supports_simple_login?
+          auth_service = OpenShift::AuthService.instance
+          auth_service.respond_to?(:authenticate) && auth_service.method(:authenticate).arity == 2
         end
 
         #
@@ -106,8 +125,8 @@ module Console
 
       private
         def user_from_session
-          if login = session[:login]
-            BrokerUser.new :login => login, :api_token => session[:api_token]
+          if (login = session[:login]) && session[:api_token].presence
+            BrokerUser.new :login => login, :provider => session[:provider], :api_token => session[:api_token]
           end
         end
 
