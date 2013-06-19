@@ -13,6 +13,8 @@ class CartridgeType < RestApi::Base
 
   allow_anonymous
 
+  singular_resource
+
   attr_accessor :version, :description
   attr_accessor :display_name
   attr_accessor :provides

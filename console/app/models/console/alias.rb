@@ -3,6 +3,9 @@
 #
 module Console
 class Alias < RestApi::Base
+
+  singular_resource
+
   schema do
     string :id
     string :has_private_ssl_certificate

@@ -101,14 +101,14 @@ module OpenShift
 
       # lock to prevent race condition between create and delete of gear
       uuid_lock_file = "/var/lock/oo-create.#{@uuid}"
-      File.open(uuid_lock_file, File::RDWR|File::CREAT, 0o0600) do | uuid_lock |
+      File.open(uuid_lock_file, File::RDWR|File::CREAT|File::TRUNC, 0o0600) do | uuid_lock |
         uuid_lock.fcntl(Fcntl::F_SETFD, Fcntl::FD_CLOEXEC)
         uuid_lock.flock(File::LOCK_EX)
 
         # Lock to prevent race condition on obtaining a UNIX user uid.
         # When running without districts, there is a simple search on the
         #   passwd file for the next available uid.
-        File.open("/var/lock/oo-create", File::RDWR|File::CREAT, 0o0600) do | uid_lock |
+        File.open("/var/lock/oo-create", File::RDWR|File::CREAT|File::TRUNC, 0o0600) do | uid_lock |
           uid_lock.fcntl(Fcntl::F_SETFD, Fcntl::FD_CLOEXEC)
           uid_lock.flock(File::LOCK_EX)
 
@@ -146,11 +146,10 @@ module OpenShift
           end
         end
         notify_observers(:after_unix_user_create)
-        initialize_homedir(basedir, @homedir, @config.get("CARTRIDGE_BASE_PATH"))
+        initialize_homedir(basedir, @homedir)
         initialize_openshift_port_proxy
 
         uuid_lock.flock(File::LOCK_UN)
-        File.unlink(uuid_lock_file)
       end
     end
 
@@ -180,7 +179,7 @@ module OpenShift
 
       # Don't try to delete a gear that is being scaled-up|created|deleted
       uuid_lock_file = "/var/lock/oo-create.#{@uuid}"
-      File.open(uuid_lock_file, File::RDWR|File::CREAT, 0o0600) do | lock |
+      File.open(uuid_lock_file, File::RDWR|File::CREAT|File::TRUNC, 0o0600) do | lock |
         lock.fcntl(Fcntl::F_SETFD, Fcntl::FD_CLOEXEC)
         lock.flock(File::LOCK_EX)
 
@@ -240,7 +239,6 @@ Dir(after)    #{@uuid}/#{@uid} => #{list_home_dir(@homedir)}
         end
 
         lock.flock(File::LOCK_UN)
-        File.unlink(uuid_lock_file)
       end
     end
 
@@ -457,7 +455,7 @@ Dir(after)    #{@uuid}/#{@uid} => #{list_home_dir(@homedir)}
     #   # ~/app-root/runtime/data -> ../data
     #
     # Returns nil on Success and raises on Failure.
-    def initialize_homedir(basedir, homedir, cart_basedir)
+    def initialize_homedir(basedir, homedir)
       @homedir = homedir
       notify_observers(:before_initialize_homedir)
       homedir = homedir.end_with?('/') ? homedir : homedir + '/'
@@ -522,10 +520,6 @@ Dir(after)    #{@uuid}/#{@uid} => #{list_home_dir(@homedir)}
 
       # Ensure HOME exists for git support
       add_env_var("HOME", homedir, false)
-
-      add_env_var("PATH",
-                  "#{cart_basedir}/abstract-httpd/info/bin/:#{cart_basedir}/abstract/info/bin/:/bin:/sbin:/usr/bin:/usr/sbin:/$PATH",
-                  false)
 
       add_env_var("REPO_DIR", File.join(gearappdir, "runtime", "repo", "/"), true) {|v|
         FileUtils.mkdir_p(v, :verbose => @debug)
@@ -690,7 +684,7 @@ Dir(after)    #{@uuid}/#{@uid} => #{list_home_dir(@homedir)}
       keys = Hash.new
 
       $OpenShift_UnixUser_SSH_KEY_MUTEX.synchronize do
-        File.open("/var/lock/oo-modify-ssh-keys", File::RDWR|File::CREAT, 0o0600) do | lock |
+        File.open("/var/lock/oo-modify-ssh-keys.#{@uuid}", File::RDWR|File::CREAT|File::TRUNC, 0o0600) do | lock |
           lock.fcntl(Fcntl::F_SETFD, Fcntl::FD_CLOEXEC)
           lock.flock(File::LOCK_EX)
           begin

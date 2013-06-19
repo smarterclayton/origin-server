@@ -9,6 +9,8 @@ class Authorization < RestApi::Base
     datetime :created_at
   end
 
+  singular_resource
+
   belongs_to :user
 
   def created_at

@@ -1,5 +1,6 @@
 module Console
 class Gear < RestApi::Base
+  singular_resource
   schema do
     string :id, :gear_profile, :state
   end

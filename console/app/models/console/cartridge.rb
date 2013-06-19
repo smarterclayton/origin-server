@@ -5,6 +5,8 @@ module Console
 class Cartridge < RestApi::Base
   include Comparable
 
+  singular_resource
+
   #use_patch_on_update
 
   schema do

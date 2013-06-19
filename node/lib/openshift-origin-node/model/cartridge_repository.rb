@@ -297,6 +297,22 @@ module OpenShift
       self
     end
 
+    def latest_versions
+      cartridges = Set.new
+      @index.each_pair do |_, sw_hash|
+        sw_hash.each_pair do |_, cart_version_hash|
+          latest_version = cart_version_hash.keys.sort.last
+          cartridges.add(cart_version_hash[latest_version])
+        end
+      end
+
+      if block_given?
+        cartridges.each { |c| yield c }
+      end
+
+      cartridges
+    end
+
     ## print out all index entries in a table
     def inspect
       @index.inject("<CartridgeRepository:\n") do |memo, (name, sw_hash)|
@@ -491,8 +507,7 @@ module OpenShift
       [
           [File, :directory?, %w(metadata)],
           [File, :directory?, %w(bin)],
-          [File, :file?, %w(metadata manifest.yml)],
-          #[File, :executable?, %w(bin control)],
+          [File, :file?, %w(metadata manifest.yml)]
       ].each do |clazz, method, target|
         relative = PathUtils.join(target)
         absolute = PathUtils.join(path, relative)
@@ -500,11 +515,6 @@ module OpenShift
         unless clazz.method(method).(absolute)
           errors << "#{relative} is not #{method}"
         end
-      end
-
-      control_script = PathUtils.join(path, 'bin', 'control')
-      if File.exists?(control_script) && !File.executable?(control_script)
-        errors << 'bin/control is not executable'
       end
 
       unless errors.empty?

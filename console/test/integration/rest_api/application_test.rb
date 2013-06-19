@@ -4,6 +4,24 @@ module Console
 class RestApiApplicationTest < ActiveSupport::TestCase
   include RestApiAuth
 
+=begin
+  def test_partial_creation
+    with_configured_user
+    setup_domain
+    app = Application.new :as => @user, :domain => @domain, :name => 'test2', :cartridge => 'php-5.3'
+
+    done = false
+    Thread.new { assert app.save; done = true }
+    begin 
+      begin
+        loaded = @domain.find_application('test2')
+        assert_equal 'php-5.3', loaded.framework
+      rescue RestApi::ResourceNotFound
+      end
+    end while not done
+  end
+=end
+
   def test_create
     with_configured_user
     setup_domain

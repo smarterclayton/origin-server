@@ -51,9 +51,67 @@ module MCollective
       def cartridge_do_action
         Log.instance.info("cartridge_do_action call / action: #{request.action}, agent=#{request.agent}, data=#{request.data.pretty_inspect}")
         Log.instance.info("cartridge_do_action validation = #{request[:cartridge]} #{request[:action]} #{request[:args]}")
-        validate :cartridge, /\A[a-zA-Z0-9\.\-\/]+\z/
+        validate :cartridge, /\A[a-zA-Z0-9\.\-\/_]+\z/
         validate :cartridge, :shellsafe
-        validate :action, /\A(app-create|app-destroy|env-var-add|env-var-remove|broker-auth-key-add|broker-auth-key-remove|authorized-ssh-key-add|authorized-ssh-key-remove|ssl-cert-add|ssl-cert-remove|configure|post-configure|deconfigure|unsubscribe|tidy|deploy-httpd-proxy|remove-httpd-proxy|restart-httpd-proxy|info|post-install|post-remove|pre-install|reload|restart|start|status|stop|force-stop|add-alias|remove-alias|threaddump|cartridge-list|expose-port|frontend-backup|frontend-restore|frontend-create|frontend-destroy|frontend-update-name|frontend-connect|frontend-disconnect|frontend-connections|frontend-idle|frontend-unidle|frontend-check-idle|frontend-sts|frontend-no-sts|frontend-get-sts|aliases|ssl-cert-add|ssl-cert-remove|ssl-certs|frontend-to-hash|system-messages|connector-execute|get-quota|set-quota)\Z/
+        valid_actions = %w(
+          app-create
+          app-destroy
+          env-var-add
+          env-var-remove
+          broker-auth-key-add
+          broker-auth-key-remove
+          authorized-ssh-key-add
+          authorized-ssh-key-remove
+          ssl-cert-add
+          ssl-cert-remove
+          configure
+          post-configure
+          deconfigure
+          unsubscribe
+          tidy
+          deploy-httpd-proxy
+          remove-httpd-proxy
+          restart-httpd-proxy
+          info
+          post-install
+          post-remove
+          pre-install
+          reload
+          restart
+          start
+          status
+          stop
+          force-stop
+          add-alias
+          remove-alias
+          threaddump
+          cartridge-list
+          expose-port
+          frontend-backup
+          frontend-restore
+          frontend-create
+          frontend-destroy
+          frontend-update-name
+          frontend-connect
+          frontend-disconnect
+          frontend-connections
+          frontend-idle
+          frontend-unidle
+          frontend-check-idle
+          frontend-sts
+          frontend-no-sts
+          frontend-get-sts
+          aliases
+          ssl-cert-add
+          ssl-cert-remove
+          ssl-certs
+          frontend-to-hash
+          system-messages
+          connector-execute
+          get-quota
+          set-quota
+        )
+        validate :action, /\A#{valid_actions.join("|")}\Z/
         validate :action, :shellsafe
         cartridge                  = request[:cartridge]
         action                     = request[:action]
@@ -125,16 +183,16 @@ module MCollective
         joblist = request[config.identity]
 
         joblist.each do |parallel_job|
-          job = parallel_job[:job]
+            job = parallel_job[:job]
 
-          cartridge = job[:cartridge]
-          action    = job[:action]
-          args      = job[:args]
+            cartridge = job[:cartridge]
+            action    = job[:action]
+            args      = job[:args]
 
-          exitcode, output = execute_action(action, args)
+            exitcode, output = execute_action(action, args)
 
-          parallel_job[:result_exit_code] = exitcode
-          parallel_job[:result_stdout]    = output
+            parallel_job[:result_exit_code] = exitcode
+            parallel_job[:result_stdout]    = output
         end
 
         Log.instance.info("execute_parallel_action call - #{joblist}")
@@ -173,8 +231,6 @@ module MCollective
       end
 
       def with_container_from_args(args)
-        container  = get_app_container_from_args(args)
-
         output = ''
         begin
           container = get_app_container_from_args(args)

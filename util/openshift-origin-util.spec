@@ -5,7 +5,7 @@
 
 Summary:       Utility scripts for the OpenShift Origin broker and node
 Name:          openshift-origin-util
-Version:       1.5.2
+Version:       1.10.2
 Release:       1%{?dist}
 License:       ASL 2.0
 URL:           http://www.openshift.com
@@ -36,6 +36,18 @@ chmod 0755 %{buildroot}%{_bindir}/*
 
 
 %changelog
+* Tue Jun 11 2013 Troy Dawson <tdawson@redhat.com> 1.10.2-1
+- <util> remove oo-diagnostics from spec file (lmeyer@redhat.com)
+- Revert "<util> removing legacy package" - Fedora Origin is using
+  (lmeyer@redhat.com)
+- <util> removing legacy package (lmeyer@redhat.com)
+- <common> add oo-diagnostics and man page (lmeyer@redhat.com)
+- <oo-diagnostics> modernize and improve (lmeyer@redhat.com)
+- Bug 928675 (asari.ruby@gmail.com)
+
+* Tue Jun 11 2013 Troy Dawson <tdawson@redhat.com> 1.10.1-1
+- Bump up version to 1.10
+
 * Sat Apr 13 2013 Krishna Raman <kraman@gmail.com> 1.5.2-1
 - Fix how erb binary is resolved. Using util/util-scl packages instead of doing
   it dynamically in code. Separating manifest into RHEL and Fedora versions

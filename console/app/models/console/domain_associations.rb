@@ -2,7 +2,7 @@ module Console
 module DomainAssociations
 
   def self.when_belongs_to(klass, options)
-    klass.prefix = "#{RestApi::Base.prefix}domains/:domain_id/"
+    klass.prefix = "#{RestApi::Base.prefix}domain/:domain_id/"
     klass.class_eval do
       include Methods
     end

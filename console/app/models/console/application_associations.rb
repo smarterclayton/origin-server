@@ -2,7 +2,7 @@ module Console
 module ApplicationAssociations
 
   def self.when_belongs_to(klass, options)
-    klass.prefix = "#{RestApi::Base.prefix}domains/:domain_id/applications/:application_name/"
+    klass.prefix = "#{RestApi::Base.prefix}domains/:domain_id/application/:application_name/"
     klass.class_eval do
       schema do
         string :application_name
