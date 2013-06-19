@@ -59,6 +59,14 @@ class Authorization
     token #if token && ScopeChecker.matches?(token.scopes, scopes)
   end
 
+  def self.reuse_token(user, scopes, expires_in, note)
+    Authorization.for_owner(user).
+      matches_details(note, scopes).
+      order_by([:created_at, :desc]).
+      limit(10).detect{ |i| i.expires_in_seconds > [10.minute.seconds, expires_in / 4].min } ||
+      Authorization.new({user: user, note: note, scopes: scopes, expires_in: expires_in}, without_protection: true)
+  end
+
   def scopes
     self[:scopes]
   end

@@ -19,9 +19,25 @@ module Console
           login.present?
         end
 
+        def as
+          @as ||= ::CloudUser.find_or_create_by_identity(nil, login)
+        end
+
         def persisted?
           false
         end
+
+        def api_token
+          @api_token
+        end
+
+        def to_headers
+          if api_token.present?
+            {'Authorization' => "Bearer #{api_token}"}
+          else
+            {}
+          end
+        end        
       end
 
       included do
@@ -61,11 +77,21 @@ module Console
 
         def authenticated_user(user)
           return false unless user.login
+
+          scopes = Scope.for!('session')
+          auth = ::Authorization.reuse_token(user.as, scopes, scopes.default_expiration, "OpenShift Console (from #{request.remote_ip} on #{user_browser})")
+          auth.save! unless auth.persisted?
+
+          session[:api_token] = auth.token
           session[:login] = user.login
           true
         end
 
         def user_session_ended
+          if token = session[:api_token].presence
+            ::Authorization.where(:token => token).delete_all rescue log_error($!, "Unable to remove API token")
+          end
+          session.delete :api_token
         end
 
         #
@@ -81,9 +107,30 @@ module Console
       private
         def user_from_session
           if login = session[:login]
-            BrokerUser.new :login => login
+            BrokerUser.new :login => login, :api_token => session[:api_token]
           end
         end
+
+        def user_browser
+          agent = (request.user_agent || "").downcase
+          case agent
+          when /safari/
+              case agent
+              when /mobile/
+                'Safari Mobile'
+              else
+                'Safari'
+              end
+          when /firefox/
+            'Firefox'
+          when /opera/
+            'Opera'
+          when /MSIE/
+            'Internet Explorer'
+          else
+            'browser'
+          end
+        end        
     end
   end
 end
