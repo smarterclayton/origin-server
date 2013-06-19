@@ -1,5 +1,5 @@
 Console::Engine.routes.draw do
-  id_regex = id_regex
+  id_regex = /[^\/]+/
 
   match 'help' => 'console_index#help', :via => :get, :as => 'console_help'
   match 'unauthorized' => 'console_index#unauthorized', :via => :get, :as => 'unauthorized'
