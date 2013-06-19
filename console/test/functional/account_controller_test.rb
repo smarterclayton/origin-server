@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class AccountControllerTest < ActionController::TestCase
 
   test "should render dashboard" do
@@ -9,4 +10,5 @@ class AccountControllerTest < ActionController::TestCase
     assert_response :success
     assert assigns(:user).login.present?
   end
+end
 end

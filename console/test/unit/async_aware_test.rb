@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class AsyncAwareTest < ActiveSupport::TestCase
 
   def obj
@@ -52,4 +53,5 @@ class AsyncAwareTest < ActiveSupport::TestCase
     assert /13045/ =~ ex.to_s
     assert ex.to_s.include? Thread.current.inspect
   end
+end
 end

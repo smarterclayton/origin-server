@@ -1,5 +1,6 @@
 require File.expand_path('../../../test_helper', __FILE__)
 
+module Console
 class RestApiDomainTest < ActiveSupport::TestCase
   include RestApiAuth
 
@@ -88,4 +89,5 @@ class RestApiDomainTest < ActiveSupport::TestCase
       Domain.find 'invalid_name', :as => @user
     end
   end
+end
 end

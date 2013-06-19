@@ -1,6 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
-
+module Console
 class ScalingControllerTest < ActionController::TestCase
 
   uses_http_mock :sometimes
@@ -152,4 +152,5 @@ class ScalingControllerTest < ActionController::TestCase
       assert_response :success
     end
   end
+end
 end

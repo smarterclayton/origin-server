@@ -1,0 +1,28 @@
+- @suppress_ribbon = true
+- content_for :title, 'Sign in to OpenShift'
+
+.column-1
+  %h1.ribbon Sign in to OpenShift
+  
+  = semantic_form_for @user, :as => :web_user, :url => session_path, :html => {:id => 'login_form', :class => 'label-hide'} do |f|
+    - if @redirect.present?
+      %input{:type => "hidden", :name => "then", :value => @redirect }
+    = f.semantic_errors
+    = f.input :login,
+              :wrapper_html => { :class => "control-group-important" },
+              :label => 'Login',
+              :input_html => {:autofocus => @user.login.blank?, :placeholder => 'OpenShift', :class => @user.errors[:base].present? ? 'error max' : 'max'}
+    = f.input :password,
+              :wrapper_html => { :class => "control-group-important" },
+              :as => :password,
+              :hint => link_to("Forgot your password?", new_account_password_path, :data => {:submit_email_address => 'web_user[login]'}),
+              :input_html => {:autofocus => @user.login.present?, :placeholder => 'Password', :class => @user.errors[:base].present? ? 'error max' : 'max'}
+    = f.buttons do
+      = f.commit_button "Sign in", :button_html =>  {:class => 'btn btn-primary btn-block-phone btn-large'}
+
+.column-2
+  %ul.spaced-items
+    %li Code and deploy to the cloud in minutes.
+    %li No-Lock-In. Built on open technologies.
+    %li Java, Ruby, Node.js, Python, PHP, or Perl
+    %li Grow your applications easily with resource scaling.

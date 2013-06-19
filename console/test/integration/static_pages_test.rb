@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class StaticPagesTest < ActionDispatch::IntegrationTest
   setup { open_session }
   setup do 
@@ -22,7 +23,7 @@ class StaticPagesTest < ActionDispatch::IntegrationTest
   end
 
   test 'render not found if domain missing' do
-    controller_raises(RestApi::ResourceNotFound.new(Domain.model_name,nil))
+    controller_raises(RestApi::ResourceNotFound.new(Domain,nil))
 
     assert_response :success
     assert_select 'h1', /Domain does not exist/
@@ -41,4 +42,5 @@ class StaticPagesTest < ActionDispatch::IntegrationTest
     assert_select 'p', /#{assigns(:reference_id)}/
   end
 
+end
 end

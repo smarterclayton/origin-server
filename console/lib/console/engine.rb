@@ -11,6 +11,8 @@ require 'console/configuration'
 
 module Console
   class Engine < Rails::Engine
+    isolate_namespace Console
+
     config.before_initialize do
       Haml.init_rails(binding)
       Haml::Template.options[:format] = :html5
@@ -28,6 +30,5 @@ module Console
   end
 end
 
-require 'console/rails/routes'
 require 'console/rails/app_redirector'
 require 'console/rails/filter_hash'

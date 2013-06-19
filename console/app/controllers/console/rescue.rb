@@ -3,6 +3,7 @@ module Console
     extend ActiveSupport::Concern
 
     included do
+      rescue_from Console::NotFound, :with => :page_not_found
       rescue_from ActiveResource::ConnectionError, :with => :generic_error
       rescue_from ActiveResource::ResourceNotFound, :with => :page_not_found
       rescue_from ActiveResource::ServerError, :with => :server_error

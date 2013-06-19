@@ -4,6 +4,7 @@ require File.expand_path('../../test_helper', __FILE__)
 # Mock tests only - should verify functionality of ActiveResource extensions
 # and simple server/client interactions via HttpMock
 #
+module Console
 class RestApiTest < ActiveSupport::TestCase
 
   uses_http_mock
@@ -1707,4 +1708,5 @@ class RestApiTest < ActiveSupport::TestCase
     Cartridge.any_instance.expects(:destroy).raises(ActiveResource::ServerError.new(stub))
     assert_raise(ActiveResource::ServerError) { app.destroy_build_cartridge }
   end
+end
 end

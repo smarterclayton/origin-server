@@ -1,6 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
-class SingularResourcesTest < ActionDispatch::IntegrationTest
+class SingularResourcesIntegrationTest < ActionDispatch::IntegrationTest
 
   test "get app by singular resource url" do
     app = with_app

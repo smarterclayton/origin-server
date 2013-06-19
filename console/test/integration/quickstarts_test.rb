@@ -1,5 +1,6 @@
 require File.expand_path('../../test_helper', __FILE__)
 
+module Console
 class QuickstartsTest < ActiveSupport::TestCase
 
   test 'retrieve quickstarts' do
@@ -21,4 +22,5 @@ class QuickstartsTest < ActiveSupport::TestCase
     omit('Quickstarts do not have a result matching "blog"') unless quickstarts.present?
     assert quickstarts.first.tags.include?(:blog)
   end
+end
 end

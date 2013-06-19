@@ -1,5 +1,6 @@
 require File.expand_path('../../../test_helper', __FILE__)
 
+module Console
 class RestApiApplicationTest < ActiveSupport::TestCase
   include RestApiAuth
 
@@ -152,4 +153,5 @@ class RestApiApplicationTest < ActiveSupport::TestCase
     assert [:started, :idle].include? gear.state
     assert gear.id
   end
+end
 end

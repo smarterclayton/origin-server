@@ -1,0 +1,13 @@
+%nav#nav{:class => 'section-nav' << content_for(:nav_class)}
+  .navbar.centered
+    .container
+      -# Was .nav-collapse, has some issues
+      .brand
+        = link_to root_path do
+          .brand-image
+          .brand-text
+            %strong> Open
+            Shift
+
+  - if content_for? :header
+    = yield :header

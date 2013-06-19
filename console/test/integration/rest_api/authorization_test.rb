@@ -1,5 +1,6 @@
 require File.expand_path('../../../test_helper', __FILE__)
 
+module Console
 class RestApiAuthorizationTest < ActiveSupport::TestCase
   include RestApiAuth
 
@@ -142,4 +143,5 @@ class RestApiAuthorizationTest < ActiveSupport::TestCase
     assert a.save
     assert_equal 'bar', Authorization.first(:as => @user).note
   end
+end
 end

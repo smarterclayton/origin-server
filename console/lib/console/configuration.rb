@@ -115,7 +115,11 @@ module Console
       @capabilities_model = name
     end
 
-    #
+    def embedded_in_broker?
+      defined? Broker::Application
+    end
+
+    # 
     # Retrieve a configuration value from the default environment
     #
     # Pass an optional block to modify the value
@@ -153,6 +157,8 @@ module Console
         case config[:CONSOLE_SECURITY]
         when 'basic'
           self.security_controller = 'Console::Auth::Basic'
+        when 'broker'
+          self.security_controller = 'Console::Auth::Broker'
         when 'remote_user'
           self.security_controller = 'Console::Auth::RemoteUser'
           [:remote_user_copy_headers, :remote_user_header, :remote_user_name_header].each do |s|
@@ -210,6 +216,6 @@ module Console
     config.parent_controller = 'ApplicationController'
     config.security_controller = 'Console::Auth::Basic'
     config.include_helpers = true
-    config.capabilities_model = 'Capabilities::Cacheable'
+    config.capabilities_model = 'Console::Capabilities::Cacheable'
   end
 end

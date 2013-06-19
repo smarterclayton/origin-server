@@ -7,7 +7,7 @@ require "rails/test_unit/railtie"
 
 # If you have a Gemfile, require the gems listed there, including any gems
 # you've limited to :test, :development, or :production.
-Bundler.require(:default, Rails.env) if defined?(Bundler)
+Bundler.require(*Rails.groups(:default, :assets => %w(development test))) if defined?(Bundler)
 
 module Broker
   class Application < Rails::Application
@@ -18,6 +18,8 @@ module Broker
     # Set logs to somewhere more standard
     config.paths['log'] =  ENV['RAILS_LOG_PATH'] ||
                               "/var/log/openshift/broker/#{Rails.env}.log"
+
+    config.threadsafe!
                                      
     # Custom directories with classes and modules you want to be autoloadable.
     # config.autoload_paths += %W(#{config.root}/extras)
