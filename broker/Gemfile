@@ -13,7 +13,7 @@ gem 'mongoid'
 gem 'bson'
 gem 'bson_ext'
 gem 'pry', :require => 'pry' if ENV['PRY']
-gem 'minitest'
+gem 'minitest', '>= 3.5.0', :require => false
 # Fedora 19 splits psych out into its own gem.
 if Gem::Specification.respond_to?(:find_all_by_name) and not Gem::Specification::find_all_by_name('psych').empty?
   gem 'psych'
@@ -37,10 +37,10 @@ if ENV['BROKER_SOURCE']
   eval((IO.read(File.expand_path('~/.openshift/broker_plugins.rb')) rescue ''))
 else
   gem 'openshift-origin-controller'
-end
 
-# Load plugin gems.
-Dir["/etc/openshift/plugins.d/*.conf"].delete_if{ |x| x.end_with? "-dev.conf" }.map{|x| File.basename(x, ".conf")}.each {|plugin| gem plugin}
+  # Load plugin gems.
+  Dir["/etc/openshift/plugins.d/*.conf"].delete_if{ |x| x.end_with? "-dev.conf" }.map{|x| File.basename(x, ".conf")}.each {|plugin| gem plugin}
+end
 
 # Bundle edge Rails instead:
 # gem 'rails', :git => 'git://github.com/rails/rails.git'
@@ -66,9 +66,9 @@ Dir["/etc/openshift/plugins.d/*.conf"].delete_if{ |x| x.end_with? "-dev.conf" }.
 # and rake tasks are available in development mode:
 group :development, :test do
   # The require part from http://tinyurl.com/3pf68ho
-  gem 'rest-client', '>= 1.6.1', '<= 1.6.7', :require => 'rest-client'
-  gem 'mocha', '~> 0.13.1', :require => nil
-  gem 'rake', '>= 0.8.7'
-  gem 'simplecov'
+  gem 'rest-client',  '>= 1.6.1', '<= 1.6.7', :require => 'rest-client'
+  gem 'mocha',        '~> 0.13.1', :require => nil
+  gem 'rake',         '>= 0.8.7'
+  gem 'simplecov',    '~> 0.6.4', :require => false
   gem 'cucumber'
 end

@@ -5,12 +5,16 @@ class Rake::Task
   end
 end
 
-Rake::TestTask.new :test do |i|
-  i.test_files = FileList['test/**/*_test.rb']
-end
-task :test => 'test:prepare'
-
 namespace :test do
+  console_path = Console::Engine.root
+
+  Rake::TestTask.new :console do |i|
+    i.test_files = FileList["#{console_path}/test/**/*_test.rb"]
+  end
+  task :console => 'test:console:prepare'
+
+  namespace :console do
+
   namespace :prepare do
     task :ci_reporter do
       # define our own ci_reporter task to NOT delete test reports (can't run in parallel if we're deleting)
@@ -24,13 +28,13 @@ namespace :test do
       end
     end
   end
-  task :prepare => 'test:prepare:ci_reporter'
+  task :prepare => 'test:console:prepare:ci_reporter'
 
   ['unit', 'functional', 'integration'].each do |s|
     Rake::TestTask.new s.to_sym => 'test:prepare' do |t|
       t.libs << 'test'
       t.test_files = FileList[
-        "test/#{s}/**/*_test.rb",
+        "#{console_path}/test/#{s}/**/*_test.rb",
       ]
     end
   end
@@ -38,8 +42,8 @@ namespace :test do
   Rake::TestTask.new :restapi => 'test:prepare' do |t|
     t.libs << 'test'
     t.test_files = FileList[
-      'test/**/rest_api_test.rb',
-      'test/**/rest_api/*_test.rb',
+      "#{console_path}/**/rest_api_test.rb",
+      "#{console_path}/**/rest_api/*_test.rb",
     ]
   end
 
@@ -49,41 +53,42 @@ namespace :test do
     Rake::TestTask.new :applications => ['test:prepare'] do |t|
       t.libs << 'test'
       covered.concat(t.test_files = FileList[
-        'test/functional/applications_controller_sanity_test.rb',
+        "#{console_path}/functional/applications_controller_sanity_test.rb",
       ])
     end
 
     Rake::TestTask.new :cartridges => ['test:prepare'] do |t|
       t.libs << 'test'
       covered.concat(t.test_files = FileList[
-        'test/functional/cartridges_controller_test.rb',
-        'test/functional/cartridge_types_controller_test.rb',
+        "#{console_path}/functional/cartridges_controller_test.rb",
+        "#{console_path}/functional/cartridge_types_controller_test.rb",
       ])
     end
 
     Rake::TestTask.new :misc1 => ['test:prepare'] do |t|
       t.libs << 'test'
       covered.concat(t.test_files = FileList[
-        'test/functional/applications_controller_test.rb',
-        'test/functional/application_types_controller_test.rb',
-        'test/functional/domains_controller_test.rb',
-        'test/functional/scaling_controller_test.rb',
-        'test/integration/rest_api/cartridge_test.rb',
+        "#{console_path}/functional/applications_controller_test.rb",
+        "#{console_path}/functional/application_types_controller_test.rb",
+        "#{console_path}/functional/domains_controller_test.rb",
+        "#{console_path}/functional/scaling_controller_test.rb",
+        "#{console_path}/integration/rest_api/cartridge_test.rb",
       ])
     end
 
     Rake::TestTask.new :restapi_integration => ['test:prepare'] do |t|
       t.libs << 'test'
       covered.concat(t.test_files = FileList[
-        'test/integration/rest_api/**_test.rb',
-      ].exclude('test/integration/rest_api/cartridge_test.rb'))
+        "#{console_path}/integration/rest_api/**_test.rb",
+      ].exclude("#{console_path}/integration/rest_api/cartridge_test.rb"))
     end
 
     Rake::TestTask.new :base => ['test:prepare'] do |t|
       t.libs << 'test'
-      t.test_files = FileList['test/**/*_test.rb'] - covered
+      t.test_files = FileList["#{console_path}/**/*_test.rb"] - covered
     end
   end
-  task :check => Rake::Task.tasks.select{ |t| t.name.match(/\Atest:check:/) }.map(&:name)
+  task :check => Rake::Task.tasks.select{ |t| t.name.match(/\Atest:console:check:/) }.map(&:name)
   task :extended => []
+  end
 end

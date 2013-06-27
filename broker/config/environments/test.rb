@@ -44,7 +44,7 @@ Broker::Application.configure do
     :db => conf.get("MONGO_DB", "openshift_broker_dev"),
     :ssl => conf.get_bool("MONGO_SSL", "false")
   }
-
+puts "Loading"
   config.usage_tracking = {
     :datastore_enabled => conf.get_bool("ENABLE_USAGE_TRACKING_DATASTORE", "true"),
     :audit_log_enabled => conf.get_bool("ENABLE_USAGE_TRACKING_AUDIT_LOG", "true"),

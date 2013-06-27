@@ -30,6 +30,3 @@ group :assets do
   gem 'uglifier',      '>= 1.2.6'
   gem 'therubyracer',  '>= 0.10'
 end
-
-
-

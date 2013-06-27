@@ -1,7 +1,7 @@
 module Console
 class ConsoleController < Console.config.parent_controller.constantize
   include RedirectProtection
-  if Console.config.embedded_in_broker?
+  if Console::Engine.embedded_in_broker?
     protect_from_forgery
     include Console::Rescue
     helper Console::Engine.helpers

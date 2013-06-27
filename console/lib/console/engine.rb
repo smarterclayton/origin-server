@@ -27,6 +27,10 @@ module Console
       file = File.expand_path(file)
       require_dependency "#{root}/#{Pathname.new(file).relative_path_from(Rails.application.root)}"
     end
+
+    def self.embedded_in_broker?
+      defined? Broker::Application
+    end
   end
 end
 

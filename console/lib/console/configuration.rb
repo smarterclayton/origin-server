@@ -115,10 +115,6 @@ module Console
       @capabilities_model = name
     end
 
-    def embedded_in_broker?
-      defined? Broker::Application
-    end
-
     # 
     # Retrieve a configuration value from the default environment
     #
