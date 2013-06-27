@@ -9,7 +9,7 @@
 
 Summary:       Cloud Development Common
 Name:          rubygem-%{gem_name}
-Version: 1.10.3
+Version: 1.11.1
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -24,6 +24,7 @@ Requires:      %{?scl:%scl_prefix}rubygems
 Requires:      %{?scl:%scl_prefix}rubygem(activemodel)
 Requires:      %{?scl:%scl_prefix}rubygem(json)
 Requires:      %{?scl:%scl_prefix}rubygem(safe_yaml)
+Requires:      %{?scl:%scl_prefix}rubygem(bundler)
 %if 0%{?rhel}
 Requires:      openshift-origin-util-scl
 %endif
@@ -119,6 +120,14 @@ cp bin/man/*.8 %{buildroot}%{_mandir}/man8/
 %doc %{gem_docdir}
 
 %changelog
+* Tue Jun 25 2013 Adam Miller <admiller@redhat.com> 1.11.1-1
+- bump_minor_versions for sprint 30 (admiller@redhat.com)
+
+* Fri Jun 21 2013 Adam Miller <admiller@redhat.com> 1.10.4-1
+- <oo-diagnostics> Bug 976874 - Detect abrt-addon-python conflicts
+  (jdetiber@redhat.com)
+- <common> bug 976173 oo-diagnostics requires bundler (lmeyer@redhat.com)
+
 * Mon Jun 17 2013 Adam Miller <admiller@redhat.com> 1.10.3-1
 - First pass at removing v1 cartridges (dmcphers@redhat.com)
 - Merge pull request #2805 from BanzaiMan/dev/hasari/bz972757

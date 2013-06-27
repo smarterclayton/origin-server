@@ -1,6 +1,6 @@
 Summary:       Utility scripts for the OpenShift Origin broker
 Name:          openshift-origin-node-util
-Version: 1.10.3
+Version: 1.11.1
 Release:       1%{?dist}
 Group:         Network/Daemons
 License:       ASL 2.0
@@ -124,6 +124,12 @@ mv services/openshift-gears.service %{buildroot}/etc/systemd/system/openshift-ge
 /sbin/restorecon /usr/sbin/oo-restorer* || :
 
 %changelog
+* Tue Jun 25 2013 Adam Miller <admiller@redhat.com> 1.11.1-1
+- bump_minor_versions for sprint 30 (admiller@redhat.com)
+
+* Fri Jun 21 2013 Adam Miller <admiller@redhat.com> 1.10.4-1
+- Fix bug 971955: load users correctly from /etc/passwd (pmorie@gmail.com)
+
 * Tue Jun 18 2013 Adam Miller <admiller@redhat.com> 1.10.3-1
 - Bug 971176 - Catch cartridge repository issues. (rmillner@redhat.com)
 - Merge pull request #2867 from rmillner/misc_bugs

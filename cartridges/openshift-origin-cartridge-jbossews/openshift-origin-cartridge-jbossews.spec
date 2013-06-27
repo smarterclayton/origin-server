@@ -2,7 +2,7 @@
 
 Summary:       Provides JBossEWS2.0 support
 Name:          openshift-origin-cartridge-jbossews
-Version: 0.5.3
+Version: 0.6.1
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -65,6 +65,7 @@ alternatives --remove jbossews-2.0 /usr/share/tomcat7
 alternatives --install /etc/alternatives/jbossews-2.0 jbossews-2.0 /usr/share/tomcat7 102
 alternatives --set jbossews-2.0 /usr/share/tomcat7
 
+%posttrans
 %{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
 
 
@@ -78,6 +79,13 @@ alternatives --set jbossews-2.0 /usr/share/tomcat7
 %doc %{cartridgedir}/LICENSE
 
 %changelog
+* Tue Jun 25 2013 Adam Miller <admiller@redhat.com> 0.6.1-1
+- bump_minor_versions for sprint 30 (admiller@redhat.com)
+
+* Mon Jun 24 2013 Adam Miller <admiller@redhat.com> 0.5.4-1
+- Bug 975794: Move oo-admin-cartridge operations to %%posttrans
+  (ironcladlou@gmail.com)
+
 * Tue Jun 18 2013 Adam Miller <admiller@redhat.com> 0.5.3-1
 - Merge pull request #2881 from ironcladlou/bz/972979
   (dmcphers+openshiftbot@redhat.com)

@@ -7,7 +7,8 @@ Versions: ['2.7', '3.3']
 License: "The Python License, version 2.7"
 License-Url: http://docs.python.org/3/license.html
 Vendor: python.org
-Cartridge-Version: 0.0.1
+Cartridge-Version: 0.0.2
+Compatible-Versions: ['0.0.1']
 Cartridge-Vendor: redhat
 Categories:
   - service
@@ -23,10 +24,10 @@ Cart-Data:
   - Key: OPENSHIFT_REPO_DIR
     Type: environment
     Description: "Application root directory where application files reside. This directory is reset every time you do a git-push"
-  - Key: OPENSHIFT_INTERNAL_PORT
+  - Key: OPENSHIFT_PYTHON_PORT
     Type: environment
     Description: "Internal port to which the web-framework binds to."
-  - Key: OPENSHIFT_INTERNAL_IP
+  - Key: OPENSHIFT_PYTHON_IP
     Type: environment
     Description: "Internal IP to which the web-framework binds to."
   - Key: OPENSHIFT_APP_DNS
