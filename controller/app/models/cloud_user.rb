@@ -20,6 +20,8 @@ class CloudUser
   include Mongoid::Document
   include Mongoid::Timestamps
   include UtilHelper
+  include AccessControllable
+
   alias_method :mongoid_save, :save
 
   DEFAULT_SSH_KEY_NAME = "default"
@@ -39,6 +41,8 @@ class CloudUser
   # embeds_many :identities, class_name: Identity.name, cascade_callbacks: true
   has_many :domains, class_name: Domain.name, dependent: :restrict, :foreign_key => 'owner_id'
   has_many :authorizations, class_name: Authorization.name, dependent: :restrict
+
+  member_as :user
 
   validates :login, presence: true, login: true
   validates :capabilities, presence: true, capabilities: true
@@ -76,6 +80,10 @@ class CloudUser
   # def current_identity!(provider, uid)
   #  self.current_identity = identities.select{ |i| i.provider == provider && i.uid == uid }.first
   # end
+
+  def inherit_membership
+    [as_member]
+  end
 
   # Convenience method to get the max_gears capability
   def max_gears
@@ -165,19 +173,10 @@ class CloudUser
   # Used to add an ssh-key to the user. Use this instead of ssh_keys= so that the key can be propagated to the
   # domains/application that the user has access to.
   def add_ssh_key(key)
-    if self.domains.count > 0
-      pending_op = PendingUserOps.new(op_type: :add_ssh_key, arguments: key.attributes.dup, state: :init, on_domain_ids: self.domains.map{|d|d._id.to_s}, created_at: Time.new)
-      CloudUser.where(_id: self.id).update_all({ "$push" => { pending_ops: pending_op.serializable_hash_with_timestamp , ssh_keys: key.serializable_hash }})
-      self.with(consistency: :strong).reload
-      self.run_jobs
-    else
-      #TODO shouldn't << always work???
-      if self.ssh_keys.exists?
-        self.ssh_keys << key
-      else
-        self.ssh_keys = [key]
-      end
-    end
+    pending_op = PendingUserOps.new(op_type: :add_ssh_key, arguments: key.attributes.dup, state: :init, on_domain_ids: self.domains.map{|d|d._id.to_s}, created_at: Time.new)
+    CloudUser.where(_id: self.id).update_all({ "$push" => { pending_ops: pending_op.serializable_hash_with_timestamp , ssh_keys: key.serializable_hash }})
+    self.with(consistency: :strong).reload
+    self.run_jobs
   end
   
   # Used to update an ssh-key on the user. Use this instead of ssh_keys= so that the key update can be propagated to the
@@ -191,14 +190,10 @@ class CloudUser
   # domains/application that the user has access to.
   def remove_ssh_key(name)
     key = self.ssh_keys.find_by(name: name)
-    if self.domains.count > 0
-      pending_op = PendingUserOps.new(op_type: :delete_ssh_key, arguments: key.attributes.dup, state: :init, on_domain_ids: self.domains.map{|d|d._id.to_s}, created_at: Time.new)
-      CloudUser.where(_id: self.id).update_all({ "$push" => { pending_ops: pending_op.serializable_hash_with_timestamp } , "$pull" => { ssh_keys: key.serializable_hash }})
-      self.with(consistency: :strong).reload
-      self.run_jobs      
-    else
-      key.delete
-    end
+    pending_op = PendingUserOps.new(op_type: :delete_ssh_key, arguments: key.attributes.dup, state: :init, on_domain_ids: self.domains.map{|d|d._id.to_s}, created_at: Time.new)
+    CloudUser.where(_id: self.id).update_all({ "$push" => { pending_ops: pending_op.serializable_hash_with_timestamp } , "$pull" => { ssh_keys: key.serializable_hash }})
+    self.with(consistency: :strong).reload
+    self.run_jobs      
   end
 
   def default_capabilities
@@ -268,9 +263,11 @@ class CloudUser
 
         case op.op_type
         when :add_ssh_key
-          op.pending_domains.each { |domain| domain.add_ssh_key(self._id, UserSshKey.new.to_obj(op.arguments), op) }
+          Application.accessible(self).each{ |app| app.add_ssh_keys(self._id, [UserSshKey.new.to_obj(op.arguments)], nil) }
+          #op.pending_domains.each { |domain| domain.add_ssh_key(self._id, UserSshKey.new.to_obj(op.arguments), op) }
         when :delete_ssh_key
-          op.pending_domains.each { |domain| domain.remove_ssh_key(self._id, UserSshKey.new.to_obj(op.arguments), op) }
+          Application.accessible(self).each{ |app| app.remove_ssh_keys(self._id, [UserSshKey.new.to_obj(op.arguments)], nil) }
+          #op.pending_domains.each { |domain| domain.remove_ssh_key(self._id, UserSshKey.new.to_obj(op.arguments), op) }
         end
 
         # reloading the op reloads the cloud_user and then incorrectly reloads (potentially)

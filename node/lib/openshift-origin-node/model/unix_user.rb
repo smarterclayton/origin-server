@@ -284,7 +284,11 @@ Dir(after)    #{@uuid}/#{@uid} => #{list_home_dir(@homedir)}
       self.class.notify_observers(:before_remove_ssh_key, self, key)
 
       modify_ssh_keys do |keys|
-        keys.delete_if{ |k, v| v.include?(key)}
+        if comment
+          keys.delete_if{ |k, v| v.include?(comment) }
+        else
+          keys.delete_if{ |k,v| v.include?(key) }
+        end
       end
 
       self.class.notify_observers(:after_remove_ssh_key, self, key)

@@ -11,8 +11,6 @@
 #     @see {Domain#add_domain_ssh_keys}, {Domain#remove_domain_ssh_key}
 # @!attribute [r] owner
 #   @return [CloudUser] The {CloudUser} that owns this domain.
-# @!attribute [r] user_ids
-#   @return [Array[Moped::BSON::ObjectId]] List of IDs of {CloudUser}s that have access to {Application}s within this domain.
 # @!attribute [r] applications
 #   @return [Array[Application]] List of {Application}s under the domain.
 # @!attribute [r] pending_ops
@@ -28,6 +26,8 @@ class Domain
   
   include Mongoid::Document
   include Mongoid::Timestamps
+  include AccessControlled
+
   alias_method :mongoid_save, :save
 
   field :namespace, type: String
@@ -35,13 +35,13 @@ class Domain
   field :env_vars, type: Array, default: []
   embeds_many :system_ssh_keys, class_name: SystemSshKey.name
   belongs_to :owner, class_name: CloudUser.name
-  field :user_ids, type: Array, default: []
   has_many :applications, class_name: Application.name, dependent: :restrict
   embeds_many :pending_ops, class_name: PendingDomainOps.name
   
+  has_members
+
   index({:canonical_namespace => 1}, {:unique => true})
   index({:owner_id => 1})
-  index({:user_ids => 1})
   create_indexes
   
   validates :namespace,
@@ -51,11 +51,6 @@ class Domain
     blacklisted: {message: "Namespace is not allowed.  Please choose another."}
   def self.validation_map
     {namespace: 106}
-  end
-  
-  def initialize(attrs = nil, options = nil)
-    super
-    self.user_ids << owner._id if owner
   end
   
   def save(options = {})
@@ -88,38 +83,9 @@ class Domain
     notify_observers(:domain_update_success)
   end
 
-  # Adds a user to the access list for this domain.
-  #
-  # == Parameters:
-  # user::
-  #  The user to add to the access list for this domain.
-  def add_user(user)
-    unless self.user_ids.include? user._id
-      self.user_ids.push user._id
-      self.save
-      if self.applications.count > 0
-        pending_op = PendingDomainOps.new(op_type: :add_user, arguments: {user_id: user._id}, parent_op: nil, on_apps: applications)
-        self.pending_ops.push pending_op
-        self.run_jobs
-      end
-    end
-  end
-  
-  # Removes a user from the access list for this domain.
-  #
-  # == Parameters:
-  # user::
-  #  The user to remove from the access list for this domain.
-  def remove_user(user)
-    if self.user_ids.delete user._id
-      self.save
-      if self.applications.count > 0
-        pending_op = PendingDomainOps.new(op_type: :remove_user, arguments: {user_id: user._id}, parent_op: nil, on_apps: applications)
-        self.pending_ops.push pending_op
-        self.run_jobs
-      end
-    end
-  end
+  def inherit_membership
+    members.clone
+  end  
   
   # Support operation to add additional ssh keys for a user
   #
@@ -135,7 +101,7 @@ class Domain
   #  The domain operation which tracks the sshkey addition
   def add_ssh_key(user_id, ssh_key, pending_parent_op)
     return if pending_ops.where(parent_op_id: pending_parent_op._id).count > 0
-    if((owner._id == user_id || user_ids.include?(user_id)) && self.applications.count > 0)
+    if((owner._id == user_id) && self.applications.count > 0)
       self.pending_ops.push(PendingDomainOps.new(op_type: :add_ssh_key, arguments: { "user_id" => user_id, "key_attrs" => [ssh_key.attributes] }, parent_op_id: pending_parent_op._id, on_apps: self.applications, state: "init"))
       self.run_jobs
     else

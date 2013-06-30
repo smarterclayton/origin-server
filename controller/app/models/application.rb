@@ -59,6 +59,7 @@ class Application
   include Mongoid::Document
   include Mongoid::Timestamps
   include UtilHelper
+  include AccessControlled
 
   # Maximum length of  a valid application name
   APP_NAME_MAX_LENGTH = 32
@@ -93,6 +94,8 @@ class Application
   embeds_many :group_instances, class_name: GroupInstance.name
   embeds_many :app_ssh_keys, class_name: ApplicationSshKey.name
   embeds_many :aliases, class_name: Alias.name
+
+  has_members
 
   index({'group_instances.gears.uuid' => 1}, {:unique => true, :sparse => true})
   index({'domain_id' => 1})
@@ -1154,9 +1157,16 @@ class Application
       while self.pending_op_groups.count > 0
         op_group = self.pending_op_groups.first
         self.user_agent = op_group.user_agent
-        op_group.pending_ops
+
         if op_group.pending_ops.count == 0
           case op_group.op_type
+          when :change_members
+            ops = calculate_update_existing_configuration_ops({
+              # FIXME this is an unbounded operation, all keys for all users added and removed to each gear.  need to optimize
+              'add_keys_attrs' => CloudUser.members_of(Array(op_group.args['added'])).map{ |u| get_updated_ssh_keys(u._id, u.ssh_keys) }.flatten(1),
+              'remove_keys_attrs' => CloudUser.members_of(Array(op_group.args['removed'])).map{ |u| get_updated_ssh_keys(u._id, u.ssh_keys) }.flatten(1),
+            })
+            op_group.pending_ops.push(*ops)
           when :update_configuration
             ops = calculate_update_existing_configuration_ops(op_group.args)
             op_group.pending_ops.push(*ops)
@@ -1425,15 +1435,6 @@ class Application
   def calculate_gear_create_ops(ginst_id, gear_ids, singleton_gear_id, comp_specs, component_ops, additional_filesystem_gb, gear_size, ginst_op_id=nil, is_scale_up=false, hosts_app_dns=false, init_git_url=nil)
     pending_ops = []
 
-    a_ssh_keys = self.app_ssh_keys.map{|k| k.attributes}
-    d_ssh_keys = get_updated_ssh_keys(nil, self.domain.system_ssh_keys)
-    o_ssh_keys = get_updated_ssh_keys(self.domain.owner._id, self.domain.owner.ssh_keys)
-    u_ssh_keys = CloudUser.find(self.domain.user_ids).map{|u| get_updated_ssh_keys(u._id, u.ssh_keys)}.flatten
-
-    ssh_keys = a_ssh_keys + d_ssh_keys + o_ssh_keys + u_ssh_keys
-    env_vars = self.domain.env_vars
-    init_git_url = nil unless hosts_app_dns
-
     gear_id_prereqs = {}
     gear_ids.each do |gear_id|
       host_singletons = (gear_id == singleton_gear_id)
@@ -1468,8 +1469,17 @@ class Application
       gear_id_prereqs[gear_id] = register_dns_op._id.to_s
     end
 
+    a_ssh_keys = self.app_ssh_keys.map{|k| k.attributes} #FIXME Why am i not a standard key class?
+    d_ssh_keys = get_updated_ssh_keys(nil, self.domain.system_ssh_keys)
+    u_ssh_keys = CloudUser.members_of(self).map{ |u| get_updated_ssh_keys(u._id, u.ssh_keys) }.flatten(1)
+
+    ssh_keys = a_ssh_keys + d_ssh_keys + u_ssh_keys
+    env_vars = self.domain.env_vars
+
     ops = calculate_update_new_configuration_ops({"add_keys_attrs" => ssh_keys, "add_env_vars" => env_vars}, ginst_id, gear_id_prereqs)
     pending_ops.push(*ops)
+
+    init_git_url = nil unless hosts_app_dns #FIXME should be if the gear can hold a git repo and/or is a builder
 
     ops = calculate_add_component_ops(comp_specs, ginst_id, gear_id_prereqs, singleton_gear_id, component_ops, is_scale_up, ginst_op_id, init_git_url)
     pending_ops.push(*ops)
@@ -2361,6 +2371,9 @@ class Application
 
   # The ssh key names are used as part of the ssh key comments on the application's gears
   # Do not change the format of the key name, otherwise it may break key removal code on the node
+  #
+  # FIXME why are we not using uuids and hashes to guarantee key uniqueness on the nodes?
+  #
   def get_updated_ssh_keys(user_id, keys)
     updated_keys_attrs = keys.map { |key|
       key_attrs = deep_copy(key.to_key_hash)
