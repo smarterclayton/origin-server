@@ -201,22 +201,19 @@ class Domain
         end
 
         case op.op_type
-        when :add_user
-          user = nil
-          begin
-            user = CloudUser.find(op.arguments["user_id"])
-          rescue Mongoid::Errors::DocumentNotFound
-            #ignore
+        when :change_members
+          removed = Array(op.args['removed'])
+          added = CloudUser.members_of(op.args['added'])
+          (binding.pry; raise "No args") if removed.blank? && added.blank?
+          self.applications.each do |app|
+            app.remove_members(removed, :domain).add_members(added, :domain)
+            binding.pry if $foo
+            app.save!
+            # FIXME this needs to recover and continue
+            app.run_jobs
           end
-          op.pending_apps.each { |app| app.add_ssh_keys(user._id, user.ssh_keys, op) } if user
-        when :remove_user
-          user = nil
-          begin
-            user = CloudUser.find(op.arguments["user_id"])
-          rescue Mongoid::Errors::DocumentNotFound
-            #ignore
-          end
-          op.pending_apps.each { |app| app.remove_ssh_keys(user._id, user.ssh_keys, op) } if user
+          op.set(:state, :completed)
+          
         when :add_ssh_key
           ssh_keys = op.arguments["key_attrs"].map{|k| UserSshKey.new.to_obj(k)}
           op.pending_apps.each { |app| app.add_ssh_keys(op.arguments["user_id"], ssh_keys, op) }

@@ -31,6 +31,8 @@ Rails.application.routes.draw do
         resources :aliases, :only => [:index, :show, :create, :update, :destroy], :controller => :alias, :constraints => { :id => id_with_format }, :singular_resource => true
       end
     end
+    match 'applications' => 'applications#access'
+
     root as: 'rest', to: redirect{ |params, request| "#{request.script_name}/rest/api" }
   end
 end

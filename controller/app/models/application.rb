@@ -257,7 +257,7 @@ class Application
     @downloaded_cartridges = {}
     self.uuid = self._id.to_s if self.uuid=="" or self.uuid.nil?
     self.app_ssh_keys = []
-    self.pending_op_groups = []
+    #self.pending_op_groups = []
     self.analytics = {} if self.analytics.nil?
     self.save
   end
@@ -276,7 +276,7 @@ class Application
   # @param keys [Array<SshKey>] Array of keys to add to the application.
   # @param parent_op [PendingDomainOps] object used to track this operation at a domain level
   # @return [ResultIO] Output from cartridges
-  def add_ssh_keys(user_id, keys, parent_op)
+  def add_ssh_keys(user_id, keys, parent_op=nil)
     return if keys.empty?
     keys_attrs = get_updated_ssh_keys(user_id, keys)
     Application.run_in_application_lock(self) do
@@ -312,21 +312,14 @@ class Application
   # @param user_id [String] The ID of the user associated with the keys. If the user ID is nil, then the key is assumed to be a system generated key
   # @param keys [Array<SshKey>] Array of keys to add to the application.
   # @return [ResultIO] Output from cartridges
-  def fix_gear_ssh_keys()
+  def fix_gear_ssh_keys
     Application.run_in_application_lock(self) do
-      ssh_keys = []
-
       # reload the application to get the latest data
       self.with(consistency: :strong).reload
 
-      # get the application keys
-      ssh_keys |= self.app_ssh_keys.map {|k| k.to_key_hash}
-
-      # get the domain ssh keys
+      ssh_keys = self.app_ssh_keys.map {|k| k.to_key_hash }
       ssh_keys |= get_updated_ssh_keys(nil, self.domain.system_ssh_keys)
-
-      # get the user ssh keys
-      ssh_keys |= get_updated_ssh_keys(self.domain.owner_id, self.domain.owner.ssh_keys)
+      ssh_keys |= CloudUser.members_of(self).map{ |u| get_updated_ssh_keys(u._id, u.ssh_keys) }.flatten(1)
 
       op_group = PendingAppOpGroup.new(op_type: :replace_all_ssh_keys,  args: {"keys_attrs" => ssh_keys}, user_agent: self.user_agent)
       self.pending_op_groups.push op_group
@@ -1152,15 +1145,16 @@ class Application
   def run_jobs(result_io=nil)
     result_io = ResultIO.new if result_io.nil?
     self.with(consistency: :strong).reload
-    return true if (self.pending_op_groups.count == 0)
     begin
       while self.pending_op_groups.count > 0
+        puts "A pending operation is running"
         op_group = self.pending_op_groups.first
         self.user_agent = op_group.user_agent
 
         if op_group.pending_ops.count == 0
           case op_group.op_type
           when :change_members
+            puts "Membership change is being calculated"
             ops = calculate_update_existing_configuration_ops({
               # FIXME this is an unbounded operation, all keys for all users added and removed to each gear.  need to optimize
               'add_keys_attrs' => CloudUser.members_of(Array(op_group.args['added'])).map{ |u| get_updated_ssh_keys(u._id, u.ssh_keys) }.flatten(1),
@@ -1469,11 +1463,10 @@ class Application
       gear_id_prereqs[gear_id] = register_dns_op._id.to_s
     end
 
-    a_ssh_keys = self.app_ssh_keys.map{|k| k.attributes} #FIXME Why am i not a standard key class?
-    d_ssh_keys = get_updated_ssh_keys(nil, self.domain.system_ssh_keys)
-    u_ssh_keys = CloudUser.members_of(self).map{ |u| get_updated_ssh_keys(u._id, u.ssh_keys) }.flatten(1)
+    ssh_keys = self.app_ssh_keys.map{|k| k.to_key_hash } #FIXME Why am i not a standard key class?
+    ssh_keys |= get_updated_ssh_keys(nil, self.domain.system_ssh_keys)
+    ssh_keys |= CloudUser.members_of(self).map{ |u| get_updated_ssh_keys(u._id, u.ssh_keys) }.flatten(1)
 
-    ssh_keys = a_ssh_keys + d_ssh_keys + u_ssh_keys
     env_vars = self.domain.env_vars
 
     ops = calculate_update_new_configuration_ops({"add_keys_attrs" => ssh_keys, "add_env_vars" => env_vars}, ginst_id, gear_id_prereqs)

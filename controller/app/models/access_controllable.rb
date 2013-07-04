@@ -1,12 +1,17 @@
 module AccessControllable
   extend ActiveSupport::Concern
 
-  def as_member
+  def as_member(role=nil)
     Member.new do |u|
       u._id = self._id
       u._type = self.class.member_type
+      u.role = role
     end
   end
+
+  def member_of?(o)
+    o.members.include? self
+  end  
 
   module ClassMethods
     def member_as(s)

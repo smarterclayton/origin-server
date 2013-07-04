@@ -5,20 +5,24 @@ require File.expand_path('../../config/environment', __FILE__)
 require 'rails/test_help'
 require 'mocha/setup'
 
-manifest = YAML.load(File.open(Dir["/var/lib/openshift/.cartridge_repository/redhat-php/*/metadata/manifest.yml"].first))
-PHP_VERSION = "php-" + manifest['Version']
+begin
+  manifest = YAML.load(File.open(Dir["/var/lib/openshift/.cartridge_repository/redhat-php/*/metadata/manifest.yml"].first))
+  PHP_VERSION = "php-" + manifest['Version']
 
-manifest = YAML.load(File.open(Dir["/var/lib/openshift/.cartridge_repository/redhat-ruby/*/metadata/manifest.yml"].first))
-RUBY_VERSION = "ruby-" + manifest['Version']
+  manifest = YAML.load(File.open(Dir["/var/lib/openshift/.cartridge_repository/redhat-ruby/*/metadata/manifest.yml"].first))
+  RUBY_VERSION = "ruby-" + manifest['Version']
 
-if File.exist?("/var/lib/openshift/.cartridge_repository/redhat-mysql")
-  manifest = YAML.load(File.open(Dir["/var/lib/openshift/.cartridge_repository/redhat-mysql/*/metadata/manifest.yml"].first))
-  MYSQL_VERSION = "mysql-" + manifest['Version']
-end
+  if File.exist?("/var/lib/openshift/.cartridge_repository/redhat-mysql")
+    manifest = YAML.load(File.open(Dir["/var/lib/openshift/.cartridge_repository/redhat-mysql/*/metadata/manifest.yml"].first))
+    MYSQL_VERSION = "mysql-" + manifest['Version']
+  end
 
-if File.exist?("/var/lib/openshift/.cartridge_repository/redhat-mariadb")
-  manifest = YAML.load(File.open(Dir["/var/lib/openshift/.cartridge_repository/redhat-mariadb/*/metadata/manifest.yml"].first))
-  MYSQL_VERSION = "mariadb-" + manifest['Version']
+  if File.exist?("/var/lib/openshift/.cartridge_repository/redhat-mariadb")
+    manifest = YAML.load(File.open(Dir["/var/lib/openshift/.cartridge_repository/redhat-mariadb/*/metadata/manifest.yml"].first))
+    MYSQL_VERSION = "mariadb-" + manifest['Version']
+  end
+rescue => e
+  puts "Unable to set PHP/RUBY/MYSQL versions, #{e.backtrace.join("\n")}"
 end
 
 def gen_uuid

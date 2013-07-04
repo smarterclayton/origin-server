@@ -99,13 +99,14 @@ module OpenShift
           domain_id = domain_id.downcase if domain_id
           return render_error(:not_found, "Domain '#{domain_id}' not found", 127) if domain_id.nil? or domain_id !~ Domain::DOMAIN_NAME_COMPATIBILITY_REGEX           
           begin
-            @domain = Domain.find_by(owner: @cloud_user, canonical_namespace: domain_id)
+            @domain = Domain.accessible(current_user).find_by(canonical_namespace: domain_id)
             @domain_name = @domain.namespace
             return @domain
           rescue Mongoid::Errors::DocumentNotFound => e
             return render_error(:not_found, "Domain '#{domain_id}' not found", 127)
           end
         end
+        
         def get_application
           application_id = params[:application_id] || params[:id]
           application_id = application_id.downcase if application_id

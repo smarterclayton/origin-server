@@ -5,12 +5,55 @@
 module AccessControlled
   extend ActiveSupport::Concern
 
-  def member_of?(o)
+  def has_member?(o)
     members.include?(o)
   end
 
   def member_ids
     members.map(&:_id)
+  end
+
+  def add_members(*args)
+    from = args.pop if args.last.is_a? Symbol
+    changing_members do
+      args.flatten(1).map do |arg|
+        m = self.class.to_member(arg)
+        m.from = from
+        if exists = members.find(m._id) rescue nil
+          exists.merge(m)
+        else
+          members.push(m)
+        end
+      end
+    end
+    self
+  end
+
+  def remove_members(*args)
+    from = args.pop if args.last.is_a? Symbol
+    return self if args.empty?
+    changing_members do
+      Array(members.find(*args)).each do |o|
+        if from.nil?
+          # remove members that are directly granted access 
+          if o.from.nil?
+            o.delete
+          elsif o.explicit_grant?
+            o.explicit_grant = false
+          end
+        elsif o.from == from.to_s
+          # clear the source of the membership if the member has a direct grant
+          # otherwise remove the member
+          if o.explicit_grant?
+            o.from = nil
+            o.explicit_grant = nil
+          else
+            o.delete
+          end
+        end
+      end
+    end
+    self
   end
 
   # FIXME
@@ -30,9 +73,10 @@ module AccessControlled
 
       added, removed = (new_ids - ids), (ids - new_ids)
 
+      @original_members ||= ids
       @members_added ||= []; @members_removed ||= []
       @members_added -= removed; @members_removed -= added
-      @members_added.concat(added); @members_removed.concat(removed)
+      @members_added.concat(added); @members_removed.concat(removed & @original_members)
     end
     self
   end
@@ -44,10 +88,9 @@ module AccessControlled
   protected
     def default_members
       if parent = relations.values.find{ |r| r.macro == :belongs_to }
-        send(parent.name).inherit_membership.each{ |m| m.from = parent.name }
-      else
-        []
-      end
+        p = send(parent.name)
+        p.inherit_membership.each{ |m| m.from = parent.name } if p
+      end || []
     end
 
     #
@@ -60,21 +103,20 @@ module AccessControlled
 
     # FIXME create a standard pending operations model mixin that uniformly handles queueing on all type
     def queue_op(op, args)
-      (relations['pending_ops'] ? pending_ops : pending_op_groups).build(:op_type => op, :state => :init, :args => args)
+      (relations['pending_ops'] ? pending_ops : pending_op_groups).build(:op_type => op, :state => :init, :args => args.stringify_keys)
     end
 
     def handle_member_changes
       if persisted?
-        _assigning do
-          changing_members{ members.concat(default_members) } if members.empty?
-          if @members_added.present? || @members_removed.present?
-            members_changed(@members_added.uniq, @members_removed.uniq)
-            @members_added, @members_removed = nil
-          end
+        changing_members{ members.concat(default_members) } if members.empty?
+        if @members_added.present? || @members_removed.present?
+          members_changed(@members_added.uniq, @members_removed.uniq)
+          @original_members, @members_added, @members_removed = nil
         end
       else
         members.concat(default_members)
       end
+      @_children = nil # ensure the child collection is recalculated
       true
     end
 
@@ -89,6 +131,18 @@ module AccessControlled
     def accessible(to)
       # FIXME simple implementation, does not take into teams or bulk ownership.
       where(:'members._id' => to.is_a?(String) ? to : to._id)
+    end
+
+    def to_member(arg)
+      if Member === arg 
+        arg
+      else
+        if arg.respond_to?(:as_member) 
+          arg.as_member 
+        else
+          Member.new{ |mem| mem._id = arg }
+        end
+      end
     end
   end
 end
