@@ -81,6 +81,8 @@ class Application
   embeds_many :pending_op_groups, class_name: PendingAppOpGroup.name
 
   belongs_to :domain
+  field :domain_namespace, type: String # denormalized canonical namespace
+
   field :downloaded_cart_map, type: Hash, default: {}
   field :user_ids, type: Array, default: []
   field :component_start_order, type: Array, default: []
@@ -118,6 +120,9 @@ class Application
   def self.validation_map
     {name: 105}
   end
+
+  # Denormalize the domain namespace
+  before_save{ self.domain_namespace = domain.canonical_namespace if has_domain? and (domain_namespace.blank? || domain_id_changed?) }
 
   # Hook to prevent accidental deletion of MongoID model before all related {Gear}s are removed
   before_destroy do |app|
@@ -641,26 +646,24 @@ class Application
   ##
   # Returns the fully qualified DNS name for an application gear (unless specified, the primary)
   # @return [String]
-  def fqdn(domain=nil, gear_name = nil)
-    domain = domain || self.domain
-    appname = gear_name || self.name
-    "#{appname}-#{domain.namespace}.#{Rails.configuration.openshift[:domain_suffix]}"
+  def fqdn(gear_name = nil)
+    "#{gear_name || canonical_name}-#{domain_namespace}.#{Rails.configuration.openshift[:domain_suffix]}"
   end
 
   ##
   # Returns the SSH URI for an application gear (unless specified, the primary)
   # @return [String]
-  def ssh_uri(domain=nil, gear_uuid=nil)
+  def ssh_uri(gear_uuid=nil)
     self.group_instances.each do |group_instance|
       if gear_uuid # specific gear_uuid requested
         if group_instance.gears.where(uuid: gear_uuid).count > 0
           gear = group_instance.gears.find_by(uuid: gear_uuid)
-          return "#{gear_uuid}@#{fqdn(domain,gear.name)}"
+          return "#{gear_uuid}@#{fqdn(gear.name)}"
         end
       elsif group_instance.gears.where(app_dns: true).count > 0
         # get the gear_uuid of head gear
         gear = group_instance.gears.find_by(app_dns: true)
-        return "#{gear.uuid}@#{fqdn(domain)}"
+        return "#{gear.uuid}@#{fqdn}"
       end
     end
     ""
