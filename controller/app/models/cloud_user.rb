@@ -21,6 +21,7 @@ class CloudUser
   include Mongoid::Timestamps
   include UtilHelper
   include AccessControllable
+  include AccessControlled
 
   alias_method :mongoid_save, :save
 
@@ -72,6 +73,8 @@ class CloudUser
   #
   # This is a transient attribute and is not persisted
   attr_accessor :auth_method
+
+  attr_accessor :scopes
 
   # Identity support will add the following:
   #

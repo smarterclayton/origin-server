@@ -26,7 +26,7 @@ class Domain
   
   include Mongoid::Document
   include Mongoid::Timestamps
-  include AccessControlled
+  include Membership
 
   alias_method :mongoid_save, :save
 

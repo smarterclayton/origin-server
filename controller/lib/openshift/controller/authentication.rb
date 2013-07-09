@@ -65,7 +65,7 @@ module OpenShift
           raise "Service did not set the user login attribute" unless user.login.present?
 
           user.auth_method = info[:auth_method] || :login
-          @current_user_scopes = scopes
+          user.scopes = @current_user_scopes = scopes
           @cloud_user = user
           log_actions_as(user)
 

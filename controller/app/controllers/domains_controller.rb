@@ -11,7 +11,7 @@ class DomainsController < BaseController
   def index
     rest_domains = Array.new
     Rails.logger.debug "Getting domains for user #{@cloud_user.login}"
-    domains = Domain.where(owner: @cloud_user)
+    domains = Domain.accessible(current_user)
     domains.each do |domain|
       rest_domains.push get_rest_domain(domain)
     end
@@ -138,12 +138,8 @@ class DomainsController < BaseController
     id = params[:id].downcase if params[:id].presence
     force = get_bool(params[:force])
     if force
-      apps = Application.with(consistency: :strong).where(domain_id: @domain._id)
-      while apps.count > 0
-        apps.each do |app|
-          app.destroy_app
-        end
-        apps = Application.with(consistency: :strong).where(domain_id: @domain._id)
+      while (apps = Application.where(domain_id: @domain._id)).present?
+        apps.each(&:destroy_app)
       end
     elsif Application.with(consistency: :strong).where(domain_id: @domain._id).count > 0
       if requested_api_version <= 1.3

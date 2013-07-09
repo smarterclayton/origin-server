@@ -72,6 +72,11 @@ module Scope
       false
     end
 
+    def limits_access(criteria)
+      criteria.options[:visible] ||= true
+      criteria
+    end
+
     def default_expiration
       self.class.default_expiration
     end
@@ -189,6 +194,14 @@ module Scope
     def to_s
       join(' ')
     end
+
+    def limit_access(criteria, *args)
+      c = inject(criteria){ |c, s| s.limits_access(c) }
+      c = c.for_ids(c.options.delete(:for_ids)) if c.options[:for_ids]
+      c = c.where(1 => 0) if c.options.delete(:visible) == false
+      c
+    end
+
     def default_expiration
       map(&:default_expiration).min
     end

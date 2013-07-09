@@ -59,7 +59,7 @@ class Application
   include Mongoid::Document
   include Mongoid::Timestamps
   include UtilHelper
-  include AccessControlled
+  include Membership
 
   # Maximum length of  a valid application name
   APP_NAME_MAX_LENGTH = 32
@@ -236,7 +236,9 @@ class Application
   # @param user [CloudUser] The owner of the application
   # @param app_name [String] The application name
   # @return [Application, nil] The application object or nil if no application matches
-  def self.find(user, app_name)
+  #
+  # FIXME: Remove this call pattern and replace with a differently named scope
+  def self.find_by_user(user, app_name)
     user.domains.each { |d| d.applications.each { |a| return a if a.canonical_name == app_name.downcase } }
     return nil
   end

@@ -112,7 +112,7 @@ module OpenShift
           application_id = application_id.downcase if application_id
           return render_error(:not_found, "Application '#{application_id}' not found for domain '#{@domain.namespace}'", 101) if application_id.nil? or application_id !~ Application::APP_NAME_COMPATIBILITY_REGEX
           begin
-            @application = Application.find_by(domain: @domain, canonical_name: application_id)
+            @application = Application.accessible(current_user).find_by(domain: @domain, canonical_name: application_id)
 
             @application_name = @application.name
             @application_uuid = @application.uuid
@@ -121,6 +121,7 @@ module OpenShift
           end 
         end
         
+        def authorize!(permission, opts=nil)
     end
   end
 end

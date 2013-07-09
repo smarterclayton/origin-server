@@ -34,6 +34,7 @@ class Domain < RestApi::Base
   end
 
   def destroy_recursive
+    binding.pry
     connection.delete(element_path({:force => true}.merge(prefix_options)), self.class.headers)
   end
 

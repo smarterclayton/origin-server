@@ -1,13 +1,7 @@
 class KeysController < BaseController
   #GET /user/keys
   def index
-    ssh_keys = Array.new
-    unless @cloud_user.ssh_keys.nil? 
-      @cloud_user.ssh_keys.each do |key|
-        ssh_key = RestKey.new(key, get_url, nolinks)
-        ssh_keys.push(ssh_key)
-      end
-    end
+    ssh_keys = current_user.ssh_keys.accessible(current_user).map{ |key| RestKey.new(key, get_url, nolinks) }
     render_success(:ok, "keys", ssh_keys, "Found #{ssh_keys.length} ssh keys")
   end
 

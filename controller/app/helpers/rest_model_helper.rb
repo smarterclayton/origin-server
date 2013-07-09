@@ -45,13 +45,13 @@ module RestModelHelper
     cart = CartridgeCache.find_cartridge(component_instance.cartridge_name, application)
     comp = cart.get_component(component_instance.component_name)
     if requested_api_version == 1.0
-      RestEmbeddedCartridge10.new(cart, application, @domain, component_instance, get_url, messages, nolinks)
+      RestEmbeddedCartridge10.new(cart, application, component_instance, get_url, messages, nolinks)
     else
-      RestEmbeddedCartridge.new(cart, comp, application, @domain, component_instance, colocated_instances, scale, get_url, messages, nolinks)
+      RestEmbeddedCartridge.new(cart, comp, application, component_instance, colocated_instances, scale, get_url, messages, nolinks)
     end
   end
   
   def get_rest_alias(al1as)
-     RestAlias.new(@application, @domain, al1as, get_url, nolinks)
+     RestAlias.new(@application, al1as, get_url, nolinks)
   end
 end

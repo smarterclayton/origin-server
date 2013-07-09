@@ -91,10 +91,10 @@ class RestApplication < OpenShift::Model
     self.uuid = app.uuid
     self.aliases = []
     app.aliases.each do |a|
-      self.aliases << RestAlias.new(app, domain, a, url, nolinks)
+      self.aliases << RestAlias.new(app, a, url, nolinks)
     end
     self.gear_count = app.num_gears
-    self.domain_id = domain.namespace
+    self.domain_id = app.domain_namespace
 
     self.gear_profile = app.default_gear_size
     self.scalable = app.scalable
