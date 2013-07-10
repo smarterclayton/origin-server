@@ -122,6 +122,7 @@ module OpenShift
         end
         
         def authorize!(permission, opts=nil)
+        end
     end
   end
 end

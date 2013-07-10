@@ -70,7 +70,55 @@ class AccessControlledTest < ActiveSupport::TestCase
     d = Domain.new
     assert CloudUser.members_of(d).empty?
     d.members << u.as_member
-    assert_equal [u], CloudUser.members_of(d)
+    assert_equal [u], CloudUser.members_of(d).to_a
+  end
+
+  def test_scopes_restricts_access
+    u = CloudUser.find_or_create_by(:login => 'scope_test')
+    t = Authorization.create(:expires_in => 100){ |token| token.user = u }
+
+    #u2 = CloudUser.find_or_create_by(:login => 'scope_test_other')
+    Domain.where(:namespace => 'test').delete
+    d = Domain.find_or_create_by(:namespace => 'test', :owner => u)
+    Domain.where(:namespace => 'test2').delete
+    d2 = Domain.find_or_create_by(:namespace => 'test2', :owner => u)
+
+    Application.where(:name => 'scopetest').delete
+    assert a = Application.create(:name => 'scopetest', :domain => d)
+    Application.where(:name => 'scopetest2').delete
+    assert a2 = Application.create(:name => 'scopetest2', :domain => d2)
+
+    assert Application.accessible(u).count > 0
+    assert Domain.accessible(u).count > 0
+    assert CloudUser.accessible(u).count > 0
+    assert Authorization.accessible(u).count > 0
+
+    u.scopes = Scope.list!("application/#{a._id}/read")
+    assert_equal [a._id], Application.accessible(u).map(&:_id)
+    assert_equal [d._id], Domain.accessible(u).map(&:_id)
+    assert CloudUser.accessible(u).empty?
+    assert Authorization.accessible(u).empty?
+
+    u.scopes = Scope.list!("application/#{a2._id}/read")
+    assert_equal [d2._id], Domain.accessible(u).map(&:_id)
+
+    u.scopes = Scope.list!("application/#{Moped::BSON::ObjectId.new}/read")
+    assert Application.accessible(u).empty?
+    assert_raises(Mongoid::Errors::DocumentNotFound){ Domain.accessible(u).empty? }
+    assert CloudUser.accessible(u).empty?
+    assert Authorization.accessible(u).empty?
+
+    u.scopes = Scope.list!("domain/#{d._id}/read")
+    assert_equal [a._id], Application.accessible(u).map(&:_id)
+    assert_equal [d._id], Domain.accessible(u).map(&:_id)
+    assert CloudUser.accessible(u).empty?
+    assert Authorization.accessible(u).empty?
+
+    u.scopes = Scope.list!("domain/#{d2._id}/read")
+    assert_equal [a2._id], Application.accessible(u).map(&:_id)
+    assert_equal [d2._id], Domain.accessible(u).map(&:_id)
+    assert CloudUser.accessible(u).empty?
+    assert Authorization.accessible(u).empty?
   end
 
   def test_domain_model_consistent

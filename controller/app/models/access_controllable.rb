@@ -25,7 +25,7 @@ module AccessControllable
     def members_of(acl)
       self.in(
         _id:
-          if AccessControlled === acl
+          if Membership === acl
             acl.members.inject([]) do |a, m|
               a << m._id if @member_as == m._type
               a

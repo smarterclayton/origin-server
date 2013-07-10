@@ -4,10 +4,7 @@
 #
 module Membership
   extend ActiveSupport::Concern
-
-  included do
-    include AccessControlled
-  end
+  extend AccessControlled
 
   def has_member?(o)
     members.include?(o)
@@ -136,7 +133,7 @@ module Membership
     # Overrides AccessControlled#accessible
     #
     def accessible(to)
-      where(:'members._id' => to.is_a?(String) ? to : to._id)
+      criteria = where(:'members._id' => to.is_a?(String) ? to : to._id)
       if to.respond_to?(:scopes) && (scopes = to.scopes)
         criteria = scopes.limit_access(criteria)
       end

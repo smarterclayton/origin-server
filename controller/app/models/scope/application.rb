@@ -5,13 +5,14 @@ class Scope::Application < Scope::Parameterized
   APP_SCOPES = {
     :build => nil,
     :scale => nil,
-    #:read => 'Grant read-only access to a single application.',
+    :read => 'Grant read-only access to a single application.',
   }.freeze
 
   def allows_action?(controller)
     case app_scope
     when :scale then true #FIXME temporary
     when :build then true #FIXME temporary
+    when :read then controller.request.method == "GET" && !controller.is_a?(AuthorizationsController)
     else false
     end
   end
