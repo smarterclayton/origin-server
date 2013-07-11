@@ -75,6 +75,7 @@ class ApplicationsController < BaseController
     end
 
     default_gear_size = params[:gear_profile].presence
+    default_gear_size = Rails.application.config.openshift[:default_gear_size] if default_gear_size.nil?
     default_gear_size.downcase! if default_gear_size
 
     return render_error(:unprocessable_entity, "Application name is required and cannot be blank",
@@ -132,6 +133,9 @@ class ApplicationsController < BaseController
   #
   # Action: DELETE
   def destroy
+    if @application.quarantined
+      return render_upgrade_in_progress
+    end
     id = params[:id].downcase if params[:id].presence
     begin
       result = @application.destroy_app

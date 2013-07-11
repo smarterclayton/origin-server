@@ -424,9 +424,17 @@ class Application
   # @raise [OpenShift::UserException] Exception raised if there is any reason the feature/cartridge cannot be added into the Application
   def add_features(features, group_overrides=[], init_git_url=nil)
     ssl_endpoint = Rails.application.config.openshift[:ssl_endpoint]
+    cart_features_map = {}
 
     features.each do |feature_name|
       cart = CartridgeCache.find_cartridge(feature_name, self)
+      
+      # ensure that the user isn't trying to add multiple versions of the same cartridge
+      if cart_features_map.has_key?(cart.original_name)
+        raise OpenShift::UserException.new("#{cart.name} cannot co-exist with #{cart_features_map[cart.original_name]} in the same application", 109)
+      else
+        cart_features_map[cart.original_name] = cart.name
+      end
 
       # Make sure this is a valid cartridge
       if cart.nil?
@@ -438,6 +446,14 @@ class Application
           if ci.is_web_framework?
             raise OpenShift::UserException.new("You can only have one framework cartridge in your application '#{name}'.", 109)
           end
+        end
+      end
+
+      # check if the requested feature is provided by any existing/embedded application cartridge
+      component_instances.each do |ci|
+        ci_cart = ci.get_cartridge
+        if ci_cart.original_name == cart.original_name
+          raise OpenShift::UserException.new("#{feature_name} cannot co-exist with cartridge #{ci_cart.name} in your application", 109)
         end
       end
 
@@ -857,11 +873,6 @@ class Application
   end
 
   def component_status(component_instance)
-    #if cartridge_name.nil?
-    #  component_instance = self.component_instances.find(component_name: component_name)
-    #else
-    #  component_instance = self.component_instances.find(component_name: component_name, cartridge_name: cartridge_name)
-    #end
     result_io = ResultIO.new
     status_messages = []
     GroupInstance.run_on_gears(component_instance.group_instance.gears, result_io, false) do |gear, r|
@@ -899,7 +910,7 @@ class Application
         (server_alias.length == 0 ) or
         (server_alias =~ /^\d+\.\d+\.\d+\.\d+$/) or
         (server_alias =~ /\A[\S]+(\.(json|xml|yml|yaml|html|xhtml))\z/) or
-        (not server_alias.match(/\A[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\z/))
+        (not server_alias.match(/\A[a-z0-9]+([\.]?[\-a-z0-9]+)+\z/))
       raise OpenShift::UserException.new("Invalid Server Alias '#{server_alias}' specified", 105)
     end
     validate_certificate(ssl_certificate, private_key, pass_phrase)
@@ -1130,6 +1141,10 @@ class Application
       when "BROKER_KEY_REMOVE"
         pending_op = PendingAppOpGroup.new(op_type: :remove_broker_auth_key, args: { }, user_agent: self.user_agent)
         Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: pending_op.serializable_hash_with_timestamp } })
+      when "NOTIFY_ENDPOINT_CREATE"
+        OpenShift::RoutingService.notify_create_public_endpoint self, *command_item[:args]
+      when "NOTIFY_ENDPOINT_DELETE"
+        OpenShift::RoutingService.notify_delete_public_endpoint self, *command_item[:args]
       end
     end
 
@@ -1442,10 +1457,18 @@ class Application
     pending_ops = []
 
     gear_id_prereqs = {}
+    maybe_notify_app_create_op = []
     gear_ids.each do |gear_id|
       host_singletons = (gear_id == singleton_gear_id)
       app_dns = (host_singletons && hosts_app_dns)
-      init_gear_op = PendingAppOp.new(op_type: :init_gear,   args: {"group_instance_id"=> ginst_id, "gear_id" => gear_id, "host_singletons" => host_singletons, "app_dns" => app_dns})
+
+      if app_dns
+        notify_app_create_op = PendingAppOp.new(op_type: :notify_app_create)
+        pending_ops.push(notify_app_create_op) 
+        maybe_notify_app_create_op = [notify_app_create_op]
+      end
+
+      init_gear_op = PendingAppOp.new(op_type: :init_gear,   args: {"group_instance_id"=> ginst_id, "gear_id" => gear_id, "host_singletons" => host_singletons, "app_dns" => app_dns}, prereq: maybe_notify_app_create_op)
       init_gear_op.prereq = [ginst_op_id] unless ginst_op_id.nil?
       reserve_uid_op  = PendingAppOp.new(op_type: :reserve_uid,  args: {"group_instance_id"=> ginst_id, "gear_id" => gear_id}, prereq: [init_gear_op._id.to_s])
       create_gear_op    = PendingAppOp.new(op_type: :create_gear,  args: {"group_instance_id"=> ginst_id, "gear_id" => gear_id}, prereq: [reserve_uid_op._id.to_s], retry_rollback_op: reserve_uid_op._id.to_s)
@@ -1494,7 +1517,9 @@ class Application
   def calculate_gear_destroy_ops(ginst_id, gear_ids, additional_filesystem_gb)
     pending_ops = []
     delete_gear_op = nil
+    deleting_app = false
     gear_ids.each do |gear_id|
+      deleting_app = true if self.group_instances.find(ginst_id).gears.find(gear_id).app_dns
       destroy_gear_op   = PendingAppOp.new(op_type: :destroy_gear,   args: {"group_instance_id"=> ginst_id, "gear_id" => gear_id})
       deregister_dns_op = PendingAppOp.new(op_type: :deregister_dns, args: {"group_instance_id"=> ginst_id, "gear_id" => gear_id}, prereq: [destroy_gear_op._id.to_s])
       unreserve_uid_op  = PendingAppOp.new(op_type: :unreserve_uid,  args: {"group_instance_id"=> ginst_id, "gear_id" => gear_id}, prereq: [deregister_dns_op._id.to_s])
@@ -1521,6 +1546,12 @@ class Application
           "usage_type" => UsageRecord::USAGE_TYPES[:premium_cart], "cart_name" => comp_spec["cart"]}, prereq: [delete_gear_op._id.to_s]))
       end if cartridge.is_premium?
     end
+
+    if deleting_app
+      notify_app_delete_op = PendingAppOp.new(op_type: :notify_app_delete, prereq: [pending_ops.last._id.to_s])
+      pending_ops.push(notify_app_delete_op) 
+    end
+
     pending_ops
   end
 

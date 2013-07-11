@@ -6,7 +6,6 @@ require 'parseconfig'
 require 'pp'
 
 require 'openshift-origin-node/model/cartridge_repository'
-require 'openshift-origin-node/model/unix_user'
 require 'openshift-origin-node/model/application_repository'
 require 'openshift-origin-node/utils/sdk'
 require 'openshift-origin-node/utils/cgroups'
@@ -18,32 +17,35 @@ require 'net/http'
 require 'uri'
 
 module OpenShift
-  class V2UpgradeCartridgeModel < V2CartridgeModel
-    def gear_status
-      output = ''
-      problem = false
+  module Runtime
+    class V2UpgradeCartridgeModel < V2CartridgeModel
+      def gear_status
+        output = ''
+        problem = false
 
-      each_cartridge do |cartridge|
-        cart_status = do_control('status', cartridge)
+        each_cartridge do |cartridge|
+          cart_status = do_control('status', cartridge)
 
-        cart_status_msg = "[OK]"
-        if cart_status !~ /running|enabled|Tail of JBoss|status output from the mock cartridge/i
-          problem = true
-          cart_status_msg = "[PROBLEM]"
+          cart_status_msg = "[OK]"
+          if cart_status !~ /running|enabled|Tail of JBoss|status output from the mock cartridge/i
+            problem = true
+            cart_status_msg = "[PROBLEM]"
+          end
+
+          output << "Cart status for #{cartridge.name} #{cart_status_msg}: #{cart_status}\n"
         end
 
-        output << "Cart status for #{cartridge.name} #{cart_status_msg}: #{cart_status}\n"
+        return [problem, output]
       end
-
-      return [problem, output]
     end
   end
 end
 
-module OpenShift::Utils
+module OpenShift::Runtime::Utils
   class UpgradeApplicationState < ApplicationState
-    def initialize(uuid, state_file = '.state')
-      @uuid = uuid
+    def initialize(container, state_file = '.state')
+      @container = container
+      @uuid = container.uuid
 
       config      = OpenShift::Config.new
       @state_file = File.join(config.get("GEAR_BASE_DIR"), uuid, "app-root", "runtime", state_file)
@@ -65,31 +67,56 @@ module OpenShift
       # harmless changes the 2-n times around.
       #
       def self.upgrade(uuid, namespace, version, hostname, ignore_cartridge_version)
-        unless version == '2.0.29'
-            return "Invalid version: #{version}", 255
-        end
+        #unless version == '2.0.30'
+        #    return "Invalid version: #{version}", 255
+        #end
 
         start_time = (Time.now.to_f * 1000).to_i
 
-        gear_home = "/var/lib/openshift/#{uuid}"
+        config = OpenShift::Config.new
+        gear_base_dir = config.get('GEAR_BASE_DIR')
+        gear_home = PathUtils.join(gear_base_dir, uuid)
+
         unless File.directory?(gear_home) && !File.symlink?(gear_home)
           return "Application not found to upgrade: #{gear_home}\n", 127
         end
 
-        gear_env = OpenShift::Utils::Environ.for_gear(gear_home)
+        gear_env = OpenShift::Runtime::Utils::Environ.for_gear(gear_home)
         unless gear_env.key?('OPENSHIFT_GEAR_NAME') && gear_env.key?('OPENSHIFT_APP_NAME')
           return "***acceptable_error_env_vars_not_found={\"gear_uuid\":\"#{uuid}\"}***\n", 0
         end
 
         exitcode = 0
-        progress = Utils::UpgradeProgress.new(uuid)
+        progress = ::OpenShift::Runtime::Utils::UpgradeProgress.new(uuid)
+        progress.init_store
+
+        gear_extension_path = config.get('GEAR_UPGRADE_EXTENSION')
+        gear_extension = nil
+
+        if gear_extension_path 
+          if !File.exists?("#{gear_extension_path}.rb")
+            return "Gear upgrade extension configured at #{gear_extension_path}, but ruby file does not exist.", 127
+          end
+
+          begin
+            require gear_extension_path
+
+            gear_extension = OpenShift::GearUpgradeExtension.new(uuid, gear_home)
+            progress.log("Gear upgrade extension loaded from #{gear_extension_path}")
+          rescue Exception => e
+            progress.log "Caught an exception during upgrade: #{e.message}"
+            progress.log e.backtrace.join("\n")
+            return "Unable to instantiate gear upgrade extension.  Progress report: #{progress.report}", 127
+          end
+        end
 
         begin
           progress.log "Beginning #{version} upgrade for #{uuid}"
-          progress.init_store
 
           inspect_gear_state(progress, uuid, gear_home)
+          gear_pre_upgrade(progress, gear_extension)
           upgrade_cartridges(progress, ignore_cartridge_version, gear_home, gear_env, uuid, hostname)
+          gear_post_upgrade(progress, gear_extension)
 
           if progress.has_instruction?('validate_gear')
             validate_gear(progress, uuid, gear_home)
@@ -103,7 +130,7 @@ module OpenShift
 
           total_time = (Time.now.to_f * 1000).to_i - start_time
           progress.log "***time_upgrade_on_node_measured_from_node=#{total_time}***"
-        rescue OpenShift::Utils::ShellExecutionException => e
+        rescue OpenShift::Runtime::Utils::ShellExecutionException => e
           progress.log %Q(#{e.message} stdout => \n #{e.stdout} stderr => \n #{e.stderr})
           exitcode = 1
         rescue Exception => e
@@ -113,6 +140,26 @@ module OpenShift
         end
 
         [progress.report, exitcode]
+      end
+
+      #
+      # Execute the gear extension's 'pre_upgrade' method, if defined.
+      #
+      def self.gear_pre_upgrade(progress, gear_extension)
+        if !gear_extension.nil? && gear_extension.respond_to?(:pre_upgrade) && progress.incomplete?('pre_upgrade')
+          gear_extension.pre_upgrade(progress)
+          progress.mark_complete('pre_upgrade')
+        end
+      end
+
+      #
+      # Execute the gear extension's 'post_upgrade' method, if defined.
+      #
+      def self.gear_post_upgrade(progress, gear_extension)
+        if !gear_extension.nil? && gear_extension.respond_to?(:post_upgrade) && progress.incomplete?('post_upgrade') 
+          gear_extension.post_upgrade(progress) 
+          progress.mark_complete('post_upgrade')
+        end
       end
 
       #
@@ -128,17 +175,17 @@ module OpenShift
         progress.log "Migrating gear at #{gear_home}"
 
         config               = OpenShift::Config.new
-        state                = OpenShift::Utils::ApplicationState.new(uuid)
-        user                 = OpenShift::UnixUser.from_uuid(uuid)
-        cartridge_model      = OpenShift::V2UpgradeCartridgeModel.new(config, user, state, OpenShift::Utils::Hourglass.new(235))
-        cartridge_repository = OpenShift::CartridgeRepository.instance
+        container            = OpenShift::Runtime::ApplicationContainer.from_uuid(uuid)
+        state                = OpenShift::Runtime::Utils::ApplicationState.new(container)
+        cartridge_model      = OpenShift::Runtime::V2UpgradeCartridgeModel.new(config, container, state, OpenShift::Runtime::Utils::Hourglass.new(235))
+        cartridge_repository = OpenShift::Runtime::CartridgeRepository.instance
         restart_required     = false
 
         reset_quota, reset_block_quota, reset_inode_quota = handle_quota(uuid, progress)
 
         begin
-          OpenShift::Utils::Cgroups.with_no_cpu_limits(uuid) do
-            Dir.chdir(user.homedir) do
+          OpenShift::Runtime::Utils::Cgroups.with_no_cpu_limits(uuid) do
+            Dir.chdir(container.container_dir) do
               cartridge_model.each_cartridge do |manifest|
                 cartridge_path                           = File.join(gear_home, manifest.directory)
 
@@ -181,13 +228,13 @@ module OpenShift
 
                   if next_manifest.compatible_versions.include?(cartridge_version)
                     progress.log "Compatible upgrade of cartridge #{ident}"
-                    compatible_upgrade(progress, cartridge_model, next_manifest, cartridge_path, user)
+                    compatible_upgrade(progress, cartridge_model, next_manifest, cartridge_path, container)
                   else
                     stop_gear(progress, hostname, uuid) unless progress.has_instruction?('restart_gear')
                     progress.set_instruction('restart_gear')
 
                     progress.log "Incompatible upgrade of cartridge #{ident}"
-                    incompatible_upgrade(progress, cartridge_model, next_manifest, version, cartridge_path, user)
+                    incompatible_upgrade(progress, cartridge_model, next_manifest, version, cartridge_path, container)
                   end
 
                   progress.mark_complete("#{name}_upgrade")
@@ -214,20 +261,20 @@ module OpenShift
         ensure
           if reset_quota
             progress.log "Resetting quota blocks: #{reset_block_quota}  inodes: #{reset_inode_quota}"
-            OpenShift::Node.set_quota(uuid, reset_block_quota, reset_inode_quota)
+            OpenShift::Runtime::Node.set_quota(uuid, reset_block_quota, reset_inode_quota)
           end
         end
       end
 
       #
       # Double the block and/or inode quotas if the gear user's current usage is over 50 percent
-      # of the hard quota.  
+      # of the hard quota.
       #
       # Returns an array whose elements are a boolean indicating whether the quota will need to be
       # reset, and the block and inode quotas to reset to.
       #
       def self.handle_quota(uuid, progress)
-        filesystem, quota, quota_soft, quota_hard, inodes, inodes_soft, inodes_hard = OpenShift::Node.get_quota(uuid)
+        filesystem, quota, quota_soft, quota_hard, inodes, inodes_soft, inodes_hard = OpenShift::Runtime::Node.get_quota(uuid)
         reset_block_quota = false
         reset_inode_quota = false
         new_block_quota = quota_hard.to_i
@@ -245,7 +292,7 @@ module OpenShift
 
         if reset_block_quota || reset_inode_quota
           progress.log "Relaxing quota to blocks=#{new_block_quota}, inodes=#{new_inode_quota}"
-          OpenShift::Node.set_quota(uuid, new_block_quota, new_inode_quota)
+          OpenShift::Runtime::Node.set_quota(uuid, new_block_quota, new_inode_quota)
         end
 
         return [ reset_block_quota | reset_inode_quota, quota_hard.to_i, inodes_hard.to_i ]
@@ -254,20 +301,20 @@ module OpenShift
       #
       # Upgrade a cartridge from a compatible prior version:
       #
-      #  1. Overlay the cartridge directory for the new version on the existing 
-      #     instance directory, 
+      #  1. Overlay the cartridge directory for the new version on the existing
+      #     instance directory,
       #  2. Remove the ERB templates for the new version
       #  3. With gear unlocked, secure the cartridge instance dir
       #
-      def self.compatible_upgrade(progress, cart_model, next_manifest, target, user)
-        OpenShift::CartridgeRepository.overlay_cartridge(next_manifest, target)
+      def self.compatible_upgrade(progress, cart_model, next_manifest, target, container)
+        OpenShift::Runtime::CartridgeRepository.overlay_cartridge(next_manifest, target)
 
         # No ERB's are rendered for fast upgrades
-        FileUtils.rm_f cart_model.processed_templates(next_manifest)
+        FileUtils.rm_f container.processed_templates(next_manifest)
         progress.log "Removed ERB templates for #{next_manifest.name}"
 
         cart_model.unlock_gear(next_manifest) do |m|
-          cart_model.secure_cartridge(next_manifest.short_name, user.uid, user.gid, target)
+          cart_model.secure_cartridge(next_manifest.short_name, container.uid, container.gid, target)
         end
       end
 
@@ -275,25 +322,25 @@ module OpenShift
       # Upgrade a cartridge from an incompatible prior version:
       #
       # 1. Remove files that are rewritten by setup
-      # 2. Overlay the new version onto the instance dir 
+      # 2. Overlay the new version onto the instance dir
       # 3. With the gear unlocked:
       #   1. Secure the instance dir
       #   2. Run setup for the new version
       #   3. Process the ERB templates
       # 4. Connect the frontend
       #
-      def self.incompatible_upgrade(progress, cart_model, next_manifest, version, target, user)
-        cart_model.setup_rewritten(next_manifest).each do |entry|
+      def self.incompatible_upgrade(progress, cart_model, next_manifest, version, target, container)
+        container.setup_rewritten(next_manifest).each do |entry|
           FileUtils.rm entry if File.file? entry
           FileUtils.rm_r entry if File.directory? entry
         end
 
-        OpenShift::CartridgeRepository.overlay_cartridge(next_manifest, target)
+        OpenShift::Runtime::CartridgeRepository.overlay_cartridge(next_manifest, target)
 
         name = next_manifest.name
 
         cart_model.unlock_gear(next_manifest) do |m|
-          cart_model.secure_cartridge(next_manifest.short_name, user.uid, user.gid, target)
+          cart_model.secure_cartridge(next_manifest.short_name, container.uid, container.gid, target)
 
           if progress.incomplete? "#{name}_setup"
             progress.log cart_model.cartridge_action(m, 'setup', version, true)
@@ -322,37 +369,37 @@ module OpenShift
         if progress.incomplete? 'inspect_gear_state'
           app_state = File.join(gear_home, 'app-root', 'runtime', '.state')
           save_state = File.join(gear_home, 'app-root', 'runtime', PREUPGRADE_STATE)
+          container = OpenShift::Runtime::ApplicationContainer.from_uuid(uuid)
 
           if File.exists? app_state
             FileUtils.cp(app_state, save_state)
           else
             IO.write(save_state, 'stopped')
-            mcs_label = OpenShift::Utils::SELinux.get_mcs_label(uuid)
-            user = OpenShift::UnixUser.from_uuid(uuid)
-            PathUtils.oo_chown(user.uid, user.gid, save_state)
-            OpenShift::Utils::SELinux.set_mcs_label(mcs_label, save_state)
+            mcs_label = OpenShift::Runtime::Utils::SELinux.get_mcs_label(uuid)
+            PathUtils.oo_chown(container.uid, container.gid, save_state)
+            OpenShift::Runtime::Utils::SELinux.set_mcs_label(mcs_label, save_state)
           end
 
-          preupgrade_state = OpenShift::Utils::UpgradeApplicationState.new(uuid, PREUPGRADE_STATE)
+          preupgrade_state = OpenShift::Runtime::Utils::UpgradeApplicationState.new(container, PREUPGRADE_STATE)
           progress.log "Pre-upgrade state: #{preupgrade_state.value}"
           progress.mark_complete('inspect_gear_state')
         end
       end
-      
-      # 
+
+      #
       # Stop the gear as the platform and kill gear user processes.
       #
       def self.stop_gear(progress, hostname, uuid)
         progress.log "Stopping gear with uuid '#{uuid}' on node '#{hostname}'"
 
         if progress.incomplete? 'stop_gear'
-          container = OpenShift::ApplicationContainer.from_uuid(uuid)
+          container = OpenShift::Runtime::ApplicationContainer.from_uuid(uuid)
           begin
             container.stop_gear(user_initiated: false)
           rescue Exception => e
             progress.log "Stop gear failed with an exception: #{e.message}"
           ensure
-            OpenShift::UnixUser.kill_procs(container.user.uid)
+            container.kill_procs
           end
 
           progress.mark_complete('stop_gear')
@@ -366,10 +413,10 @@ module OpenShift
         progress.log "Starting gear with uuid '#{uuid}' on node '#{hostname}'"
 
         if progress.incomplete? 'start_gear'
-          container = OpenShift::ApplicationContainer.from_uuid(uuid)
+          container = OpenShift::Runtime::ApplicationContainer.from_uuid(uuid)
 
           begin
-            output = container.start_gear(user_initiated: false)  
+            output = container.start_gear(user_initiated: false)
             progress.log "Start gear output: #{output}"
           rescue Exception => e
             progress.log "Start gear failed with an exception: #{e.message}"
@@ -390,20 +437,21 @@ module OpenShift
         progress.log "Validating gear #{uuid} post-upgrade"
 
         if progress.incomplete? 'validate_gear'
-          preupgrade_state = OpenShift::Utils::UpgradeApplicationState.new(uuid, PREUPGRADE_STATE)
+          container = OpenShift::Runtime::ApplicationContainer.from_uuid(uuid)
+          preupgrade_state = OpenShift::Runtime::Utils::UpgradeApplicationState.new(container, PREUPGRADE_STATE)
 
           progress.log "Pre-upgrade state: #{preupgrade_state.value}"
 
           if preupgrade_state.value != 'stopped' && preupgrade_state.value != 'idle'
             config = OpenShift::Config.new
-            state  = OpenShift::Utils::ApplicationState.new(uuid)
-            user   = OpenShift::UnixUser.from_uuid(uuid)
+            state  = OpenShift::Runtime::Utils::ApplicationState.new(container)
+            container   = OpenShift::Runtime::ApplicationContainer.from_uuid(uuid)
 
-            cart_model = OpenShift::V2UpgradeCartridgeModel.new(config, user, state, OpenShift::Utils::Hourglass.new(235))
+            cart_model = OpenShift::Runtime::V2UpgradeCartridgeModel.new(config, container, state, OpenShift::Runtime::Utils::Hourglass.new(235))
 
             # only validate via http query on the head gear
-            if cart_model.primary_cartridge && (user.uuid == user.application_uuid)
-              env = OpenShift::Utils::Environ.for_gear(gear_home)
+            if cart_model.primary_cartridge && (container.uuid == container.application_uuid)
+              env = OpenShift::Runtime::Utils::Environ.for_gear(gear_home)
 
               dns = env['OPENSHIFT_GEAR_DNS']
               uri = URI.parse("http://#{dns}")

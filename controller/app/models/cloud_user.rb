@@ -44,7 +44,7 @@ class CloudUser
 
   member_as :user
 
-  validates :login, presence: true, login: true
+  validates :login, presence: true
   validates :_capabilities, presence: true, _capabilities: true
 
   scope :with_plan, any_of({:plan_id.ne => nil}, {:pending_plan_id.ne => nil}) 

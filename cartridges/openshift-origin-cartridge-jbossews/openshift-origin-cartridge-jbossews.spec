@@ -2,7 +2,7 @@
 
 Summary:       Provides JBossEWS2.0 support
 Name:          openshift-origin-cartridge-jbossews
-Version: 0.6.1
+Version: 0.6.4
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -79,6 +79,28 @@ alternatives --set jbossews-2.0 /usr/share/tomcat7
 %doc %{cartridgedir}/LICENSE
 
 %changelog
+* Wed Jul 10 2013 Adam Miller <admiller@redhat.com> 0.6.4-1
+- Merge pull request #3050 from ironcladlou/bz/980321
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 980321: Sync repo dir with live deployments dir on initial install
+  (ironcladlou@gmail.com)
+- Bug 983216: Use rsync for jbossews deployments rather than mv
+  (ironcladlou@gmail.com)
+
+* Tue Jul 09 2013 Adam Miller <admiller@redhat.com> 0.6.3-1
+- Merge pull request #3008 from ironcladlou/bz/965017
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #3005 from ironcladlou/bz/960924
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 965017: Improve jbossews control status message (ironcladlou@gmail.com)
+- Bug 960924: Add mysql and pg drivers to template pom.xml
+  (ironcladlou@gmail.com)
+- Explicitly specify ERB files to process in jboss cartridges
+  (ironcladlou@gmail.com)
+
+* Tue Jul 02 2013 Adam Miller <admiller@redhat.com> 0.6.2-1
+- remove v2 folder from cart install (dmcphers@redhat.com)
+
 * Tue Jun 25 2013 Adam Miller <admiller@redhat.com> 0.6.1-1
 - bump_minor_versions for sprint 30 (admiller@redhat.com)
 
