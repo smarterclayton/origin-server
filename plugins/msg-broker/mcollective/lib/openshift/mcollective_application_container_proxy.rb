@@ -53,16 +53,13 @@ module OpenShift
       # * Uses only operations and attributes of user
       #
       def self.valid_gear_sizes_impl(user)
-        user_capabilities = user.get_capabilities
-        capability_gear_sizes = []
-        capability_gear_sizes = user_capabilities['gear_sizes'] if user_capabilities.has_key?('gear_sizes')
+        sizes = user.capabilities['gear_sizes'].presence || ['small']
 
         if user.auth_method == :broker_auth
-          return ["small", "medium"] | capability_gear_sizes
-        elsif !capability_gear_sizes.nil? and !capability_gear_sizes.empty?
-          return capability_gear_sizes
+          # FIXME this should be moved to a permission specifically associated with builders
+          ["small", "medium"] | sizes
         else
-          return ["small"]
+          sizes
         end
       end
 

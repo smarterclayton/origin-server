@@ -28,7 +28,7 @@ class CloudUser
   DEFAULT_SSH_KEY_NAME = "default"
 
   field :login, type: String
-  field :capabilities, type: Hash, default: ->{ default_capabilities }
+  field :capabilities, as: :_capabilities, type: Hash, default: ->{ default_capabilities }
   field :parent_user_id, type: Moped::BSON::ObjectId
   field :plan_id, type: String
   field :plan_state, type: String
@@ -46,7 +46,7 @@ class CloudUser
   member_as :user
 
   validates :login, presence: true, login: true
-  validates :capabilities, presence: true, capabilities: true
+  validates :_capabilities, presence: true, _capabilities: true
 
   scope :with_plan, any_of({:plan_id.ne => nil}, {:pending_plan_id.ne => nil}) 
   index({:login => 1}, {:unique => true})
@@ -86,23 +86,6 @@ class CloudUser
 
   def inherit_membership
     [as_member]
-  end
-
-  # Convenience method to get the max_gears capability
-  def max_gears
-    get_capabilities["max_gears"]
-  end
-  def max_gears=(m)
-    user_capabilities = get_capabilities
-    user_capabilities["max_gears"] = m
-    set_capabilities(user_capabilities)
-  end
-
-  def max_storage
-    user_capabilities = get_capabilities
-    max_untracked_storage = user_capabilities["max_untracked_addtl_storage_per_gear"] || 0
-    max_tracked_storage = user_capabilities["max_tracked_addtl_storage_per_gear"] || 0
-    (max_untracked_storage + max_tracked_storage)
   end
 
   def save(options = {})
@@ -211,18 +194,42 @@ class CloudUser
     @inherited_capabilities ||= begin
         if self.parent_user_id
           caps = CloudUser.find_by(_id: self.parent_user_id).get_capabilities
-          caps.slice(*Array(caps['inherit_on_subaccounts']))
+          caps.slice(*Array(caps['inherit_on_subaccounts'])).freeze
         end
       rescue Mongoid::Errors::DocumentNotFound
-      end || {}
+      end || {}.freeze
   end
 
-  def get_capabilities
-    self.capabilities.deep_dup.merge!(inherited_capabilities)
+  def capabilities
+    @capabilities ||= begin
+      _capabilities.default_proc = lambda{ |h,k| inherited_capabilities[k] }
+      _capabilities
+    end
   end
 
-  def set_capabilities(caps=nil)
-    self.capabilities = caps.presence || default_capabilities
+  def capabilities=(caps)
+    @capabilities = nil
+    self._capabilities = caps.presence || default_capabilities
+  end
+
+  def max_gears
+    capabilities["max_gears"]
+  end
+
+  def max_gears=(m)
+    capabilities["max_gears"] = m
+  end
+
+  def max_storage
+    (max_tracked_additional_storage + max_untracked_additional_storage)
+  end
+
+  def max_untracked_additional_storage
+    capabilities['max_untracked_addtl_storage_per_gear'] || 0
+  end
+
+  def max_tracked_additional_storage
+    capabilities['max_tracked_addtl_storage_per_gear'] || 0
   end
 
   # Delete user and all its artifacts like domains, applications associated with the user 

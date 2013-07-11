@@ -122,14 +122,14 @@ class SubUserTest < ActionDispatch::IntegrationTest
     u.save
 
     user = CloudUser.find_by(login: @username)
-    assert_equal ['c9', 'small'], user.get_capabilities['gear_sizes'].sort
+    assert_equal ['c9', 'small'], user.capabilities['gear_sizes'].sort
 
     @headers["X-Impersonate-User"] = "subuser#{@random}"
     get "rest/domains.json", nil, @headers
     assert_equal 200, status
 
     subuser = CloudUser.find_by(login: "subuser#{@random}")
-    capabilities = subuser.get_capabilities
+    capabilities = subuser.capabilities
     assert_equal 2, capabilities["gear_sizes"].size
     assert_equal ["c9", "small"], capabilities["gear_sizes"].sort
 
@@ -138,7 +138,7 @@ class SubUserTest < ActionDispatch::IntegrationTest
     u.save
 
     subuser = CloudUser.find_by(login: "subuser#{@random}")
-    capabilities = subuser.get_capabilities
+    capabilities = subuser.capabilities
     assert_equal 1, capabilities["gear_sizes"].size
     assert_equal "small", capabilities["gear_sizes"][0]
 
@@ -147,7 +147,7 @@ class SubUserTest < ActionDispatch::IntegrationTest
     u.save
 
     subuser = CloudUser.find_by(login: "subuser#{@random}")
-    capabilities = subuser.get_capabilities
+    capabilities = subuser.capabilities
     assert_equal 1, capabilities["gear_sizes"].size
     assert_equal "small", capabilities["gear_sizes"][0]
   end
