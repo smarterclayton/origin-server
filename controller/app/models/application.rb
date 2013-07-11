@@ -1989,7 +1989,7 @@ class Application
   end
 
   def process_group_overrides(component_instances, group_overrides)
-    overrides = (group_overrides : []).deep_dup
+    overrides = (group_overrides || []).deep_dup
     cleaned_overrides = []
 
     # Resolve additional group overrides from component_instances
