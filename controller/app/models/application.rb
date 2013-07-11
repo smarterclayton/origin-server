@@ -276,6 +276,14 @@ class Application
     super
   end
 
+  def capabilities!
+    @capabilities ||= domain.owner.capabilities.deep_dup rescue (raise OpenShift::UserException, "The application cannot be changed at this time.  Contact support.")
+  end
+
+  def capabilities
+    capabilities! rescue {}
+  end
+
   ##
   # Adds the given ssh key to the application.
   # @param user_id [String] The ID of the user associated with the keys. If the user ID is nil, then the key is assumed to be a system generated key

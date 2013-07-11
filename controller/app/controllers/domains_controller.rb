@@ -170,9 +170,9 @@ class DomainsController < BaseController
   # @return [RestDomain10] REST object for API version == 1.0
   def get_rest_domain(domain)
     if requested_api_version == 1.0
-      RestDomain10.new(domain, @cloud_user, get_url, nolinks)
+      RestDomain10.new(domain, get_url, nolinks)
     else
-      RestDomain.new(domain, @cloud_user, get_url, nolinks)
+      RestDomain.new(domain, get_url, nolinks)
     end
   end
   

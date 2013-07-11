@@ -73,6 +73,11 @@ class CloudUser
   # This is a transient attribute and is not persisted
   attr_accessor :auth_method
 
+  # The set of scopes that are currently present on this user.  Scopes limit
+  # the available actions on an account to the union of the actions permitted
+  # by the supplied scope.  All other actions are forbidden.  Type is Scopes
+  #
+  # This is a transient attribute and is not persisted
   attr_accessor :scopes
 
   # Identity support will add the following:
