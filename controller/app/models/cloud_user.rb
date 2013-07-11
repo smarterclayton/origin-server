@@ -19,7 +19,6 @@
 class CloudUser
   include Mongoid::Document
   include Mongoid::Timestamps
-  include UtilHelper
   include AccessControllable
   include AccessControlled
 

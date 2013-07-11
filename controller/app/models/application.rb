@@ -58,7 +58,6 @@ end
 class Application
   include Mongoid::Document
   include Mongoid::Timestamps
-  include UtilHelper
   include Membership
 
   # Maximum length of  a valid application name
