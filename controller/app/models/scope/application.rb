@@ -27,7 +27,7 @@ class Scope::Application < Scope::Parameterized
   end
 
   def self.describe
-    APP_SCOPES.map{ |k,v| s = with_params(nil, k); [s, v, default_expiration(s), maximum_expiration(s)] unless v.nil? }.compact!# or super
+    APP_SCOPES.map{ |k,v| s = with_params(nil, k); [s, v, default_expiration(s), maximum_expiration(s)] unless v.nil? }.compact
   end
 
   private

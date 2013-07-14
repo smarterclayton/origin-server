@@ -87,6 +87,10 @@ class Domain
     members.clone
   end  
   
+  def capabilities
+    @capabilities ||= owner.capabilities.deep_dup rescue (raise OpenShift::UserException, "The domain cannot be changed at this time.  Contact support.")
+  end
+
   # Support operation to add additional ssh keys for a user
   #
   # == Parameters:

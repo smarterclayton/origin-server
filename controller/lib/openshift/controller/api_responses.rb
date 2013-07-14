@@ -6,6 +6,8 @@ module OpenShift
       included do
         respond_to :json, :xml
         self.responder = OpenShift::Responder
+
+        rescue_from ::Exception, :with => :render_exception
       end
 
       protected
@@ -54,15 +56,31 @@ module OpenShift
           Rails.logger.error "Reference ID: #{request.uuid} - #{ex.message}\n  #{ex.backtrace.join("\n  ")}"
           error_code = ex.respond_to?('code') ? ex.code : 1
           message = ex.message
-          if ex.kind_of? OpenShift::UserException
+          internal_error = true
+
+          case ex
+          when Mongoid::Errors::DocumentNotFound
+            status = :not_found
+            message = "#{ex.klass.to_s.underscore.humanize} not found."
+            error_code = 
+              case ex.klass
+              when SshKey then 118
+              when Alias  then 173
+              # FIXME: enumerate
+              else 1
+              end
+          when OpenShift::UserException
             status = :unprocessable_entity
-          elsif ex.kind_of? OpenShift::AccessDeniedException
+            internal_error = false
+          when OpenShift::AccessDeniedException
             status = :forbidden
-          elsif ex.kind_of? OpenShift::DNSException
+            internal_error = false
+          when OpenShift::DNSException
             status = :service_unavailable
-          elsif ex.kind_of? OpenShift::LockUnavailableException
+          when OpenShift::LockUnavailableException
             status = :service_unavailable
-          elsif ex.kind_of? OpenShift::NodeException
+            message = "Another operation is in progress. Please try again in a minute."
+          when OpenShift::NodeException
             status = :internal_server_error
             if ex.resultIO
               error_code = ex.resultIO.exitcode
@@ -78,7 +96,6 @@ module OpenShift
             message = "Unable to complete the requested operation due to: #{ex.message}.\nReference ID: #{request.uuid}"
           end
 
-          internal_error = status != :unprocessable_entity
           render_error(status, message, error_code, nil, nil, nil, internal_error)
         end
 
@@ -102,7 +119,6 @@ module OpenShift
           reply.process_result_io(result) if result
           
           log_args = get_log_args.merge(extra_log_args)
-          
           if extra_messages.present?
             reply.messages.concat(messages)
             log_action(@log_tag, true, message, log_args, messages.map(&:text).join(', '))

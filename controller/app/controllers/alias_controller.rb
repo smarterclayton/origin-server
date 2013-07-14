@@ -33,7 +33,7 @@ class AliasController < BaseController
     
     server_alias = server_alias.downcase if server_alias
     
-    if ssl_certificate and @application.capabilities!["private_ssl_certificates"] != true
+    if ssl_certificate and @application.capabilities["private_ssl_certificates"] != true
       return render_error(:forbidden, "User is not authorized to add private SSL certificates", 175)
     end
 
@@ -55,7 +55,7 @@ class AliasController < BaseController
     private_key = params[:private_key].presence
     pass_phrase = params[:pass_phrase].presence
     
-    if ssl_certificate and @application.capabilities!["private_ssl_certificates"] != true
+    if ssl_certificate and @application.capabilities["private_ssl_certificates"] != true
       return render_error(:forbidden, "User is not authorized to add private SSL certificates", 175)
     end
     

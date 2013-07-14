@@ -276,12 +276,8 @@ class Application
     super
   end
 
-  def capabilities!
-    @capabilities ||= domain.owner.capabilities.deep_dup rescue (raise OpenShift::UserException, "The application cannot be changed at this time.  Contact support.")
-  end
-
   def capabilities
-    capabilities! rescue {}
+    @capabilities ||= domain.owner.capabilities.deep_dup rescue (raise OpenShift::UserException, "The application cannot be changed at this time.  Contact support.")
   end
 
   ##

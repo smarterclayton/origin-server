@@ -4,12 +4,19 @@ class Scope::Domain < Scope::Parameterized
 
   DOMAIN_SCOPES = {
     :read => 'Grant read-only access to a single domain.',
+    :manage => 'Allow managing the domain.',
   }.freeze
 
   def allows_action?(controller)
     case domain_scope
     when :read then controller.request.method == "GET"
-    else false
+    else true
+    end
+  end
+
+  def authorize_action?(permission, resource, other_resources, user)
+    case domain_scope
+    when :manage then Domain === resource || Application === resource
     end
   end
 
@@ -23,7 +30,7 @@ class Scope::Domain < Scope::Parameterized
   end
 
   def self.describe
-    DOMAIN_SCOPES.map{ |k,v| s = with_params(nil, k); [s, v, default_expiration(s), maximum_expiration(s)] unless v.nil? }.compact!# or super
+    DOMAIN_SCOPES.map{ |k,v| s = with_params(nil, k); [s, v, default_expiration(s), maximum_expiration(s)] unless v.nil? }.compact
   end
 
   private

@@ -16,13 +16,13 @@ class ApplicationsController < BaseController
   def index
     include_cartridges = (params[:include] == "cartridges")
     apps = @domain.applications.accessible(current_user)
-    rest_apps = apps.map { |application| get_rest_application(application, include_cartridges, apps) }
+    rest_apps = apps.map{ |application| get_rest_application(application, include_cartridges, apps) }
     render_success(:ok, "applications", rest_apps, "Found #{rest_apps.length} applications for domain '#{@domain.namespace}'")
   end
 
   def access
     include_cartridges = (params[:include] == "cartridges")
-    rest_apps = Application.accessible(current_user).map { |app| get_rest_application(app, include_cartridges) }
+    rest_apps = Application.accessible(current_user).map{ |app| get_rest_application(app, include_cartridges) }
     render_success(:ok, "applications", rest_apps, "You have access to #{rest_apps.length} applications")
   end
 

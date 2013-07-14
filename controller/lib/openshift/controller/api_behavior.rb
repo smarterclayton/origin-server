@@ -6,11 +6,14 @@ module OpenShift
       API_VERSION = 1.5
       SUPPORTED_API_VERSIONS = [1.0, 1.1, 1.2, 1.3, 1.4, 1.5]
 
+      included do
+        before_filter ->{ Mongoid.identity_map_enabled = true }
+      end
+
       protected
         attr :requested_api_version
 
         def check_version
-
           version = catch(:version) do
             (request.accept || "").split(',').each do |mime_type|
               values = mime_type.split(';').map(&:strip)
@@ -121,7 +124,29 @@ module OpenShift
           end 
         end
         
-        def authorize!(permission, opts=nil)
+        def authorize!(permission, resource, *resources)
+          opts = resources.extract_options!
+          type = class_for_resource(resource) or raise OpenShift::OperationForbidden, "No actions are allowed"
+
+          if user_signed_in?
+            if current_user.scopes.present? && !current_user.scopes.authorize_action?(permission, resource, current_user, resources)
+              raise OpenShift::OperationForbidden, "You are not permitted to perform this action with the scopes #{current_user.scopes} (#{permission} on #{type.to_s.underscore.humanize.downcase})"
+            end
+
+            authorized = true
+            # INSERT AUTHORIZATION BY TYPE / ROLE
+
+            if authorized != true
+              raise OpenShift::OperationForbidden, "You are not permitted to perform this action (#{permission} on #{type.to_s.underscore.humanize.downcase})"
+            end
+          else
+            raise OpenShift::OperationForbidden, "You are not permitted to perform this action while not authenticated (#{permission} on #{type.to_s.underscore.humanize.downcase})"
+          end
+        end
+
+        def class_for_resource(resource)
+          return resource if resource.is_a? Class
+          resource.class.to_s.camelize.safe_constantize
         end
     end
   end

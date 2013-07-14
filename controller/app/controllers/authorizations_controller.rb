@@ -25,7 +25,7 @@ class AuthorizationsController < BaseController
       end || scopes.default_expiration
 
     if params[:reuse]
-      token = Authorization.accessible(current_user).
+      token = Authorization.for_owner(current_user).accessible(current_user).
         matches_details(params[:note], scopes).
         order_by([:created_at, :desc]).
         limit(10).detect{ |i| i.expires_in_seconds > [10.minute.seconds, expires_in / 4].min }

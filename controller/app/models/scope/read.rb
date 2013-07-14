@@ -6,9 +6,7 @@ class Scope::Read < Scope::Simple
   end
 
   def limits_access(criteria)
-    case criteria.klass
-    when Authorization then criteria.options[:visible] ||= false
-    end
+    criteria.options[:visible] ||= !(Authorization === criteria.klass)
     criteria
   end  
 end
