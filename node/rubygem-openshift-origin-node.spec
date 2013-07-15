@@ -16,7 +16,7 @@
 
 Summary:       Cloud Development Node
 Name:          rubygem-%{gem_name}
-Version: 1.11.8
+Version: 1.12.1
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -286,6 +286,45 @@ fi
 %attr(0755,-,-) /etc/cron.daily/openshift-origin-stale-lockfiles
 
 %changelog
+* Fri Jul 12 2013 Adam Miller <admiller@redhat.com> 1.12.1-1
+- Merge pull request #3077 from rmillner/cgfixes
+  (dmcphers+openshiftbot@redhat.com)
+- Add support to pam enable/disable command to run across all gears.
+  (rmillner@redhat.com)
+- bump_minor_versions for sprint 31 (admiller@redhat.com)
+- The mutex needs to be a global that is instantiated early in order to work in
+  all contexts. (rmillner@redhat.com)
+
+* Fri Jul 12 2013 Adam Miller <admiller@redhat.com> 1.11.9-1
+- Add pam control scripts. (rmillner@redhat.com)
+- Merge pull request #3071 from ironcladlou/oo-state-show-fix
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #3066 from pmorie/dev/upgrades
+  (dmcphers+openshiftbot@redhat.com)
+- Fix syntax error in oo-app-state-show (ironcladlou@gmail.com)
+- Merge pull request #3067 from kraman/bugfix
+  (dmcphers+openshiftbot@redhat.com)
+- Fix bug 983583: remove gear validation step for compatible upgrades
+  (pmorie@gmail.com)
+- Switch test to use anonymous git url instead of git@ which requires a valid
+  ssh key to clone (kraman@gmail.com)
+- Merge pull request #3061 from pmorie/dev/upgrades
+  (dmcphers+openshiftbot@redhat.com)
+- Fix bug 983583 (pmorie@gmail.com)
+- Ignore STDERR while checking for 'scl' (asari.ruby@gmail.com)
+- Bug 983190 (asari.ruby@gmail.com)
+- Merge pull request #3056 from kraman/libvirt-f19-2
+  (dmcphers+openshiftbot@redhat.com)
+- Bugfix #983308 (kraman@gmail.com)
+- Merge pull request #2979 from jwhonce/bug/980253
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #3040 from kraman/bugfix
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 980253 - Validate version numbers from manifest (jhonce@redhat.com)
+- Fix ApplicationStateFunctionalTest for F19 so that it creates test user in
+  /var/tmp-tests instead of /tmp. This avoids any poly-instantiated /tmp
+  errors. (kraman@gmail.com)
+
 * Wed Jul 10 2013 Adam Miller <admiller@redhat.com> 1.11.8-1
 - Merge pull request #3051 from pmorie/bugs/981622
   (dmcphers+openshiftbot@redhat.com)
