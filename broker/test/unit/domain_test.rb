@@ -53,29 +53,6 @@ class DomainTest < ActiveSupport::TestCase
     
   end
   
-  test "add and remove users to domain" do
-    namespace = "ns#{@random}"
-    @domain = Domain.new(namespace: namespace, owner:@user)
-    @domain.save
-    
-    @app_name = "app#{@random}"
-    @app = Application.create_app(@app_name, [PHP_VERSION], @domain)
-    @app.save
-    
-    login1 = "user1#{@random}"
-    user1 = CloudUser.new(login: login1)
-    user1.save
-    
-    @domain.add_user(user1)
-    assert_equal(2, @domain.user_ids.length)
-    assert(@domain.user_ids.include? user1._id)
-    
-    @domain.remove_user(user1)
-    assert_equal(1, @domain.user_ids.length)
-    assert(not(@domain.user_ids.include? user1._id))
-    
-  end
-  
   test "add and remove ssh keys to domain" do
     namespace = "ns#{@random}"
     namespace.downcase!

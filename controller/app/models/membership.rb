@@ -87,8 +87,12 @@ module Membership
   end
 
   protected
+    def parent_membership_relation
+      relations.values.find{ |r| r.macro == :belongs_to }
+    end
+
     def default_members
-      if parent = relations.values.find{ |r| r.macro == :belongs_to }
+      if parent = parent_membership_relation
         p = send(parent.name)
         p.inherit_membership.each{ |m| m.from = parent.name } if p
       end || []
@@ -122,11 +126,17 @@ module Membership
     end
 
   module ClassMethods
-    def has_members
+    def has_members(opts=nil)
       embeds_many :members, as: :access_controlled, cascade_callbacks: true
       before_save :handle_member_changes
 
       index({'members._id' => 1}, {:sparse => true})
+
+      if opts and s = opts[:through].to_s.presence
+        define_method :parent_membership_relation do
+          relations[s]
+        end
+      end
     end
 
     #

@@ -36,11 +36,14 @@ class CloudUser
   field :plan_history, type: Array, default: []
   field :usage_account_id, type: String
   field :consumed_gears, type: Integer, default: 0
+
   embeds_many :ssh_keys, class_name: UserSshKey.name
   embeds_many :pending_ops, class_name: PendingUserOps.name
   # embeds_many :identities, class_name: Identity.name, cascade_callbacks: true
-  has_many :domains, class_name: Domain.name, dependent: :restrict, :foreign_key => 'owner_id'
+
+  has_many :domains, class_name: Domain.name, dependent: :restrict, foreign_key: :owner_id
   has_many :authorizations, class_name: Authorization.name, dependent: :restrict
+  has_many :owned_applications, class_name: Application.name, foreign_key: :owner_id, inverse_of: :owner
 
   member_as :user
 

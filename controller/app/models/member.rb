@@ -2,9 +2,6 @@ class Member
   include Mongoid::Document
   embedded_in :access_controlled, polymorphic: true
 
-  #before_create ->{ access_controlled.members_changed([_id], nil); puts "member created #{atomic_updates.inspect}" }
-  #before_destroy ->{ access_controlled.members_changed(nil, [_id]); puts "member delete #{atomic_updates.inspect}" }
-
   field :_type, :as => :t, type: String, default: ->{ self.class.name if hereditary? }
   field :from,  :as => :f, type: String
   field :role,  :as => :r, type: Symbol

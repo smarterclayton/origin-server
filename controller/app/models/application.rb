@@ -26,8 +26,6 @@ end
 #   @return [Array<PendingAppOpGroup>] List of pending operations to be performed on this application
 # @!attribute [r] domain
 #   @return [Domain] Domain that this application is part of.
-# @!attribute [r] user_ids
-#   @return [Array<Moped::BSON::ObjectId>] Array of IDs of users that have access to this application.
 # @!attribute [rw] component_start_order
 #   @return [Array<String>] Normally start order computed based on order specified by each component's manifest.
 #     This attribute is used to overrides the start order
@@ -79,11 +77,11 @@ class Application
   field :group_overrides, type: Array, default: []
   embeds_many :pending_op_groups, class_name: PendingAppOpGroup.name
 
-  belongs_to :domain
+  belongs_to :domain, inverse_of: :applications
   field :domain_namespace, type: String # denormalized canonical namespace
+  belongs_to :owner, class_name: CloudUser.name, inverse_of: :owned_applications
 
   field :downloaded_cart_map, type: Hash, default: {}
-  field :user_ids, type: Array, default: []
   field :component_start_order, type: Array, default: []
   field :component_stop_order, type: Array, default: []
   field :component_configure_order, type: Array, default: []
@@ -96,7 +94,7 @@ class Application
   embeds_many :app_ssh_keys, class_name: ApplicationSshKey.name
   embeds_many :aliases, class_name: Alias.name
 
-  has_members
+  has_members through: :domain
 
   index({'group_instances.gears.uuid' => 1}, {:unique => true, :sparse => true})
   index({'domain_id' => 1})
@@ -120,8 +118,13 @@ class Application
     {name: 105}
   end
 
-  # Denormalize the domain namespace
-  before_save{ self.domain_namespace = domain.canonical_namespace if has_domain? and (domain_namespace.blank? || domain_id_changed?) }
+  # Denormalize the domain namespace and the owner id
+  before_save prepend: true do 
+    if has_domain?
+      self.domain_namespace = domain.canonical_namespace if domain_namespace.blank? || domain_id_changed?
+      self.owner_id = domain.owner_id if owner_id.blank? || domain_id_changed?
+    end
+  end
 
   # Hook to prevent accidental deletion of MongoID model before all related {Gear}s are removed
   before_destroy do |app|
@@ -2487,5 +2490,4 @@ class Application
       end
     end
   end
-
 end
