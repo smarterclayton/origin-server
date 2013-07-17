@@ -125,28 +125,7 @@ module OpenShift
         end
         
         def authorize!(permission, resource, *resources)
-          opts = resources.extract_options!
-          type = class_for_resource(resource) or raise OpenShift::OperationForbidden, "No actions are allowed"
-
-          if user_signed_in?
-            if current_user.scopes.present? && !current_user.scopes.authorize_action?(permission, resource, current_user, resources)
-              raise OpenShift::OperationForbidden, "You are not permitted to perform this action with the scopes #{current_user.scopes} (#{permission} on #{type.to_s.underscore.humanize.downcase})"
-            end
-
-            authorized = true
-            # INSERT AUTHORIZATION BY TYPE / ROLE
-
-            if authorized != true
-              raise OpenShift::OperationForbidden, "You are not permitted to perform this action (#{permission} on #{type.to_s.underscore.humanize.downcase})"
-            end
-          else
-            raise OpenShift::OperationForbidden, "You are not permitted to perform this action while not authenticated (#{permission} on #{type.to_s.underscore.humanize.downcase})"
-          end
-        end
-
-        def class_for_resource(resource)
-          return resource if resource.is_a? Class
-          resource.class.to_s.camelize.safe_constantize
+          Ability.authorize!(current_user, current_user.scopes, permission, resource, *resources)
         end
     end
   end

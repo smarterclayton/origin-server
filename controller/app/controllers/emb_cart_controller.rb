@@ -39,6 +39,8 @@ class EmbCartController < BaseController
       return render_upgrade_in_progress            
     end
 
+    authorize! :create_cartridge, @application
+
     colocate_with = params[:colocate_with].presence
     scales_from = Integer(params[:scales_from].presence) rescue nil
     scales_to = Integer(params[:scales_to].presence) rescue nil
@@ -169,6 +171,8 @@ class EmbCartController < BaseController
       return render_error(:not_found, "Cartridge #{cartridge} not embedded within application #{@application.name}", 129)
     end
 
+    authorize! :destroy_cartridge, @application
+
     begin
       comp = @application.component_instances.find_by(cartridge_name: cartridge)
       feature = comp.cartridge_name #@application.get_feature(comp.cartridge_name, comp.component_name)  
@@ -197,6 +201,9 @@ class EmbCartController < BaseController
     if scales_from.nil? and scales_to.nil? and additional_storage.nil?
       return render_error(:unprocessable_entity, "No update parameters specified.  Valid update parameters are: scales_from, scales_to, additional_gear_storage", 168) 
     end
+
+    authorize! :scale_cartridge, @application unless scales_from.nil? and scales_to.nil?
+    authorize! :change_quota, @application unless additional_storage.nil?
 
     begin
       additional_storage = Integer(additional_storage) if additional_storage

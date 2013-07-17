@@ -17,6 +17,12 @@ class Scope::Application < Scope::Parameterized
     end
   end
 
+  def authorize_action?(permission, resource, other_resources, user)
+    case app_scope
+    when :scale then resource === Application && :scale_cartridge == permission
+    end
+  end
+
   def limits_access(criteria)
     case criteria.klass
     when Application then (criteria.options[:for_ids] ||= []) << @id

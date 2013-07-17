@@ -38,7 +38,7 @@ class KeysController < BaseController
     end
 
     key = UserSshKey.new(name: name, type: type, content: content)
-    authorize! :create, key
+    authorize! :create_key, current_user
 
     if key.invalid?
       messages = get_error_messages(key)
@@ -78,7 +78,7 @@ class KeysController < BaseController
     end
     
     key = UserSshKey.new(name: id, type: type, content: content)
-    authorize! :update, key
+    authorize! :update_key, current_user
 
     if key.invalid?
       messages = get_error_messages(key)
@@ -101,9 +101,11 @@ class KeysController < BaseController
     id = params[:id].presence
     
     # validate the key name using regex to avoid a mongo call, if it is malformed
-    if id !~ SshKey::KEY_NAME_COMPATIBILITY_REGEX or current_user.ssh_keys.where(name: id).count == 0
+    if id !~ SshKey::KEY_NAME_COMPATIBILITY_REGEX or !(key = current_user.ssh_keys.where(name: id).first)
       return render_error(:not_found, "SSH key '#{id}' not found", 118)
     end
+
+    authorize! :delete_key, current_user
 
     begin
       result = current_user.remove_ssh_key(id)

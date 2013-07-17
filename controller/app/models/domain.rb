@@ -38,7 +38,7 @@ class Domain
   has_many :applications, class_name: Application.name, dependent: :restrict
   embeds_many :pending_ops, class_name: PendingDomainOps.name
   
-  has_members
+  has_members default_role: :manage
 
   index({:canonical_namespace => 1}, {:unique => true})
   index({:owner_id => 1})
@@ -208,10 +208,9 @@ class Domain
         when :change_members
           removed = Array(op.args['removed'])
           added = CloudUser.members_of(op.args['added'])
-          (binding.pry; raise "No args") if removed.blank? && added.blank?
+          raise "No args" if removed.blank? && added.blank?
           self.applications.each do |app|
             app.remove_members(removed, :domain).add_members(added, :domain)
-            binding.pry if $foo
             app.save!
             # FIXME this needs to recover and continue
             app.run_jobs

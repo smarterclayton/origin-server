@@ -79,7 +79,7 @@ module OpenShift
           user
 
         rescue OpenShift::AccessDeniedException => e
-          render_error(:unauthorized, e.message, 1, "AUTHENTICATE")
+          render_error(:unauthorized, e.message, 1)
         rescue => e
           render_exception(e)
         end
@@ -128,10 +128,10 @@ module OpenShift
 
         def check_controller_scopes
           if current_user_scopes.empty?
-            render_error(:forbidden, "You are not authorized to perform any operations.", 1, "AUTHORIZE")
+            render_error(:forbidden, "You are not authorized to perform any operations.", 1)
             false
           elsif !current_user_scopes.any?{ |s| s.allows_action?(self) }
-            render_error(:forbidden, "This action is not allowed with your current authorization.", 1, "AUTHORIZE")
+            render_error(:forbidden, "This action is not allowed with your current authorization.", 1)
             false
           else
             true

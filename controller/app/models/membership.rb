@@ -10,6 +10,15 @@ module Membership
     members.include?(o)
   end
 
+  def role_for(member_or_id)
+    id = member_or_id.respond_to?(:_id) ? member_or_id._id : member_or_id
+    members.inject(default_role){ |r, m| break (m.role || r) if m._id == id; r }
+  end
+
+  def default_role
+    :read
+  end
+
   def member_ids
     members.map(&:_id)
   end
@@ -132,9 +141,14 @@ module Membership
 
       index({'members._id' => 1}, {:sparse => true})
 
-      if opts and s = opts[:through].to_s.presence
+      if opts and through = opts[:through].to_s.presence
         define_method :parent_membership_relation do
-          relations[s]
+          relations[through]
+        end
+      end
+      if opts and role = opts[:default_role]
+        define_method :default_role do
+          role
         end
       end
     end
