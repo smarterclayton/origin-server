@@ -12,9 +12,13 @@ module Ability
         if type >= Application
           role = resource.role_for(actor)
           case permission
+          when :destroy
+            Role.in?(:manage, role)
+            
           when :change_state, 
                :change_cartridge_state,
                :scale_cartridge,
+               :view_code_details,
                :change_gear_quota
             Role.in?(:control, role)
 
@@ -27,9 +31,14 @@ module Ability
 
           end
         elsif type >= Domain
+          case permission
+          when :create_application then resource.owner_id == actor._id
+          end
         elsif type >= CloudUser
           case permission
-          when :create_key, :update_key, :delete_key then resource == actor
+          when :create_key, :update_key, :destroy_key then resource == actor
+          when :create_authorization, :update_authorization, :destroy_authorization then resource == actor
+          when :destroy then resource.parent_user_id.present?
           end
         end
 

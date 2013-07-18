@@ -10,6 +10,8 @@ class AuthorizationsController < BaseController
   end
 
   def create
+    authorize! :create_authorization, current_user
+
     scopes = if s = params[:scope] || params[:scopes]
         Scope.list!(s) rescue (
           return render_error(:unprocessable_entity, "One or more of the scopes you provided are not allowed. Valid scopes are #{Scope.describe_all.map(&:first).to_sentence}.",
@@ -53,6 +55,7 @@ class AuthorizationsController < BaseController
   end
 
   def update
+    authorize! :update_authorization, current_user
     begin
       auth = Authorization.for_owner(current_user).any_of({:token => params[:id].to_s}, {:id => params[:id].to_s}).accessible(current_user).find_by
       auth.update_attributes!(params.slice(:note))
@@ -65,6 +68,7 @@ class AuthorizationsController < BaseController
   end
 
   def destroy
+    authorize! :destroy_authorization, current_user
     begin
       Authorization.for_owner(current_user).any_of({:token => params[:id].to_s}, {:id => params[:id].to_s}).accessible(current_user).delete_all
       status = requested_api_version <= 1.4 ? :no_content : :ok
@@ -77,6 +81,7 @@ class AuthorizationsController < BaseController
   end
 
   def destroy_all
+    authorize! :destroy_authorization, current_user
     begin
       Authorization.for_owner(current_user).accessible(current_user).delete_all
       status = requested_api_version <= 1.4 ? :no_content : :ok

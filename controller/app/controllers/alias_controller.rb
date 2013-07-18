@@ -28,6 +28,8 @@ class AliasController < BaseController
   
 
   def create
+    authorize! :create_alias, @application
+
     server_alias = params[:id].presence || params[:alias].presence
     ssl_certificate = params[:ssl_certificate].presence
     private_key = params[:private_key].presence
@@ -52,6 +54,8 @@ class AliasController < BaseController
   end
   
   def update
+    authorize! :update_alias, @application
+
     server_alias = params[:id].downcase if params[:id].presence
     ssl_certificate = params[:ssl_certificate].presence
     private_key = params[:private_key].presence
@@ -77,6 +81,8 @@ class AliasController < BaseController
   end
   
   def destroy
+    authorize! :destroy_alias, @application
+
     server_alias = params[:id].downcase if params[:id].presence
     begin
       result = @application.remove_alias(server_alias)

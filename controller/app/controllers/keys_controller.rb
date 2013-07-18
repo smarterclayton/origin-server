@@ -105,7 +105,7 @@ class KeysController < BaseController
       return render_error(:not_found, "SSH key '#{id}' not found", 118)
     end
 
-    authorize! :delete_key, current_user
+    authorize! :destroy_key, current_user
 
     begin
       result = current_user.remove_ssh_key(id)

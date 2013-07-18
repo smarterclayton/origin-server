@@ -52,6 +52,8 @@ class ApplicationsController < BaseController
   #
   # @return [RestReply<RestApplication>] Application object
   def create
+    authorize! :create_application, @domain
+
     app_name = params[:name].downcase if params[:name].presence
     features = []
     downloaded_cart_urls = []
@@ -136,6 +138,9 @@ class ApplicationsController < BaseController
     if @application.quarantined
       return render_upgrade_in_progress
     end
+
+    authorize! :destroy, @application
+
     id = params[:id].downcase if params[:id].presence
     begin
       result = @application.destroy_app
