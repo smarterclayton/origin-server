@@ -227,6 +227,10 @@ class CloudUser
     capabilities["max_gears"] = m
   end
 
+  def allowed_gear_sizes
+    capabilities["gear_sizes"]
+  end
+
   def max_storage
     (max_tracked_additional_storage + max_untracked_additional_storage)
   end
@@ -241,11 +245,8 @@ class CloudUser
 
   # Delete user and all its artifacts like domains, applications associated with the user 
   def force_delete
-    # will need to read from the primary to make sure we get the latest data
-    while Domain.where(owner: self).count > 0
-      domain = Domain.where(owner: self).first
-      while Application.where(domain: domain).count > 0
-        app = Application.where(domain: domain).first
+    while domain = Domain.where(owner: self).first
+      while app = Application.where(domain: domain).first
         app.destroy_app
       end
       domain.delete
@@ -253,8 +254,7 @@ class CloudUser
     
     # will need to reload from primary to ensure that mongoid doesn't validate based on its cache
     # and prevent us from deleting this user because of the :dependent :restrict clause
-    self.reload
-    self.delete
+    self.reload.delete
   end
  
   # Runs all jobs in :init phase and stops at the first failure.

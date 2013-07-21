@@ -33,6 +33,7 @@ class Domain
   field :namespace, type: String
   field :canonical_namespace, type: String
   field :env_vars, type: Array, default: []
+  field :allowed_gear_sizes, type: Array, default: []
   embeds_many :system_ssh_keys, class_name: SystemSshKey.name
   belongs_to :owner, class_name: CloudUser.name
   has_many :applications, class_name: Application.name, dependent: :restrict
@@ -52,6 +53,12 @@ class Domain
   def self.validation_map
     {namespace: 106}
   end
+
+  before_save prepend: true do
+    if has_owner?
+      self.allowed_gear_sizes = owner.allowed_gear_sizes if owner_id_changed? || !persisted?
+    end    
+  end  
   
   def save(options = {})
     notify = !self.persisted?
@@ -86,10 +93,6 @@ class Domain
   def inherit_membership
     members.clone
   end  
-  
-  def capabilities
-    @capabilities ||= owner.capabilities.deep_dup rescue (raise OpenShift::UserException, "The domain cannot be changed at this time.  Contact support.")
-  end
 
   # Support operation to add additional ssh keys for a user
   #

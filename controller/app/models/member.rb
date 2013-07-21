@@ -3,7 +3,7 @@ class Member
   embedded_in :access_controlled, polymorphic: true
 
   field :_type, :as => :t, type: String, default: ->{ self.class.name if hereditary? }
-  field :from,  :as => :f, type: String
+  field :from,  :as => :f, type: Array
   field :role,  :as => :r, type: Symbol
   field :explicit_grant, :as => :e, type: Boolean
   attr_accessible :_id
@@ -14,7 +14,32 @@ class Member
 
   def merge(other)
     self.explicit_grant = true if from != other.from
-    self.from = other.from if from.nil?
+    ((self.from ||= []) << other.from).uniq! if from.nil?
+    self
+  end
+
+  #
+  # Remove the specific source of the membership - will
+  # return true if the member should be removed because
+  # there is no longer an explicit grant or source.
+  #
+  def remove(source)
+    if source.nil?
+      if from.blank?
+        true
+      elsif m.explicit_grant?
+        m.explicit_grant = nil
+        false
+      end
+    else
+      from.delete(source) if from
+      if explicit_grant?
+        explicit_grant = nil
+        false
+      else
+        from.blank?
+      end
+    end
   end
 
   def member_type

@@ -266,19 +266,22 @@ def add_gear_size(user, gear_size)
       exit 1
     end
 
-    gear_sizes = (caps['gear_sizes'] ||= Array(caps['gear_sizes']))
-    if gear_sizes.include?(gear_size)
-        puts "User #{user.login} already has gear size #{gear_size} in its capabilities."
-        return
-    end
-
-    caps['gear_sizes'] = (gear_sizes << gear_size)
-    if user.save
-        puts "Done."
-    else
+    caps['gear_sizes'] << gear_size
+    if !user.save
         puts "An error occurred adding the gear size #{gear_size} to user #{user.login}."
         exit 6
     end
+    puts "Done."
+
+    print "Adding gear size #{gear_size} for domains of user #{user.login}... "
+    user.domains.each do |d|
+        d.allowed_gear_sizes << gear_size
+        if !d.save
+            puts "An error occurred adding the gear size #{gear_size} to domain #{d.namespace} for user #{user.login}."
+            exit 7
+        end
+    end
+    puts "Done."    
 end
 
 def remove_gear_size(user, gear_size)
@@ -291,8 +294,22 @@ def remove_gear_size(user, gear_size)
     end
     
     caps["gear_sizes"].delete(gear_size)
-    user.save
-end
+    if !user.save
+        puts "An error occurred removing the gear size #{gear_size} from user #{user.login}."
+        exit 6
+    end
+    puts "Done."
+
+    print "Removing gear size #{gear_size} for domains of user #{user.login}... "
+    user.domains.each do |d|
+        d.allowed_gear_sizes.delete(gear_size)
+        if !d.save
+            puts "An error occurred removing the gear size #{gear_size} from domain #{d.namespace} for user #{user.login}."
+            exit 7
+        end
+    end
+    puts "Done."    
+end    
 
 def inherit_on_subaccounts(user, allow, capability, cap_name)
     caps = user.capabilities

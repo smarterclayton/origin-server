@@ -41,6 +41,8 @@ class DomainsController < BaseController
   # 
   # @return [RestReply<RestDomain>] The new domain
   def create
+    authorize! :create_domain, @cloud_user
+
     namespace = params[:id].downcase if params[:id].presence
     Rails.logger.debug "Creating domain with namespace #{namespace}"
 
@@ -86,9 +88,10 @@ class DomainsController < BaseController
   # @return [RestReply<RestDomain>] The updated domain
   def update
     id = params[:existing_id].downcase if params[:existing_id].presence
+
+    new_gear_sizes = params[:allowed_gear_sizes]
     new_namespace = params[:id].downcase if params[:id].presence
-    
-    return render_error(:unprocessable_entity, "Namespace is required and cannot be blank.",106, "id") if !new_namespace or new_namespace.empty?
+    return render_error(:unprocessable_entity, "Namespace is required and cannot be blank.",106, "id") if new_namespace.empty? && new_gear_sizes.nil?
 
     # validate the domain name using regex to avoid a mongo call, if it is malformed
     if id !~ Domain::DOMAIN_NAME_COMPATIBILITY_REGEX
@@ -97,6 +100,8 @@ class DomainsController < BaseController
 
     begin
       domain = Domain.find_by(owner: @cloud_user, canonical_namespace: id)
+      authorize! :change_namespace, domain
+
       existing_namespace = domain.namespace
       @domain_name = domain.namespace
     rescue Mongoid::Errors::DocumentNotFound
@@ -138,6 +143,9 @@ class DomainsController < BaseController
   def destroy
     id = params[:id].downcase if params[:id].presence
     force = get_bool(params[:force])
+
+    authorize! :destroy, @domain
+
     if force
       while (apps = Application.where(domain_id: @domain._id)).present?
         apps.each(&:destroy_app)

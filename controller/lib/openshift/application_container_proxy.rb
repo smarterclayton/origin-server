@@ -2,11 +2,11 @@ module OpenShift
   class ApplicationContainerProxy
     @proxy_provider = OpenShift::ApplicationContainerProxy
 
-    def self.valid_gear_sizes(user)
-      @proxy_provider.valid_gear_sizes_impl(user)
+    def self.valid_gear_sizes
+      @proxy_provider.valid_gear_sizes_impl
     end
 
-    def self.valid_gear_sizes_impl(user)
+    def self.valid_gear_sizes_impl
       return Rails.configuration.openshift[:gear_sizes]
     end
 

@@ -21,14 +21,17 @@
 # @!attribute [r] suffix
 #   @return [String] DNS suffix under which the application is created. Eg: rhcloud.com
 class RestDomain < OpenShift::Model
-  attr_accessor :id, :suffix, :links
+  attr_accessor :id, :suffix, :members, :allowed_gear_sizes, :links
   
   def initialize(domain, url, nolinks=false)
     self.id = domain.namespace
     self.suffix = Rails.application.config.openshift[:domain_suffix] 
+
+    self.members = domain.members.map{ |m| RestMember.new(m, domain.default_role, domain.owner_id == m._id, url, nolinks) }
+
+    self.allowed_gear_sizes = domain.allowed_gear_sizes
     
     unless nolinks      
-      valid_sizes = OpenShift::ApplicationContainerProxy.valid_gear_sizes(domain.owner)
       blacklisted_words = OpenShift::ApplicationContainerProxy.get_blacklisted
       carts = CartridgeCache.cartridge_names("web_framework")
 
@@ -39,13 +42,14 @@ class RestDomain < OpenShift::Model
           [Param.new("name", "string", "Name of the application",nil,blacklisted_words)], 
           [OptionalParam.new("cartridges", "array", "Array of one or more cartridge names", carts),
           OptionalParam.new("scale", "boolean", "Mark application as scalable", [true, false], false),
-          OptionalParam.new("gear_profile", "string", "The size of the gear", valid_sizes, valid_sizes[0]),
+          OptionalParam.new("gear_size", "string", "The size of the gear", allowed_gear_sizes, allowed_gear_sizes[0]),
           OptionalParam.new("initial_git_url", "string", "A URL to a Git source code repository that will be the basis for this application.", ['*', OpenShift::Git::EMPTY_CLONE_SPEC]),
           (OptionalParam.new("cartridges[][url]", "string", "A URL to a downloadable cartridge. You may specify an multiple urls via {'cartridges' : [{'url':'http://...'}, ...]}") if Rails.application.config.openshift[:download_cartridges_enabled]),
         ].compact),
-        "UPDATE" => Link.new("Update domain", "PUT", URI::join(url, "domains/#{id}"),[
-          Param.new("id", "string", "Name of the domain")
-        ]),
+        "UPDATE" => Link.new("Update domain", "PUT", URI::join(url, "domains/#{id}"),
+          [Param.new("id", "string", "Name of the domain")],
+          [OptionalParam.new("allowed_gear_sizes", "array", "Array of zero or more gear sizes allowed on this domain"),
+        ),
         "DELETE" => Link.new("Delete domain", "DELETE", URI::join(url, "domains/#{id}"),nil,[
           OptionalParam.new("force", "boolean", "Force delete domain.  i.e. delete any applications under this domain", [true, false], false)
         ])

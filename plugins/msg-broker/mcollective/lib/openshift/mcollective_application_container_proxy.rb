@@ -38,31 +38,6 @@ module OpenShift
         @district = district
       end
 
-      # <<class method>>
-      #
-      # Determine what gear sizes are valid for a given user
-      #
-      # INPUT:
-      # * user: a reference to a user object
-      #
-      # RETURN:
-      # * list of strings: names of gear sizes
-      #
-      # NOTE:
-      # * an operation on User?
-      # * Uses only operations and attributes of user
-      #
-      def self.valid_gear_sizes_impl(user)
-        sizes = user.capabilities['gear_sizes'].presence || Rails.configuration.openshift[:default_gear_capabilities]
-
-        if user.auth_method == :broker_auth
-          # FIXME this should be moved to a permission specifically associated with builders
-          Rails.configuration.openshift[:gear_sizes] | sizes
-        else
-          sizes
-        end
-      end
-
       # <<factory method>>
       #
       # Find a node which fulfills app requirements.  Implements the superclass

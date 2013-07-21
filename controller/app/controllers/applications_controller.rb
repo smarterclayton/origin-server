@@ -76,14 +76,13 @@ class ApplicationsController < BaseController
                           216, "initial_git_url") unless repo_spec
     end
 
-    default_gear_size = params[:gear_profile].presence
-    default_gear_size = Rails.application.config.openshift[:default_gear_size] if default_gear_size.nil?
+    default_gear_size = params[:gear_size].presence || params[:gear_profile].presence || Rails.application.config.openshift[:default_gear_size]
     default_gear_size.downcase! if default_gear_size
 
     return render_error(:unprocessable_entity, "Application name is required and cannot be blank",
                         105, "name") if !app_name or app_name.empty?
 
-    valid_sizes = OpenShift::ApplicationContainerProxy.valid_gear_sizes(@domain.owner)
+    valid_sizes = OpenShift::ApplicationContainerProxy.valid_gear_sizes & @domain.allowed_gear_sizes & domain.owner.allowed_gear_sizes
     return render_error(:unprocessable_entity, "Invalid size: #{default_gear_size}. Acceptable values are: #{valid_sizes.join(",")}",
                         134, "gear_profile") if default_gear_size and !valid_sizes.include?(default_gear_size)
 

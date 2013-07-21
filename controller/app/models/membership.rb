@@ -43,25 +43,7 @@ module Membership
     from = args.pop if args.last.is_a? Symbol
     return self if args.empty?
     changing_members do
-      Array(members.find(*args)).each do |o|
-        if from.nil?
-          # remove members that are directly granted access 
-          if o.from.nil?
-            o.delete
-          elsif o.explicit_grant?
-            o.explicit_grant = false
-          end
-        elsif o.from == from.to_s
-          # clear the source of the membership if the member has a direct grant
-          # otherwise remove the member
-          if o.explicit_grant?
-            o.from = nil
-            o.explicit_grant = nil
-          else
-            o.delete
-          end
-        end
-      end
+      Array(members.find(*args)).each{ |m| m.delete if m.remove(from.to_s) }
     end
     self
   end
