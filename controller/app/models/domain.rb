@@ -32,8 +32,6 @@ class Domain
   include Mongoid::Timestamps
   include Membership
 
-  alias_method :mongoid_save, :save
-
   field :namespace, type: String
   field :canonical_namespace, type: String
   field :env_vars, type: Array, default: []
@@ -59,39 +57,28 @@ class Domain
   end
 
   before_save prepend: true do
+    self.canonical_namespace = namespace.present? ? namespace.downcase : nil
     if has_owner?
       self.allowed_gear_sizes = owner.allowed_gear_sizes if owner_id_changed? || !persisted?
     end    
   end  
-  
-  def save(options = {})
-    notify = !self.persisted?
-    res = mongoid_save(options)
-    notify_observers(:domain_create_success) if notify
-    res
-  end
 
-  # Setter for domain namespace - sets the namespace and the canonical_namespace
-  def namespace=(domain_name)
-    self.canonical_namespace = domain_name.downcase
-    super 
-  end
-  
-  # Change the namespace for this Domain if there are no applications under it. 
-  #
-  # == Parameters:
-  # new_namespace::
-  #   The new namespace to use for the domain
-  def update_namespace(new_namespace)
-    if Application.where(domain_id: self._id).count > 0
+  # Defend against namespace changes after creation.
+  before_update do
+    if namespace_changed? && Application.where(domain_id: _id).present?
       raise OpenShift::UserException.new("Domain contains applications. Delete applications first before changing the domain namespace.", 128)
     end
-    if Domain.where(canonical_namespace: new_namespace.downcase).count > 0 
-      raise OpenShift::UserException.new("Namespace '#{new_namespace}' is already in use. Please choose another.", 103, "id") 
-    end
-    self.namespace = new_namespace
-    self.save
-    notify_observers(:domain_update_success)
+  end
+
+  # Invoke save! with a rescue for a duplicate exception
+  #
+  # == Returns:
+  #   True if the domain was saved.
+  def save_with_duplicate_check!
+    self.save!
+  rescue Moped::Errors::OperationFailure => e
+    raise OpenShift::UserException.new("Namespace '#{namespace}' is already in use. Please choose another.", 103, "id") if [11000, 11001].include?(e.details['code'])
+    raise
   end
 
   def inherit_membership

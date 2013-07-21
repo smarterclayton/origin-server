@@ -48,7 +48,7 @@ class RestDomain < OpenShift::Model
         ].compact),
         "UPDATE" => Link.new("Update domain", "PUT", URI::join(url, "domains/#{id}"),
           [Param.new("id", "string", "Name of the domain")],
-          [OptionalParam.new("allowed_gear_sizes", "array", "Array of zero or more gear sizes allowed on this domain"),
+          [OptionalParam.new("allowed_gear_sizes", "array", "Array of zero or more gear sizes allowed on this domain")],
         ),
         "DELETE" => Link.new("Delete domain", "DELETE", URI::join(url, "domains/#{id}"),nil,[
           OptionalParam.new("force", "boolean", "Force delete domain.  i.e. delete any applications under this domain", [true, false], false)

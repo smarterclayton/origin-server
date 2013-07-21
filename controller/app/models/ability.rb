@@ -32,7 +32,7 @@ module Ability
           end
         elsif type >= Domain
           case permission
-          when :create_application, :change_namespace, :destroy then resource.owner_id == actor._id
+          when :create_application, :change_namespace, :change_gear_sizes, :destroy then resource.owner_id == actor._id
           end
         elsif type >= CloudUser
           case permission

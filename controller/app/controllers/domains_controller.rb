@@ -86,31 +86,28 @@ class DomainsController < BaseController
 
     new_gear_sizes = params[:allowed_gear_sizes]
     new_namespace = params[:id].downcase if params[:id].presence
-    return render_error(:unprocessable_entity, "Namespace is required and cannot be blank.",106, "id") if new_namespace.empty? && new_gear_sizes.nil?
 
     domain = Domain.accessible(current_user).find_by(canonical_namespace: Domain.check_name!(id))
-    authorize! :change_namespace, domain
 
-    existing_namespace = domain.namespace
-    @domain_name = domain.namespace
-
-    # set the new namespace for validation 
-    domain.namespace = new_namespace
-    if not domain.valid?
-      messages = get_error_messages(domain, {"namespace" => "id"})
-      return render_error(:unprocessable_entity, nil, nil, nil, nil, messages)
+    if new_namespace.present?
+      domain.namespace = new_namespace
+      authorize!(:change_namespace, domain) if domain.namespace_changed?
     end
-    
-    #reset the old namespace for use in update_namespace
-    domain.namespace = existing_namespace
-    
-    @domain_name = domain.namespace
-    Rails.logger.debug "Updating domain #{domain.namespace} to #{new_namespace}"
 
-    result = domain.update_namespace(new_namespace)
-    domain.save
+    if !new_gear_sizes.nil?
+      new_gear_sizes = Array(new_gear_sizes).map{ |g| g.to_s.presence }.compact
+      valid_gear_sizes = OpenShift::ApplicationContainerProxy.valid_gear_sizes & domain.owner.allowed_gear_sizes
+      invalid_gear_sizes = new_gear_sizes - valid_gear_sizes      
+      return render_error(:unprocessable_entity, "The following gear sizes are invalid: #{invalid_gear_sizes.to_sentence}", 110, "allowed_gear_sizes") if invalid_gear_sizes.present?
+
+      domain.allowed_gear_sizes = valid_gear_sizes & new_gear_sizes
+
+      authorize!(:change_gear_sizes, domain) if domain.allowed_gear_sizes_changed?
+    end
+
+    domain.save_with_duplicate_check!
     
-    render_success(:ok, "domain", get_rest_domain(domain), "Updated domain #{id} to #{new_namespace}", result)
+    render_success(:ok, "domain", get_rest_domain(domain), "Updated domain #{domain.namespace}", domain)
   end
 
   # Delete a domain for the user. Requires that domain be empty unless 'force' parameter is set.

@@ -27,8 +27,8 @@ class DomainTest < ActiveSupport::TestCase
 
     observer_seq = sequence("observer_seq")
     Domain.expects(:notify_observers).with(:domain_update_success, orig_d).in_sequence(observer_seq).once
-    orig_d.update_namespace(ns + "new")
-    orig_d.save!
+    orig_d.namespace = ns + "new"
+    orig_d.save_with_duplicate_check!
 
     new_d = Domain.find_by(canonical_namespace: ns.downcase + "new")
     assert_equal_domains(orig_d, new_d)

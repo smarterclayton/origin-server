@@ -119,11 +119,13 @@ class DomainTest < ActiveSupport::TestCase
     @domain = Domain.find_by(owner: @user, canonical_namespace: namespace)
     
     new_namespace = "xns#{@random}"
-    assert_raise(OpenShift::UserException){@domain.update_namespace(new_namespace)}
+    @domain.namespace = new_namespace
+    assert_raise(OpenShift::UserException){ @domain.save_with_duplicate_check! }
     
     @app.destroy_app
     @domain = Domain.find_by(owner: @user, canonical_namespace: namespace)
-    @domain.update_namespace(new_namespace)
+    @domain.namespace = new_namespace
+    @domain.save_with_duplicate_check!
     assert_raise(Mongoid::Errors::DocumentNotFound){Domain.find_by(owner: @user, canonical_namespace: namespace)}
     @domain = Domain.find_by(owner: @user, canonical_namespace: new_namespace)
     assert_equal(new_namespace, @domain.namespace)
