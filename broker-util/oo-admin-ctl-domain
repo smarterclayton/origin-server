@@ -16,13 +16,15 @@ oo-admin-ctl-domain OPTIONS
 Options:
 -l|--login <login_name>
     Login with OpenShift access (required)
+-p|--provider <provider_name>
+    Source of the login (optional)
 -n|--namespace <Namespace>
     Namespace for application(s) (alphanumeric - max 16 chars) (required)
 -c|--command (create|update|delete|info|env_add|env_del)
 -s|--ssh_key <ssh key>
     User's SSH key
 -t|--key_type <ssh key type>
-    User's SSH key type (ssh-rsa|ssh-dss|ecdsa-sha2-nistp256-cert-v01@openssh.com|ecdsa-sha2-nistp384-cert-v01@openssh.com|ecdsa-sha2-nistp521-cert-v01@openssh.com|ssh-rsa-cert-v01@openssh.com|ssh-dss-cert-v01@openssh.com|ssh-rsa-cert-v00@openssh.com|ssh-dss-cert-v00@openssh.com|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ecdsa-sha2-nistp521)
+    User's SSH key type (ssh-rsa|ssh-dss|ssh-rsa-cert-v01@openssh.com|ssh-dss-cert-v01@openssh.com|ssh-rsa-cert-v00@openssh.com|ssh-dss-cert-v00@openssh.com)
 -k|--key_name <ssh key name>
     User's SSH key name
 -e|--env_name <env var name>
@@ -35,6 +37,7 @@ end
 
 opts = GetoptLong.new(
     ["--login",            "-l", GetoptLong::REQUIRED_ARGUMENT],
+    ["--provider",         "-p", GetoptLong::REQUIRED_ARGUMENT],
     ["--namespace",        "-n", GetoptLong::REQUIRED_ARGUMENT],    
     ["--command",          "-c", GetoptLong::REQUIRED_ARGUMENT],
     ["--ssh_key",          "-s", GetoptLong::REQUIRED_ARGUMENT],
@@ -53,6 +56,7 @@ rescue GetoptLong::Error => e
 end
 
 login = args["--login"]
+provider = args["--provider"]
 ssh_key = args["--ssh_key"]
 ssh_type = args["--key_type"]
 ssh_name = args["--key_name"]
@@ -144,7 +148,7 @@ when "create"
   rescue Mongoid::Errors::DocumentNotFound
   end
   
-  user = CloudUser.new(login: login)
+  user = CloudUser.find_or_create_by_identity(provider, login)
   user.add_ssh_key(UserSshKey.new(name: ssh_name, content: ssh_key, type: ssh_type))
   user.save!
   Lock.create_lock(user)

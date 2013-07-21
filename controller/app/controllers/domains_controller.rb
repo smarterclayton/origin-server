@@ -28,7 +28,7 @@ class DomainsController < BaseController
   # @param [String] id The namespace of the domain
   # @return [RestReply<RestDomain>] The requested domain
   def show
-    return render_success(:ok, "domain", get_rest_domain(@domain), "Found domain #{@domain.namespace}")
+    render_success(:ok, "domain", get_rest_domain(@domain), "Found domain #{@domain.namespace}")
   end
 
   # Create a new domain for the user
@@ -65,13 +65,8 @@ class DomainsController < BaseController
     end
 
     @domain_name = domain.namespace
-    begin
-      domain.save
-    rescue OpenShift::UserException => e
-      return render_error(:unprocessable_entity, e.message, e.code, e.field)
-    rescue Exception => e
-      return render_exception(e) 
-    end
+
+    domain.save
 
     render_success(:created, "domain", get_rest_domain(domain), "Created domain with namespace #{namespace}")
   end
@@ -93,20 +88,11 @@ class DomainsController < BaseController
     new_namespace = params[:id].downcase if params[:id].presence
     return render_error(:unprocessable_entity, "Namespace is required and cannot be blank.",106, "id") if new_namespace.empty? && new_gear_sizes.nil?
 
-    # validate the domain name using regex to avoid a mongo call, if it is malformed
-    if id !~ Domain::DOMAIN_NAME_COMPATIBILITY_REGEX
-      return render_error(:not_found, "Domain #{id} not found", 127)
-    end
+    domain = Domain.accessible(current_user).find_by(canonical_namespace: Domain.check_name!(id))
+    authorize! :change_namespace, domain
 
-    begin
-      domain = Domain.find_by(owner: @cloud_user, canonical_namespace: id)
-      authorize! :change_namespace, domain
-
-      existing_namespace = domain.namespace
-      @domain_name = domain.namespace
-    rescue Mongoid::Errors::DocumentNotFound
-      return render_error(:not_found, "Domain '#{id}' not found", 127)
-    end
+    existing_namespace = domain.namespace
+    @domain_name = domain.namespace
 
     # set the new namespace for validation 
     domain.namespace = new_namespace
@@ -121,14 +107,8 @@ class DomainsController < BaseController
     @domain_name = domain.namespace
     Rails.logger.debug "Updating domain #{domain.namespace} to #{new_namespace}"
 
-    begin
-      result = domain.update_namespace(new_namespace)
-      domain.save
-    rescue OpenShift::UserException => e
-      return render_error(:unprocessable_entity, e.message, e.code, e.field)
-    rescue Exception => e
-      return render_exception(e) 
-    end
+    result = domain.update_namespace(new_namespace)
+    domain.save
     
     render_success(:ok, "domain", get_rest_domain(domain), "Updated domain #{id} to #{new_namespace}", result)
   end
@@ -158,14 +138,10 @@ class DomainsController < BaseController
       end
     end
 
-    begin
-      # reload the domain so that MongoId does not see any applications
-      @domain.reload
-      result = @domain.delete
-      status = requested_api_version <= 1.4 ? :no_content : :ok
-      render_success(status, nil, nil, "Domain #{id} deleted.", result)
-    rescue Exception => e
-      return render_exception(e) 
-    end
+    # reload the domain so that MongoId does not see any applications
+    @domain.reload
+    result = @domain.delete
+    status = requested_api_version <= 1.4 ? :no_content : :ok
+    render_success(status, nil, nil, "Domain #{id} deleted.", result)
   end
 end
