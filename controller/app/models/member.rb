@@ -2,6 +2,7 @@ class Member
   include Mongoid::Document
   embedded_in :access_controlled, polymorphic: true
 
+  field :name,  :as => :n, type: String
   field :_type, :as => :t, type: String, default: ->{ self.class.name if hereditary? }
   field :from,  :as => :f, type: Array
   field :role,  :as => :r, type: Symbol

@@ -5,6 +5,7 @@ module AccessControllable
     Member.new do |u|
       u._id = self._id
       u._type = self.class.member_type
+      u.name = name
       u.role = role
     end
   end

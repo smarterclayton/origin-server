@@ -31,6 +31,7 @@ module OpenShift
           end
           if SUPPORTED_API_VERSIONS.include? version
             @requested_api_version = version
+            logger.debug "API version #{version}"
           else
             @requested_api_version = API_VERSION
             render_error(:not_acceptable, "Requested API version #{version} is not supported. Supported versions are #{SUPPORTED_API_VERSIONS.map{|v| v.to_s}.join(",")}")
@@ -116,6 +117,9 @@ module OpenShift
         
         def authorize!(permission, resource, *resources)
           Ability.authorize!(current_user, current_user.scopes, permission, resource, *resources)
+        end
+        def authorized?(permissions, resource, *resources)
+          Ability.authorized?(current_user, current_user.scopes, permissions, resource, *resources)
         end
     end
   end

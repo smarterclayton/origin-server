@@ -82,16 +82,17 @@ class ApplicationsController < BaseController
     return render_error(:unprocessable_entity, "Application name is required and cannot be blank",
                         105, "name") if !app_name or app_name.empty?
 
-    valid_sizes = OpenShift::ApplicationContainerProxy.valid_gear_sizes & @domain.allowed_gear_sizes & domain.owner.allowed_gear_sizes
+    valid_sizes = OpenShift::ApplicationContainerProxy.valid_gear_sizes & @domain.allowed_gear_sizes & @domain.owner.allowed_gear_sizes
     return render_error(:unprocessable_entity, "Invalid size: #{default_gear_size}. Acceptable values are: #{valid_sizes.join(",")}",
                         134, "gear_profile") if default_gear_size and !valid_sizes.include?(default_gear_size)
 
-    if Application.where(domain: @domain, canonical_name: app_name.downcase).count > 0
+    if Application.where(domain: @domain, canonical_name: app_name.downcase).present?
       return render_error(:unprocessable_entity, "The supplied application name '#{app_name}' already exists", 100, "name")
     end
 
     Rails.logger.debug "Checking to see if user limit for number of apps has been reached"
-    return render_error(:unprocessable_entity, "#{@cloud_user.login} has already reached the gear limit of #{@cloud_user.max_gears}",
+    return render_error(:unprocessable_entity, 
+                        "#{@cloud_user.login} has already reached the gear limit of #{@cloud_user.max_gears}",
                         104) if (@cloud_user.consumed_gears >= @cloud_user.max_gears)
 
     download_cartridges_enabled = Rails.application.config.openshift[:download_cartridges_enabled]

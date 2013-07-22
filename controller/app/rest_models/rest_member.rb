@@ -7,7 +7,7 @@ class RestMember < OpenShift::Model
            else
             'user'
            end
-    self.name = "#{type}:#{member.id}"
+    self.name = member.name || "#{type}:#{member.id}"
     self.id = member._id
     #self.type = type
     self.role = member.role || default_role

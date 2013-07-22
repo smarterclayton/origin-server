@@ -10,13 +10,9 @@ class DomainsController < BaseController
   # 
   # @return [RestReply<Array<RestDomain>>] List of domains
   def index
-    rest_domains = Array.new
-    Rails.logger.debug "Getting domains for user #{@cloud_user.login}"
     domains = Domain.accessible(current_user)
-    domains.each do |domain|
-      rest_domains.push get_rest_domain(domain)
-    end
-    render_success(:ok, "domains", rest_domains)
+    domains = domains.where(owner: current_user) if get_bool(params[:owned])
+    render_success(:ok, "domains", domains.sort_by(&Domain.sort_by_original(current_user)).map{ |d| get_rest_domain(d) } )
   end
 
   # Retuns domain for the current user that match the given parameters.
@@ -44,29 +40,15 @@ class DomainsController < BaseController
     authorize! :create_domain, @cloud_user
 
     namespace = params[:id].downcase if params[:id].presence
-    Rails.logger.debug "Creating domain with namespace #{namespace}"
+    new_gear_sizes = params[:allowed_gear_sizes]
 
     return render_error(:unprocessable_entity, "Namespace is required and cannot be blank.",
                         106, "id") if !namespace or namespace.empty?
+    return render_error(:conflict, "There is already a namespace associated with this user", 103, "id") if Domain.where(owner: current_user).present? && requested_api_version < 1.5
 
-    domain = Domain.new(namespace: namespace, owner: @cloud_user)
-    if not domain.valid?
-      Rails.logger.error "Domain is not valid"
-      messages = get_error_messages(domain, {"namespace" => "id"})
-      return render_error(:unprocessable_entity, nil, nil, nil, nil, messages)
-    end
-
-    if Domain.where(canonical_namespace: namespace).count > 0 
-      return render_error(:unprocessable_entity, "Namespace '#{namespace}' is already in use. Please choose another.", 103, "id")
-    end
-
-    if Domain.where(owner: @cloud_user).count > 0
-      return render_error(:conflict, "There is already a namespace associated with this user", 103, "id")
-    end
-
-    @domain_name = domain.namespace
-
-    domain.save
+    domain = Domain.new(namespace: namespace, owner: current_user)
+    domain.allowed_gear_sizes = new_gear_sizes unless new_gear_sizes.nil?
+    domain.save_with_duplicate_check!
 
     render_success(:created, "domain", get_rest_domain(domain), "Created domain with namespace #{namespace}")
   end
@@ -95,13 +77,7 @@ class DomainsController < BaseController
     end
 
     if !new_gear_sizes.nil?
-      new_gear_sizes = Array(new_gear_sizes).map{ |g| g.to_s.presence }.compact
-      valid_gear_sizes = OpenShift::ApplicationContainerProxy.valid_gear_sizes & domain.owner.allowed_gear_sizes
-      invalid_gear_sizes = new_gear_sizes - valid_gear_sizes      
-      return render_error(:unprocessable_entity, "The following gear sizes are invalid: #{invalid_gear_sizes.to_sentence}", 110, "allowed_gear_sizes") if invalid_gear_sizes.present?
-
-      domain.allowed_gear_sizes = valid_gear_sizes & new_gear_sizes
-
+      domain.allowed_gear_sizes = new_gear_sizes
       authorize!(:change_gear_sizes, domain) if domain.allowed_gear_sizes_changed?
     end
 

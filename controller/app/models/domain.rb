@@ -52,8 +52,26 @@ class Domain
     format:   {with: DOMAIN_NAME_REGEX, message: "Invalid namespace. Namespace must only contain alphanumeric characters."},
     length:   {maximum: NAMESPACE_MAX_LENGTH, minimum: NAMESPACE_MIN_LENGTH, message: "Must be a minimum of #{NAMESPACE_MIN_LENGTH} and maximum of #{NAMESPACE_MAX_LENGTH} characters."},
     blacklisted: {message: "Namespace is not allowed.  Please choose another."}
+
+  validate do |d|
+    if d.allowed_gear_sizes_changed?
+      new_gear_sizes = Array(d.allowed_gear_sizes).map{ |g| g.to_s.presence }.compact
+      valid_gear_sizes = OpenShift::ApplicationContainerProxy.valid_gear_sizes & d.owner.allowed_gear_sizes
+      invalid_gear_sizes = new_gear_sizes - valid_gear_sizes
+      if invalid_gear_sizes.present?
+        d.errors.add :allowed_gear_sizes, "The following gear sizes are invalid: #{invalid_gear_sizes.to_sentence}" 
+      else
+        d.allowed_gear_sizes = new_gear_sizes.uniq
+      end
+    end
+  end
+
   def self.validation_map
-    {namespace: 106}
+    {namespace: 106, allowed_gear_sizes: 110}
+  end
+
+  def self.sort_by_original(user)
+    lambda{ |d| [user._id == d.owner_id ? 0 : 1, d.created_at] }
   end
 
   before_save prepend: true do

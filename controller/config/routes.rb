@@ -5,6 +5,7 @@ Rails.application.routes.draw do
     resource :api, :only => :show, :controller => :api
     resource :environment, :only => [:show], :controller => :environment
     resource :user, :only => [:show, :destroy], :controller => :user do
+      match 'domains' => 'domains#index', :owned => true
       resources :keys, :only => [:index, :show, :create, :update, :destroy], :controller => :keys, :constraints => { :id => id_with_format }, :singular_resource => true, :expose_legacy_api => true
       resources :authorizations, :controller => :authorizations, :constraints => { :id => id_with_format }, :only => [:index, :show, :destroy, :create, :update], :singular_resource => true, :expose_legacy_api => true
       match 'authorizations' => 'authorizations#destroy_all', :via => :delete
@@ -31,6 +32,8 @@ Rails.application.routes.draw do
         resources :aliases, :only => [:index, :show, :create, :update, :destroy], :controller => :alias, :constraints => { :id => id_with_format }, :singular_resource => true
       end
     end
+
+    #FIXME temporary
     match 'applications' => 'applications#access'
 
     root as: 'rest', to: redirect{ |params, request| "#{request.script_name}/rest/api" }

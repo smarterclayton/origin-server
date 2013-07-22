@@ -95,6 +95,10 @@ class CloudUser
     [as_member]
   end
 
+  def name
+    login
+  end
+
   def save(options = {})
     res = false
     notify = !self.persisted?
