@@ -1175,10 +1175,18 @@ class Application
         if op_group.pending_ops.count == 0
           case op_group.op_type
           when :change_members
+            added = Array(op_group.args['added']).select{ |id| (member = members.detect{ |m| m._id == id }) and Role.allows_application_ssh?(member.role || default_role) } 
+            removed = Array(op_group.args['removed']).dup
+            Array(op_group.args['changed']).each do |(id, from, to)| 
+              was = Role.allows_application_ssh?(from || default_role)
+              is = Role.allows_application_ssh?(to || default_role)
+              next if is == was
+              (is ? added : removed) << id
+            end
             ops = calculate_update_existing_configuration_ops({
               # FIXME this is an unbounded operation, all keys for all users added and removed to each gear.  need to optimize
-              'add_keys_attrs' => CloudUser.members_of(Array(op_group.args['added'])).map{ |u| get_updated_ssh_keys(u._id, u.ssh_keys) }.flatten(1),
-              'remove_keys_attrs' => CloudUser.members_of(Array(op_group.args['removed'])).map{ |u| get_updated_ssh_keys(u._id, u.ssh_keys) }.flatten(1),
+              'add_keys_attrs' => CloudUser.members_of(added).map{ |u| get_updated_ssh_keys(u._id, u.ssh_keys) }.flatten(1),
+              'remove_keys_attrs' => CloudUser.members_of(removed).map{ |u| get_updated_ssh_keys(u._id, u.ssh_keys) }.flatten(1),
             })
             op_group.pending_ops.push(*ops)
           when :update_configuration

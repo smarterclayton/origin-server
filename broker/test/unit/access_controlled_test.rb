@@ -30,19 +30,19 @@ class AccessControlledTest < ActiveSupport::TestCase
     d.add_members('other', :owner)
     assert_equal 2, d.members.length
     assert_equal 'other', d.members.last._id
-    assert_equal 'owner', d.members.last.from
+    assert_equal ['owner'], d.members.last.from
     assert !d.members.last.explicit_grant?
 
     d.add_members('other')
     assert_equal 2, d.members.length
     assert_equal 'other', d.members.last._id
-    assert_equal 'owner', d.members.last.from
+    assert_equal ['owner'], d.members.last.from
     assert d.members.last.explicit_grant?
 
     d.remove_members('other')
     assert_equal 2, d.members.length
     assert_equal 'other', d.members.last._id
-    assert_equal 'owner', d.members.last.from
+    assert_equal ['owner'], d.members.last.from
     assert !d.members.last.explicit_grant?
 
     d.remove_members('other', :domain)
@@ -184,11 +184,11 @@ class AccessControlledTest < ActiveSupport::TestCase
 
     assert d = Domain.create(:namespace => 'test', :owner => u)
     assert_equal [Member.new(_id: u._id)], d.members
-    assert_equal 'owner', d.members.first.from
+    assert_equal ['owner'], d.members.first.from
 
     assert a = Application.create(:name => 'propagatetest', :domain => d)
     assert_equal [Member.new(_id: u._id)], d.members
-    assert_equal 'domain', d.members.first.from
+    assert_equal ['domain'], d.members.first.from
 
     assert     Application.accessible(u).first
     assert_nil Application.accessible(u2).first
@@ -220,7 +220,7 @@ class AccessControlledTest < ActiveSupport::TestCase
 
     a = d.applications.first
     assert_equal 3, (a.members & d.members).length
-    assert a.members.all?{ |m| m.from == 'domain' }
+    a.members.each{ |m| assert_equal ['domain'], m.from }
     assert a.members[1].explicit_grant?
 
     assert d.pending_ops.empty?
@@ -250,7 +250,7 @@ class AccessControlledTest < ActiveSupport::TestCase
 
     assert_equal 1, (a.members & d.members).length
     assert_equal 2, a.members.length
-    assert_nil a.members.last.from
+    assert_equal [], a.members.last.from
     assert !a.members.last.explicit_grant?
     assert  a.members.include?(u2.as_member)
     assert !a.members.include?(u3.as_member)

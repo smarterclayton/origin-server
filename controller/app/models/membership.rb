@@ -28,7 +28,7 @@ module Membership
     changing_members do
       args.flatten(1).map do |arg|
         m = self.class.to_member(arg)
-        m.from = from
+        m.from = [from.to_s] if from
         if exists = members.find(m._id) rescue nil
           exists.merge(m)
         else
@@ -43,7 +43,7 @@ module Membership
     from = args.pop if args.last.is_a? Symbol
     return self if args.empty?
     changing_members do
-      Array(members.find(*args)).each{ |m| m.delete if m.remove(from.to_s) }
+      Array(members.find(*args)).each{ |m| m.delete if m.remove(from ? from.to_s : nil) }
     end
     self
   end
@@ -68,13 +68,13 @@ module Membership
       @original_members ||= ids
       @members_added ||= []; @members_removed ||= []
       @members_added -= removed; @members_removed -= added
-      @members_added.concat(added); @members_removed.concat(removed & @original_members)
+      @members_added.concat(added).uniq!; @members_removed.concat(removed & @original_members).uniq!
     end
     self
   end
 
   def has_member_changes?
-    @members_added.present? || @members_removed.present?
+    @members_added.present? || @members_removed.present? || members.any?(&:role_changed?)
   end
 
   protected
@@ -85,7 +85,7 @@ module Membership
     def default_members
       if parent = parent_membership_relation
         p = send(parent.name)
-        p.inherit_membership.each{ |m| m.from = parent.name } if p
+        p.inherit_membership.each{ |m| m.from = [parent.name.to_s] } if p
       end || []
     end
 
@@ -93,8 +93,8 @@ module Membership
     # The list of member ids that changed on the object.  The change_members op
     # is best if it is consistent on all access controlled classes
     #
-    def members_changed(added, removed)
-      queue_op(:change_members, added: added.presence, removed: removed.presence)
+    def members_changed(added, removed, changed_roles)
+      queue_op(:change_members, added: added.presence, removed: removed.presence, changed: changed_roles.presence)
     end
 
     # FIXME create a standard pending operations model mixin that uniformly handles queueing on all type
@@ -105,8 +105,9 @@ module Membership
     def handle_member_changes
       if persisted?
         changing_members{ members.concat(default_members) } if members.empty?
-        if @members_added.present? || @members_removed.present?
-          members_changed(@members_added.uniq, @members_removed.uniq)
+        if has_member_changes?
+          changed_roles = members.select{ |m| m.role_changed? && !(@members_added && @members_added.include?(m._id)) }.map{ |m| [m._id].concat(m.role_change) }
+          members_changed(@members_added, @members_removed, changed_roles)
           @original_members, @members_added, @members_removed = nil
         end
       else

@@ -15,7 +15,7 @@ class Member
 
   def merge(other)
     self.explicit_grant = true if from != other.from
-    ((self.from ||= []) << other.from).uniq! if from.nil?
+    ((self.from ||= []).concat(other.from)).uniq! if from.nil?
     self
   end
 
@@ -28,14 +28,14 @@ class Member
     if source.nil?
       if from.blank?
         true
-      elsif m.explicit_grant?
-        m.explicit_grant = nil
+      elsif explicit_grant?
+        self.explicit_grant = nil
         false
       end
     else
       from.delete(source) if from
       if explicit_grant?
-        explicit_grant = nil
+        self.explicit_grant = nil
         false
       else
         from.blank?
@@ -45,10 +45,6 @@ class Member
 
   def member_type
     CloudUser
-  end
-
-  def from=(obj)
-    super obj
   end
 
   def _type=(obj)

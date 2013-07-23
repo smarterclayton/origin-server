@@ -80,6 +80,5 @@ module Ability
         when :destroy then resource.parent_user_id.present? && resource == actor
         end
       end
-    end
   end
 end
