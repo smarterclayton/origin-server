@@ -296,6 +296,7 @@ class Application
     return if keys.empty?
     keys_attrs = get_updated_ssh_keys(user_id, keys)
     Application.run_in_application_lock(self) do
+      return unless Ability.has_permission?(user_id, :ssh_to_gears, Application, role_for(user_id), self)
       op_group = PendingAppOpGroup.new(op_type: :update_configuration,  args: {"add_keys_attrs" => keys_attrs}, parent_op: parent_op, user_agent: self.user_agent)
       self.pending_op_groups.push op_group
       result_io = ResultIO.new
@@ -315,6 +316,7 @@ class Application
     return if keys.empty?
     keys_attrs = get_updated_ssh_keys(user_id, keys)
     Application.run_in_application_lock(self) do
+      return unless Ability.has_permission?(user_id, :ssh_to_gears, Application, role_for(user_id), self)
       op_group = PendingAppOpGroup.new(op_type: :update_configuration, args: {"remove_keys_attrs" => keys_attrs}, parent_op: parent_op, user_agent: self.user_agent)
       self.pending_op_groups.push op_group
       result_io = ResultIO.new
@@ -1175,11 +1177,11 @@ class Application
         if op_group.pending_ops.count == 0
           case op_group.op_type
           when :change_members
-            added = Array(op_group.args['added']).select{ |id| (member = members.detect{ |m| m._id == id }) and Role.allows_application_ssh?(member.role || default_role) } 
+            added = Array(op_group.args['added']).select{ |id| (role = role_for(id)) and Ability.has_permission?(id, :ssh_to_gears, Application, role, self) } 
             removed = Array(op_group.args['removed']).dup
-            Array(op_group.args['changed']).each do |(id, from, to)| 
-              was = Role.allows_application_ssh?(from || default_role)
-              is = Role.allows_application_ssh?(to || default_role)
+            Array(op_group.args['changed']).each do |(id, from, to)|
+              was = Ability.has_permission?(id, :ssh_to_gears, Application, from or default_role, self) 
+              is =  Ability.has_permission?(id, :ssh_to_gears, Application, to or default_role, self) 
               next if is == was
               (is ? added : removed) << id
             end

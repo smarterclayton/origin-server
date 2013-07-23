@@ -12,7 +12,8 @@ module Membership
 
   def role_for(member_or_id)
     id = member_or_id.respond_to?(:_id) ? member_or_id._id : member_or_id
-    members.inject(default_role){ |r, m| break (m.role || r) if m._id == id; r }
+    members.inject(default_role){ |r, m| return (m.role || r) if m._id == id; r }
+    nil
   end
 
   def default_role

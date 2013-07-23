@@ -102,50 +102,6 @@ class Domain
   def inherit_membership
     members.clone
   end  
-
-  # Support operation to add additional ssh keys for a user
-  #
-  # == Parameters:
-  # user_id::
-  #   The ID of the user who owns the ssh key
-  # key_attr::
-  #   SSH key attributes
-  # pending_parent_op::
-  #   Parent operation which tracks the key additions
-  #
-  # == Returns:
-  #  The domain operation which tracks the sshkey addition
-  def add_ssh_key(user_id, ssh_key, pending_parent_op)
-    return if pending_ops.where(parent_op_id: pending_parent_op._id).count > 0
-    if((owner._id == user_id) && self.applications.count > 0)
-      self.pending_ops.push(PendingDomainOps.new(op_type: :add_ssh_key, arguments: { "user_id" => user_id, "key_attrs" => [ssh_key.attributes] }, parent_op_id: pending_parent_op._id, on_apps: self.applications, state: "init"))
-      self.run_jobs
-    else
-      pending_parent_op.child_completed(self) if pending_parent_op
-    end
-  end
-  
-  # Support operation to remove specific ssh keys for a user
-  #
-  # == Parameters:
-  # user_id::
-  #   The ID of the user who owns the ssh key
-  # key_attr::
-  #   SSH key attributes
-  # pending_parent_op::
-  #   Parent operation which tracks the key removals
-  #
-  # == Returns:
-  #  The domain operation which tracks the sshkey removal
-  def remove_ssh_key(user_id, ssh_key, pending_parent_op)
-    return if pending_ops.where(parent_op_id: pending_parent_op._id).count > 0    
-    if(self.applications.count > 0)
-      self.pending_ops.push PendingDomainOps.new(op_type: :delete_ssh_key, arguments: { "user_id" => user_id, "key_attrs" => [ssh_key.attributes] }, parent_op_id: pending_parent_op._id, on_apps: self.applications, state: "init")
-      self.run_jobs
-    else
-      pending_parent_op.child_completed(self) if pending_parent_op
-    end
-  end
   
   def add_system_ssh_keys(ssh_keys)
     keys_attrs = ssh_keys.map{|k| k.attributes.dup}
@@ -229,12 +185,6 @@ class Domain
           end
           op.set(:state, :completed)
           
-        when :add_ssh_key
-          ssh_keys = op.arguments["key_attrs"].map{|k| UserSshKey.new.to_obj(k)}
-          op.pending_apps.each { |app| app.add_ssh_keys(op.arguments["user_id"], ssh_keys, op) }
-        when :delete_ssh_key
-          ssh_keys = op.arguments["key_attrs"].map{|k| UserSshKey.new.to_obj(k)}
-          op.pending_apps.each { |app| app.remove_ssh_keys(op.arguments["user_id"], ssh_keys, op) }
         when :add_domain_ssh_keys
           ssh_keys = op.arguments["keys_attrs"].map{|k| SystemSshKey.new.to_obj(k)}
           op.pending_apps.each { |app| app.add_ssh_keys(nil, ssh_keys, op) }
