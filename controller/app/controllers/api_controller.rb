@@ -23,26 +23,22 @@ class ApiController < BaseController
       "API" => Link.new("API entry point", "GET", URI::join(get_url, "api")),
       "GET_ENVIRONMENT" => Link.new("Get environment information", "GET", URI::join(get_url, "environment")),
       "GET_USER" => Link.new("Get user information", "GET", URI::join(get_url, "user")),      
-      "LIST_OWNED_DOMAINS" => Link.new("List domains you own", "GET", URI::join(get_url, "user/domains")),
-      "SHOW_DOMAIN"  => Link.new("Retrieve a domain by its name", "GET", URI::join(get_url, "domains/:name"), [
+      "LIST_DOMAINS" => Link.new("List all domains you have access to", "GET", URI::join(get_url, "domains")),
+      "LIST_DOMAINS_BY_OWNER" => Link.new("List domains", "GET", URI::join(get_url, "domains"), [
+        Param.new("owner", "string", "Return only the domains owned by the specified user id or identity.  Use @self to refer to the current user.", ['@self', '*'], [])
+        ]),
+      "SHOW_DOMAIN" => Link.new("Retrieve a domain by its name", "GET", URI::join(get_url, "domain/:name"), [
         Param.new(":name", "string", "Unique name of the domain", nil, [])
       ]),
       "ADD_DOMAIN" => Link.new("Create new domain", "POST", URI::join(get_url, "domains"), [
         Param.new("id", "string", "Name of the domain",nil,blacklisted_words)
       ]),
-      "SHOW_APPLICATION_BY_DOMAIN"  => Link.new("Retrieve an application by its name and domain", "GET", URI::join(get_url, "domains/:domain_name/application/:name"), [
+      "SHOW_APPLICATION_BY_DOMAIN"  => Link.new("Retrieve an application by its name and domain", "GET", URI::join(get_url, "domain/:domain_name/application/:name"), [
         Param.new(":domain_name", "string", "Unique name of the domain", nil, []),
         Param.new(":name", "string", "Name of the application", nil, []),
       ]),      
       "LIST_CARTRIDGES" => Link.new("List cartridges", "GET", URI::join(get_url, "cartridges")),
     }
-
-    if requested_api_version < 1.5
-      links["LIST_DOMAINS"] = links["LIST_OWNED_DOMAINS"]
-    else
-      links["LIST_DOMAINS"] = Link.new("List all domains you have access to", "GET", URI::join(get_url, "domains"))
-    end
-
 
     links.merge!({
       "LIST_AUTHORIZATIONS" => Link.new("List authorizations", "GET", URI::join(get_url, "user/authorizations")),

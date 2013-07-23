@@ -7,12 +7,20 @@ class DomainsController < BaseController
   # URL: /domains
   #
   # Action: GET
+  #
+  # @param [String] owner The id of an owner to show the domains for.  Special values: 
+  #                         @self - returns the current user.
   # 
   # @return [RestReply<Array<RestDomain>>] List of domains
   def index
-    domains = Domain.accessible(current_user)
-    domains = domains.where(owner: current_user) if get_bool(params[:owned])
-    render_success(:ok, "domains", domains.sort_by(&Domain.sort_by_original(current_user)).map{ |d| get_rest_domain(d) } )
+    domains = 
+      case params[:owner]
+      when "@self" then Domain.where(owner: current_user)
+      when nil     then Domain.accessible(current_user)
+      else return render_error(:bad_request, "Only @self is supported for the 'owner' argument.") 
+      end
+
+    render_success(:ok, "domains", domains.sort_by(&Domain.sort_by_original(current_user)).map{ |d| get_rest_domain(d) })
   end
 
   # Retuns domain for the current user that match the given parameters.
@@ -37,14 +45,14 @@ class DomainsController < BaseController
   # 
   # @return [RestReply<RestDomain>] The new domain
   def create
-    authorize! :create_domain, @cloud_user
+    authorize! :create_domain, current_user
 
     namespace = params[:id].downcase if params[:id].presence
     new_gear_sizes = params[:allowed_gear_sizes]
 
-    return render_error(:unprocessable_entity, "Namespace is required and cannot be blank.",
-                        106, "id") if !namespace or namespace.empty?
-    return render_error(:conflict, "There is already a namespace associated with this user", 103, "id") if Domain.where(owner: current_user).present? && requested_api_version < 1.5
+    domains = Domain.where(owner: current_user).count
+    return render_error(:conflict, "There is already a namespace associated with this user", 103, "id") if domains > 1 && requested_api_version < 1.5
+    return render_error(:conflict, "You may not have more than #{pluralize(current_user.max_gears, "domain")}.", 103, "id") if domains > current_user.max_gears
 
     domain = Domain.new(namespace: namespace, owner: current_user)
     domain.allowed_gear_sizes = new_gear_sizes unless new_gear_sizes.nil?

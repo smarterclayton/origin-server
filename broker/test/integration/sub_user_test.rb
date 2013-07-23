@@ -130,7 +130,7 @@ class SubUserTest < ActionDispatch::IntegrationTest
 
     subuser = CloudUser.find_by(login: "subuser#{@random}")
     capabilities = subuser.capabilities
-    assert_equal [Rails.configuration.openshift[:gear_sizes].sort, capabilities["gear_sizes"].sort
+    assert_equal Rails.configuration.openshift[:gear_sizes].sort, capabilities["gear_sizes"].sort
 
     u = CloudUser.find_by login: "#{@username}"
     u.capabilities = {"subaccounts"=>true, "gear_sizes"=>Rails.configuration.openshift[:default_gear_capabilities], "max_gears"=>3, "inherit_on_subaccounts"=>["gear_sizes"]}

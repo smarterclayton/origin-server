@@ -45,7 +45,7 @@ class Scope::Application < Scope::Parameterized
     end
 
     def app_scope=(s)
-      raise Scope::Invalid, "'#{s}' is not a valid application scope" unless APP_SCOPES.keys.any?{ |k| k.to_s == s }
+      raise Scope::Invalid, "'#{s}' is not a valid application scope" unless APP_SCOPES.keys.any?{ |k| k.to_s == s.to_s }
       @app_scope = s.to_sym
     end
 end

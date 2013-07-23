@@ -23,13 +23,14 @@ begin
   end
 rescue => e
   puts "Unable to set PHP/RUBY/MYSQL versions, #{e.backtrace.join("\n")}"
+  [:PHP_VERSION, :MYSQL_VERSION, :RUBY_VERSION].each{ |sym| Kernel.const_set(sym, ENV[sym.to_s]) }
 end
 
 def gen_uuid
   %x[/usr/bin/uuidgen].gsub('-', '').strip 
 end
 
-def register_user(login, password)
+def register_user(login=nil, password=nil)
   if ENV['REGISTER_USER']
     accnt = UserAccount.new(user: login, password: password)
     accnt.save

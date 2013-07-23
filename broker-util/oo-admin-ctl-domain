@@ -70,7 +70,7 @@ if login.nil? or args["--help"]
   usage
 end
 
-require "config/environment"
+require "/var/www/openshift/broker/config/environment"
 # Disable analytics for admin scripts
 Rails.configuration.analytics[:enabled] = false
 

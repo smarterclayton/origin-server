@@ -1169,14 +1169,12 @@ class Application
     self.reload
     begin
       while self.pending_op_groups.count > 0
-        puts "A pending operation is running"
         op_group = self.pending_op_groups.first
         self.user_agent = op_group.user_agent
 
         if op_group.pending_ops.count == 0
           case op_group.op_type
           when :change_members
-            puts "Membership change is being calculated"
             ops = calculate_update_existing_configuration_ops({
               # FIXME this is an unbounded operation, all keys for all users added and removed to each gear.  need to optimize
               'add_keys_attrs' => CloudUser.members_of(Array(op_group.args['added'])).map{ |u| get_updated_ssh_keys(u._id, u.ssh_keys) }.flatten(1),
