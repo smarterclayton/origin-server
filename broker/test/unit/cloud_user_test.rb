@@ -60,7 +60,18 @@ class CloudUserTest < ActiveSupport::TestCase
     updated_cu = CloudUser.find_by(login: login)
     assert_equal(orig_cu.consumed_gears, updated_cu.consumed_gears)
   end
-  
+
+  test "cloud user is equivalent" do
+    c = CloudUser.new
+    assert c._id
+    assert !(c === 'a')
+    assert !(c === 1)
+    assert c === c._id
+    assert c === c._id.to_s
+    assert c === c
+    assert !(c === nil)
+  end
+
   test "delete cloud user" do
     login = "user_" + gen_uuid
     orig_cu = CloudUser.new(login: login)

@@ -14,7 +14,8 @@ module Ability
       raise OpenShift::OperationForbidden, "You are not permitted to perform this action with the scopes #{scopes} (#{permission} on #{type.to_s.underscore.humanize.downcase})"
     end
 
-    if has_permission?(actor_or_id, permission, type, resource) != true
+    role = resource.role_for(actor_or_id) if resource.respond_to?(:role_for)
+    if has_permission?(actor_or_id, permission, type, role, resource) != true
       raise OpenShift::OperationForbidden, "You are not permitted to perform this action (#{permission} on #{type.to_s.underscore.humanize.downcase})"
     end
 
@@ -29,7 +30,7 @@ module Ability
     return false unless actor_or_id
     permissions = Array(permissions)
     return permissions.any?{ |p| !scopes.authorize_action?(p, resource, actor_or_id, resources) } if scopes.present? 
-    role = resource.role_for(actor_or_id) if role.respond_to?(:role_for)
+    role = resource.role_for(actor_or_id) if resource.respond_to?(:role_for)
     permissions.any?{ |p| has_permission?(actor_or_id, p, type, role, resource) == true }
   end
 

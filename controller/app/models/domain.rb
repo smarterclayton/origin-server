@@ -178,10 +178,10 @@ class Domain
           added = CloudUser.members_of(op.args['added'])
           raise "No args" if removed.blank? && added.blank?
           self.applications.each do |app|
-            app.remove_members(removed, :domain).add_members(added, :domain)
-            app.save!
-            # FIXME this needs to recover and continue
-            app.run_jobs
+            app.with_lock do |a|
+              a.remove_members(removed, :domain).add_members(added, :domain).save!
+              a.run_jobs # FIXME this needs to recover and continue
+            end
           end
           op.set(:state, :completed)
           

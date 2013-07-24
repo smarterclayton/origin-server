@@ -1180,8 +1180,8 @@ class Application
             added = Array(op_group.args['added']).select{ |id| (role = role_for(id)) and Ability.has_permission?(id, :ssh_to_gears, Application, role, self) } 
             removed = Array(op_group.args['removed']).dup
             Array(op_group.args['changed']).each do |(id, from, to)|
-              was = Ability.has_permission?(id, :ssh_to_gears, Application, from or default_role, self) 
-              is =  Ability.has_permission?(id, :ssh_to_gears, Application, to or default_role, self) 
+              was = Ability.has_permission?(id, :ssh_to_gears, Application, from || default_role, self) 
+              is =  Ability.has_permission?(id, :ssh_to_gears, Application, to || default_role, self) 
               next if is == was
               (is ? added : removed) << id
             end
@@ -1316,6 +1316,10 @@ class Application
     end
   end
 
+  def with_lock(&block)
+    self.class.run_in_application_lock(self, &block)
+  end
+
   def self.run_in_application_lock(application, &block)
     got_lock = false
     num_retries = 10
@@ -1330,7 +1334,7 @@ class Application
     end
     if got_lock
       begin
-        yield block
+        block.arity == 1 ? block.call(application) : yield
       ensure
         Lock.unlock_application(application)
       end

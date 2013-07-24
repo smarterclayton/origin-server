@@ -92,7 +92,7 @@ class CloudUser
   # end
 
   def ===(other)
-    super || (other.is_a?(String) ? _id == other : false)
+    super || (!other.is_a?(Mongoid::Document) ? _id === other : false)
   end
 
   def inherit_membership
