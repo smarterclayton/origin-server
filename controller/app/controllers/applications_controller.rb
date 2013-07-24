@@ -3,7 +3,7 @@
 # Application CRUD REST API
 class ApplicationsController < BaseController
   include RestModelHelper
-  before_filter :get_domain, :except => :access
+  before_filter :get_domain, :only => [:create]
   before_filter :get_application, :only => [:show, :destroy, :update]
   ##
   # List all applications
@@ -15,9 +15,10 @@ class ApplicationsController < BaseController
   # @return [RestReply<Array<RestApplication>>] List of applications within the domain
   def index
     include_cartridges = (params[:include] == "cartridges")
-    apps = @domain.applications.accessible(current_user)
-    rest_apps = apps.map{ |application| get_rest_application(application, include_cartridges, apps) }
-    render_success(:ok, "applications", rest_apps, "Found #{rest_apps.length} applications for domain '#{@domain.namespace}'")
+    domain_id = params[:domain_id].presence
+    by = domain_id.present? ? {domain_namespace: Domain.check_name!(domain_id)} : {}
+    apps = Application.accessible(current_user).where(by).map { |app| get_rest_application(app, include_cartridges) }
+    render_success(:ok, "applications", apps, "Found #{rest_apps.length} applications.")
   end
 
   def access
@@ -106,22 +107,20 @@ class ApplicationsController < BaseController
     begin
       result = ResultIO.new
       scalable = get_bool(params[:scale])
-      application = Application.create_app(app_name, features, @domain, default_gear_size, scalable, result, [], init_git_url, request.headers['User-Agent'], downloaded_cart_urls)
+      @application = Application.create_app(app_name, features, @domain, default_gear_size, scalable, result, [], init_git_url, request.headers['User-Agent'], downloaded_cart_urls)
 
-      @application_name = application.name
-      @application_uuid = application.uuid
     rescue OpenShift::UnfulfilledRequirementException => e
       return render_error(:unprocessable_entity, "Unable to create application for #{e.feature}", 109, "cartridges")
     rescue OpenShift::ApplicationValidationException => e
       messages = get_error_messages(e.app)
       return render_error(:unprocessable_entity, nil, nil, nil, nil, messages)
     end
-    application.user_agent= request.headers['User-Agent']
+    @application.user_agent= request.headers['User-Agent']
 
     include_cartridges = (params[:include] == "cartridges")
 
-    app = get_rest_application(application, include_cartridges)
-    render_success(:created, "application", app, "Application #{application.name} was created.", result)
+    app = get_rest_application(@application, include_cartridges)
+    render_success(:created, "application", app, "Application #{@application.name} was created.", result)
   end
 
   ##

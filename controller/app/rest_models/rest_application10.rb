@@ -77,7 +77,7 @@ class RestApplication10 < OpenShift::Model
   attr_accessor :framework, :creation_time, :uuid, :embedded, :aliases, :name, :gear_count, :links, :domain_id, :git_url, :app_url, :ssh_url,
    :building_with, :building_app, :build_job_url, :gear_profile, :scalable, :health_check_path, :scale_min, :scale_max, :cartridges
 
-  def initialize(app, domain, url, nolinks=false, applications=nil)
+  def initialize(app, url, nolinks=false, applications=nil)
     self.embedded = {}
     app.requires(true).each do |feature|
       cart = CartridgeCache.find_cartridge(feature, app)
@@ -139,9 +139,9 @@ class RestApplication10 < OpenShift::Model
     end
 
     #TODO this is way too inefficient.  Adding a bit of a hack to not have to call this all the time.
-    domain.env_vars.each do |env_var|
+    app.domain.env_vars.each do |env_var|
       if env_var['key'] == 'JENKINS_URL'
-        apps = applications || domain.applications
+        apps = applications || app.domain.applications
         apps.each do |domain_app|
           domain_app.component_instances.each do |component_instance|
             cart = CartridgeCache::find_cartridge(component_instance.cartridge_name, domain_app)

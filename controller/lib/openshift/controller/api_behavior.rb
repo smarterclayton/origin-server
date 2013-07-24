@@ -3,8 +3,8 @@ module OpenShift
     module ApiBehavior
       extend ActiveSupport::Concern
 
-      API_VERSION = 1.5
-      SUPPORTED_API_VERSIONS = [1.0, 1.1, 1.2, 1.3, 1.4, 1.5]
+      API_VERSION = 1.6
+      SUPPORTED_API_VERSIONS = [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6]
 
       included do
         before_filter ->{ Mongoid.identity_map_enabled = true }
@@ -96,23 +96,18 @@ module OpenShift
           return tag
         end 
         
-        def get_domain
-          domain_id = params[:domain_id] || params[:id] 
-          domain_id = domain_id.downcase if domain_id
-
-          @domain = Domain.accessible(current_user).find_by(canonical_namespace: Domain.check_name!(domain_id))
-          @domain_name = @domain.namespace
-          @domain
+        def get_domain(id=params[:domain_id])
+          @domain = Domain.accessible(current_user).find_by(canonical_namespace: Domain.check_name!(id.presence).downcase)
         end
 
         def get_application
-          application_id = params[:application_id] || params[:id]
-          application_id = application_id.downcase if application_id
+          domain_id = params[:domain_id].presence || params[:domain_name].presence
+          domain_id = domain_id.to_s if domain_id
+          application_id = params[:application_id].presence || params[:id].presence || params[:application_name].presence || params[:name].presence
+          application_id = application_id.to_s if application_id
 
-          @application = Application.accessible(current_user).find_by(domain: @domain, canonical_name: Application.check_name!(application_id))
-          @application_name = @application.name
-          @application_uuid = @application.uuid
-          @application
+          by = domain_id.nil? ? {uuid: application_id} : {domain_namespace: domain_id, canonical_name: Application.check_name!(application_id).downcase}
+          @application = Application.accessible(current_user).find_by(by)
         end
         
         def authorize!(permission, resource, *resources)

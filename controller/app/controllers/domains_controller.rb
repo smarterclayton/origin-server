@@ -1,7 +1,7 @@
 # @api REST
 class DomainsController < BaseController
   include RestModelHelper
-  before_filter :get_domain, :only => [:show, :destroy]
+
   # Retuns list of domains for the current user
   # 
   # URL: /domains
@@ -25,14 +25,17 @@ class DomainsController < BaseController
 
   # Retuns domain for the current user that match the given parameters.
   # 
-  # URL: /domains/:id
+  # URL: /domains/:name
   #
   # Action: GET
   # 
-  # @param [String] id The namespace of the domain
+  # @param [String] name The name of the domain
   # @return [RestReply<RestDomain>] The requested domain
   def show
-    render_success(:ok, "domain", get_rest_domain(@domain), "Found domain #{@domain.namespace}")
+    name = params[:name] || params[:id]
+    name = name.downcase if name.presence
+    get_domain(name)
+    return render_success(:ok, "domain", get_rest_domain(@domain), "Found domain #{@domain.namespace}") if @domain
   end
 
   # Create a new domain for the user
@@ -41,7 +44,7 @@ class DomainsController < BaseController
   #
   # Action: POST
   #
-  # @param [String] id The namespace for the domain
+  # @param [String] name The name for the domain
   # 
   # @return [RestReply<RestDomain>] The new domain
   def create
@@ -58,29 +61,29 @@ class DomainsController < BaseController
     domain.allowed_gear_sizes = new_gear_sizes unless new_gear_sizes.nil?
     domain.save_with_duplicate_check!
 
-    render_success(:created, "domain", get_rest_domain(domain), "Created domain with namespace #{namespace}")
+    render_success(:created, "domain", get_rest_domain(domain), "Created domain with name #{domain.namespace}")
   end
 
   # Create a new domain for the user
   # 
-  # URL: /domains/:existing_id
+  # URL: /domains/:existing_name
   #
   # Action: PUT
   #
-  # @param [String] id The new namespace for the domain
-  # @param [String] existing_id The current namespace for the domain
+  # @param [String] name The new name for the domain
+  # @param [String] existing_name The current name for the domain
   # 
   # @return [RestReply<RestDomain>] The updated domain
   def update
-    id = params[:existing_id].downcase if params[:existing_id].presence
+    id = params[:existing_id].presence
 
     new_gear_sizes = params[:allowed_gear_sizes]
-    new_namespace = params[:id].downcase if params[:id].presence
+    new_namespace = params[:id].presence
 
-    domain = Domain.accessible(current_user).find_by(canonical_namespace: Domain.check_name!(id))
+    domain = Domain.accessible(current_user).find_by(canonical_namespace: Domain.check_name!(id).downcase)
 
     if new_namespace.present?
-      domain.namespace = new_namespace
+      domain.namespace = new_namespace.downcase
       authorize!(:change_namespace, domain) if domain.namespace_changed?
     end
 
@@ -96,13 +99,15 @@ class DomainsController < BaseController
 
   # Delete a domain for the user. Requires that domain be empty unless 'force' parameter is set.
   # 
-  # URL: /domains/:id
+  # URL: /domains/:name
   #
   # Action: DELETE
   #
   # @param [Boolean] force If true, broker will destroy all application within the domain and then destroy the domain
   def destroy
-    id = params[:id].downcase if params[:id].presence
+    name = params[:name] || params[:id]
+    name = name.downcase if name.presence
+    get_domain(name)
     force = get_bool(params[:force])
 
     authorize! :destroy, @domain
@@ -118,11 +123,32 @@ class DomainsController < BaseController
         return render_error(:unprocessable_entity, "Domain contains applications. Delete applications first or set force to true.", 128)
       end
     end
-
     # reload the domain so that MongoId does not see any applications
     @domain.reload
     result = @domain.delete
     status = requested_api_version <= 1.4 ? :no_content : :ok
-    render_success(status, nil, nil, "Domain #{id} deleted.", result)
+    render_success(status, nil, nil, "Domain #{name} deleted.", result)
+  end
+
+  private
+
+  # Creates a new [RestDomain] or [RestDomain10] based on the requested API version.
+  #
+  # @param [Domain] domain The Domain object
+  # @param [CloudUser] owner of the Domain
+  # @return [RestDomain] REST object for API version > 1.0
+  # @return [RestDomain10] REST object for API version == 1.0
+  def get_rest_domain(domain)
+    if requested_api_version == 1.0
+      RestDomain10.new(domain, get_url, nolinks)
+    elsif requested_api_version <= 1.5
+      RestDomain15.new(domain, get_url, nolinks)
+    else
+      RestDomain.new(domain, get_url, nolinks)
+    end
+  end
+  
+  def set_log_tag
+    @log_tag = get_log_tag_prepend + "DOMAIN"
   end
 end

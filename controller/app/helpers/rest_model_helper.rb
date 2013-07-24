@@ -24,11 +24,13 @@ module RestModelHelper
 
   def get_rest_application(application, include_cartridges=false, applications=nil)
     if requested_api_version == 1.0
-        app = RestApplication10.new(application, @domain || application.domain, get_url, nolinks, applications)
+      app = RestApplication10.new(application, get_url, nolinks, applications)
     elsif requested_api_version <= 1.3
-        app = RestApplication13.new(application, @domain || application.domain, get_url, nolinks, applications)
+      app = RestApplication13.new(application, get_url, nolinks, applications)
+    elsif requested_api_version <= 1.5
+      app = RestApplication15.new(application, get_url, nolinks, applications)
     else
-        app = RestApplication.new(application, @domain || application.domain, get_url, nolinks, applications)
+      app = RestApplication.new(application, get_url, nolinks, applications)
     end
     if include_cartridges
       app.cartridges = get_application_rest_cartridges(application)
@@ -69,6 +71,8 @@ module RestModelHelper
     comp = cart.get_component(component_instance.component_name)
     if requested_api_version == 1.0
       RestEmbeddedCartridge10.new(cart, application, component_instance, get_url, messages, nolinks)
+    elsif requested_api_version <= 1.5
+      RestEmbeddedCartridge15.new(cart, comp, application, component_instance, colocated_instances, scale, get_url, messages, nolinks)
     else
       RestEmbeddedCartridge.new(cart, comp, application, component_instance, colocated_instances, scale, get_url, messages, nolinks)
     end
@@ -76,14 +80,25 @@ module RestModelHelper
  
   def get_rest_cartridge(cartridge)
     if requested_api_version == 1.0
-      cart = RestCartridge10.new(cartridge)
+      RestCartridge10.new(cartridge)
     else
-      cart = RestCartridge.new(cartridge)
+      RestCartridge.new(cartridge)
     end
-    cart
   end
  
   def get_rest_alias(al1as)
-     RestAlias.new(@application, al1as, get_url, nolinks)
+    if requested_api_version <= 1.5
+      RestAlias15.new(@application, al1as, get_url, nolinks)
+    else
+      RestAlias.new(@application, al1as, get_url, nolinks)
+    end
+  end
+  
+  def get_rest_gear_group(group_inst, gear_states, application, get_url, nolinks)
+    if requested_api_version <= 1.5
+      RestGearGroup15.new(group_inst, gear_states, application, get_url, nolinks)
+    else
+      RestGearGroup.new(group_inst, gear_states, application, get_url, nolinks) 
+    end
   end
 end

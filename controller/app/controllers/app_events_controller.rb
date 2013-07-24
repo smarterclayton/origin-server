@@ -3,7 +3,7 @@
 # Application management APIs
 class AppEventsController < BaseController
   include RestModelHelper
-  before_filter :get_domain, :get_application
+  before_filter :get_application
   action_log_tag_resource :application
 
   ##
@@ -84,7 +84,7 @@ class AppEventsController < BaseController
       if r.nil?
         msg = ""
       else
-        msg = !r.errorIO.string.empty? ? r.errorIO.string.chomp : r.resultIO.string.chomp
+        msg = !r.errorIO.string.empty? ? r.errorIO.string.chomp : ''
       end
     when 'tidy'
       authorize! :change_cartridge_state, @application
@@ -103,7 +103,6 @@ class AppEventsController < BaseController
     app = get_rest_application(@application)
     render_success(:ok, "application", app, msg, r)
   end
-  
   protected
     def action_log_tag_action
       if event = params[:event].presence

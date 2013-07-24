@@ -137,6 +137,7 @@ module OpenShift
             end
 
           else
+            Rails.logger.error "#{ex.message}:#{ex.backtrace}"
             status = :internal_server_error
             message = "Unable to complete the requested operation due to: #{ex.message}.\nReference ID: #{request.uuid}"
           end
@@ -164,12 +165,13 @@ module OpenShift
           reply = new_rest_reply(status, type, data)
           reply.messages.push(Message.new(:info, message)) if message
           reply.process_result_io(result) if result
-          
+
           reply.messages.each do |message|
             message.field = :result if message.severity == :result
           end if requested_api_version <= 1.5
-          
+
           log_args = get_log_args.merge(extra_log_args)
+
           if extra_messages.present?
             reply.messages.concat(messages)
             log_action(action_log_tag, true, message, log_args, messages.map(&:text).join(', '))
@@ -210,7 +212,7 @@ module OpenShift
           args = {}
           args["APP_UUID"] = @application.uuid if @application
           args["DOMAIN"] = (@application.domain_namespace if @application) || (@domain.namespace if @domain)
-          return args
+          args
         end
     end
   end
