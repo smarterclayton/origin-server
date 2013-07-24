@@ -41,7 +41,10 @@ class ApiController < BaseController
     }
 
     links.merge!({
-      "LIST_APPLICATIONS" => Link.new("List application", "GET", URI::join(get_url, "applications"))
+      "LIST_APPLICATIONS" => Link.new("List application", "GET", URI::join(get_url, "applications")),
+      "SHOW_APPLICATION" => Link.new("List application", "GET", URI::join(get_url, "application/:id"), [
+        Param.new(":id", "string", "Unique identifier of the application", nil, [])
+      ])
     }) if requested_api_version >= 1.5
       
     

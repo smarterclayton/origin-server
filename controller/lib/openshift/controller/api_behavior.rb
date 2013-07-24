@@ -96,7 +96,8 @@ module OpenShift
           return tag
         end 
         
-        def get_domain(id=params[:domain_id])
+        def get_domain(id=nil)
+          id ||= params[:domain_id].presence
           @domain = Domain.accessible(current_user).find_by(canonical_namespace: Domain.check_name!(id.presence).downcase)
         end
 

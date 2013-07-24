@@ -46,9 +46,6 @@ Rails.application.routes.draw do
       end
     end
 
-    #FIXME temporary
-    match 'applications' => 'applications#access'
-
     root as: 'rest', to: redirect{ |params, request| "#{request.script_name}/rest/api" }
   end
 end

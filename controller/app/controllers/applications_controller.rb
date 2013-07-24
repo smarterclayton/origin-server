@@ -3,7 +3,7 @@
 # Application CRUD REST API
 class ApplicationsController < BaseController
   include RestModelHelper
-  before_filter :get_domain, :only => [:create]
+  before_filter :get_domain, :only => :create
   before_filter :get_application, :only => [:show, :destroy, :update]
   ##
   # List all applications
@@ -17,14 +17,8 @@ class ApplicationsController < BaseController
     include_cartridges = (params[:include] == "cartridges")
     domain_id = params[:domain_id].presence
     by = domain_id.present? ? {domain_namespace: Domain.check_name!(domain_id)} : {}
-    apps = Application.accessible(current_user).where(by).map { |app| get_rest_application(app, include_cartridges) }
-    render_success(:ok, "applications", apps, "Found #{rest_apps.length} applications.")
-  end
-
-  def access
-    include_cartridges = (params[:include] == "cartridges")
-    rest_apps = Application.accessible(current_user).map{ |app| get_rest_application(app, include_cartridges) }
-    render_success(:ok, "applications", rest_apps, "You have access to #{rest_apps.length} applications")
+    apps = Application.includes(:domain).accessible(current_user).where(by).map { |app| get_rest_application(app, include_cartridges) }
+    render_success(:ok, "applications", apps, "Found #{apps.length} applications.")
   end
 
   ##
