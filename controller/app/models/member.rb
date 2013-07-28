@@ -7,7 +7,7 @@ class Member
   field :from,  :as => :f, type: Array
   field :role,  :as => :r, type: Symbol
   field :explicit_grant, :as => :e, type: Boolean
-  attr_accessible :_id
+  attr_accessible :_id, :role
 
   def ==(other)
     _id == other._id && (member_type === other || self.class == other.class)
