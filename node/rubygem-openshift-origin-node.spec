@@ -16,7 +16,7 @@
 
 Summary:       Cloud Development Node
 Name:          rubygem-%{gem_name}
-Version: 1.12.1
+Version: 1.12.3
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -48,6 +48,7 @@ Requires:      git
 Requires:      httpd
 Requires:      libcgroup-pam
 Requires:      libselinux-python
+Requires:      iproute
 Requires:      lsof
 Requires:      mercurial
 Requires:      mod_ssl
@@ -114,6 +115,7 @@ mkdir -p %{buildroot}/usr/bin
 mkdir -p %{buildroot}/usr/sbin
 mkdir -p %{buildroot}/etc/httpd/conf.d
 mkdir -p %{buildroot}%{appdir}/.httpd.d
+mkdir -p %{buildroot}%{appdir}/.tc_user_dir
 ln -sf %{appdir}/.httpd.d %{buildroot}/etc/httpd/conf.d/openshift
 
 # Create empty route database files
@@ -173,13 +175,13 @@ mv httpd/000001_openshift_origin_node.conf %{buildroot}/etc/httpd/conf.d/
 mv httpd/000001_openshift_origin_node_servername.conf %{buildroot}/etc/httpd/conf.d/
 mv httpd/openshift_route.include %{buildroot}/etc/httpd/conf.d/
 
-#%if 0%{?fedora}%{?rhel} <= 6
+%if 0%{?fedora}%{?rhel} <= 6
 mkdir -p %{buildroot}/etc/rc.d/init.d/
 cp %{buildroot}%{gem_instdir}/misc/init/openshift-tc %{buildroot}/etc/rc.d/init.d/
-#%else
-#mkdir -p %{buildroot}/etc/systemd/system
-#mv %{buildroot}%{gem_instdir}/misc/services/openshift-cgroups.service %{buildroot}/etc/systemd/system/openshift-cgroups.service
-#%endif
+%else
+mkdir -p %{buildroot}/etc/systemd/system
+mv %{buildroot}%{gem_instdir}/misc/services/openshift-tc.service %{buildroot}/etc/systemd/system/openshift-tc.service
+%endif
 
 # Don't install or package what's left in the misc directory
 rm -rf %{buildroot}%{gem_instdir}/misc
@@ -215,11 +217,26 @@ fi
 # Start the cron service so that each gear gets its cron job run, if they're enabled
 %if 0%{?fedora} >= 16 || 0%{?rhel} >= 7
   systemctl restart  crond.service || :
+  systemctl enable openshift-tc.service || :
 %else
+  /sbin/chkconfig --add openshift-tc || :
   service crond restart || :
 %endif
 
+oo-admin-ctl-tc status  >/dev/null 2>&1 || oo-admin-ctl-tc restart
+
 %preun
+if [ $1 -eq 0 ]
+oo-admin-ctl-tc stop >/dev/null 2>&1 || :
+
+%if 0%{?fedora} >= 16 || 0%{?rhel} >= 7
+  systemctl disable openshift-tc.service || :
+%else
+  chkconfig --del openshift-tc || :
+%endif
+
+fi
+
 
 %files
 %doc LICENSE COPYRIGHT
@@ -256,12 +273,13 @@ fi
 %attr(0750,root,apache) %config(noreplace) %{appdir}/.httpd.d/aliases.db
 %attr(0750,root,apache) %config(noreplace) %{appdir}/.httpd.d/idler.db
 %attr(0750,root,apache) %config(noreplace) %{appdir}/.httpd.d/sts.db
+%dir %attr(0750,-,-) %{appdir}/.tc_user_dir
 
-#%if 0%{?fedora}%{?rhel} <= 6
+%if 0%{?fedora}%{?rhel} <= 6
 %attr(0755,-,-)	/etc/rc.d/init.d/openshift-tc
-#%else
-#%attr(0750,-,-) /etc/systemd/system
-#%endif
+%else
+%attr(0750,-,-) /etc/systemd/system/openshift-tc.service
+%endif
 
 %if 0%{?fedora} >= 15
 /etc/tmpfiles.d/openshift-run.conf
@@ -286,6 +304,64 @@ fi
 %attr(0755,-,-) /etc/cron.daily/openshift-origin-stale-lockfiles
 
 %changelog
+* Fri Jul 26 2013 Adam Miller <admiller@redhat.com> 1.12.3-1
+- Bug 985035: Add missing requires to frontend_httpd (ironcladlou@gmail.com)
+- Merge pull request #3175 from pmorie/dev/upgrade_endpoints
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #3173 from rmillner/BZ988519
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #3172 from ironcladlou/bz/987836
+  (dmcphers+openshiftbot@redhat.com)
+- Add endpoint handling to upgrades (pmorie@gmail.com)
+- Bug 988519 - Ensure that the gear task runs as unconfined_u.
+  (rmillner@redhat.com)
+- Bug 987836: Refactor hot deploy marker detection (ironcladlou@gmail.com)
+- Merge pull request #3170 from pmorie/dev/upgrade_analysis
+  (dmcphers+openshiftbot@redhat.com)
+- Upgrade enhancements (ironcladlou@gmail.com)
+- Merge pull request #3160 from pravisankar/dev/ravi/card78
+  (dmcphers+openshiftbot@redhat.com)
+- For consistency, rest api response must display 'delete' instead 'destroy'
+  for user/domain/app (rpenta@redhat.com)
+
+* Wed Jul 24 2013 Adam Miller <admiller@redhat.com> 1.12.2-1
+- spelling fix (dmcphers@redhat.com)
+- Double protect URL arguments in gear (users can't break gear deployment)
+  (ccoleman@redhat.com)
+- Merge pull request #3090 from BanzaiMan/writing_cart_doc
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 907410 (dmcphers@redhat.com)
+- Bug 907410 (dmcphers@redhat.com)
+- Bug 983923 - Add "-h" as an argument to get help. (rmillner@redhat.com)
+- Merge pull request #3119 from kraman/bugs/984575
+  (dmcphers+openshiftbot@redhat.com)
+- Minor tweak in wording (asari.ruby@gmail.com)
+- Add sections for readability (asari.ruby@gmail.com)
+- A typo (asari.ruby@gmail.com)
+- Application's action hooks follow the same semantics as cartridge control
+  scripts (asari.ruby@gmail.com)
+- Add Windows-friendly instructions (asari.ruby@gmail.com)
+- Remove recursive requires node -> container plugin -> node
+  https://bugzilla.redhat.com/show_bug.cgi?id=984575 (kraman@gmail.com)
+- Mention chmod. (asari.ruby@gmail.com)
+- Mention EOL chacacters (asari.ruby@gmail.com)
+- bin/* needs to be executable (asari.ruby@gmail.com)
+- process_templates need to be String literals (asari.ruby@gmail.com)
+- Add version check for gear upgrade extension (pmorie@gmail.com)
+- Add error handling to AppContainer plugin loading (pmorie@gmail.com)
+- WIP: configure containerization plugin in node.conf (pmorie@gmail.com)
+- Merge pull request #3099 from ironcladlou/dev/node-fixes
+  (dmcphers+openshiftbot@redhat.com)
+- Use oo_spawn for all root scoped shell commands (ironcladlou@gmail.com)
+- Bug 984609 - fix a narrow condition where sshd leaves a root owned process in
+  the frozen gear cgroup causing gear delete to fail and stale processes/
+  (rmillner@redhat.com)
+- Add support for upgrade script to be called during cartridge upgrades.
+  (pmorie@gmail.com)
+- Making assert_repo_reset test more resilient to git versions.
+  (kraman@gmail.com)
+- remove initial build from cgroups limits (dmcphers@redhat.com)
+
 * Fri Jul 12 2013 Adam Miller <admiller@redhat.com> 1.12.1-1
 - Merge pull request #3077 from rmillner/cgfixes
   (dmcphers+openshiftbot@redhat.com)

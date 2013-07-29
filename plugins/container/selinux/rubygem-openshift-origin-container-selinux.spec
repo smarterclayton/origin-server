@@ -9,7 +9,7 @@
 
 Summary:       OpenShift plugin for SELinux based containers
 Name:          rubygem-%{gem_name}
-Version: 0.1.1
+Version: 0.1.3
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -77,6 +77,23 @@ cp %{buildroot}/%{gem_instdir}/conf/openshift-origin-container-selinux.conf.exam
 /etc/openshift/node-plugins.d/
 
 %changelog
+* Fri Jul 26 2013 Adam Miller <admiller@redhat.com> 0.1.3-1
+- Merge pull request #3160 from pravisankar/dev/ravi/card78
+  (dmcphers+openshiftbot@redhat.com)
+- For consistency, rest api response must display 'delete' instead 'destroy'
+  for user/domain/app (rpenta@redhat.com)
+
+* Wed Jul 24 2013 Adam Miller <admiller@redhat.com> 0.1.2-1
+- Remove recursive requires node -> container plugin -> node
+  https://bugzilla.redhat.com/show_bug.cgi?id=984575 (kraman@gmail.com)
+- WIP: configure containerization plugin in node.conf (pmorie@gmail.com)
+- Merge pull request #3099 from ironcladlou/dev/node-fixes
+  (dmcphers+openshiftbot@redhat.com)
+- Use oo_spawn for all root scoped shell commands (ironcladlou@gmail.com)
+- Bug 984609 - fix a narrow condition where sshd leaves a root owned process in
+  the frozen gear cgroup causing gear delete to fail and stale processes/
+  (rmillner@redhat.com)
+
 * Fri Jul 12 2013 Adam Miller <admiller@redhat.com> 0.1.1-1
 - bump_minor_versions for sprint 31 (admiller@redhat.com)
 

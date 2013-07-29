@@ -180,8 +180,8 @@ class RestEmbeddedCartridge < OpenShift::Model
     self.help_topics = cart.help_topics
 
     if app and !nolinks
-      app_id = app.name
-      if not app_id.nil?
+      app_id = app.uuid
+      if not app_id.nil? 
         self.links = {
             "GET" => Link.new("Get cartridge", "GET", URI::join(url, "applications/#{app_id}/cartridges/#{name}")),
             "UPDATE" => Link.new("Update cartridge configuration", "PUT", URI::join(url, "applications/#{app_id}/cartridges/#{name}"), nil, [

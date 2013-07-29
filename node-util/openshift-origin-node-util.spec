@@ -1,6 +1,6 @@
 Summary:       Utility scripts for the OpenShift Origin broker
 Name:          openshift-origin-node-util
-Version: 1.12.1
+Version: 1.12.3
 Release:       1%{?dist}
 Group:         Network/Daemons
 License:       ASL 2.0
@@ -31,9 +31,11 @@ mkdir -p %{buildroot}%{_bindir}
 cp bin/oo-* %{buildroot}%{_sbindir}/
 rm %{buildroot}%{_sbindir}/oo-snapshot
 rm %{buildroot}%{_sbindir}/oo-restore
+rm %{buildroot}%{_sbindir}/oo-config-eval
 cp bin/rhc-* %{buildroot}%{_bindir}/
 cp bin/oo-snapshot %{buildroot}%{_bindir}/
 cp bin/oo-restore %{buildroot}%{_bindir}/
+cp bin/oo-config-eval %{buildroot}%{_bindir}/
 cp bin/unidle_gear.sh %{buildroot}%{_bindir}/
 
 %if 0%{?fedora} >= 18
@@ -87,6 +89,7 @@ mv services/openshift-gears.service %{buildroot}/etc/systemd/system/openshift-ge
 %attr(0755,-,-) %{_bindir}/oo-snapshot
 %attr(0755,-,-) %{_bindir}/oo-restore
 %attr(0755,-,-) %{_bindir}/unidle_gear.sh
+%attr(0755,-,-) %{_bindir}/oo-config-eval
 
 %doc LICENSE
 %doc README-Idler.md
@@ -119,6 +122,23 @@ mv services/openshift-gears.service %{buildroot}/etc/systemd/system/openshift-ge
 /sbin/restorecon /usr/sbin/oo-restorer* || :
 
 %changelog
+* Fri Jul 26 2013 Adam Miller <admiller@redhat.com> 1.12.3-1
+- Merge pull request #3167 from kraman/bugfix
+  (dmcphers+openshiftbot@redhat.com)
+- Workaround for F19 mcollective issue where it goes into inf. loop and 100%%
+  cpu usage. Using mcollctive restart instead of mcollective reload.
+  (kraman@gmail.com)
+- <oo-idler-stats> Bug 977293 - Fix get_app_type for v2 carts
+  (jdetiber@redhat.com)
+
+* Wed Jul 24 2013 Adam Miller <admiller@redhat.com> 1.12.2-1
+- <oo-auto-idler> add man page (lmeyer@redhat.com)
+- Bug 960355 - Fix file permissions. (rmillner@redhat.com)
+- Bug 985525: Skip invalid cartridges during recursive installation
+  (ironcladlou@gmail.com)
+- Add support for upgrade script to be called during cartridge upgrades.
+  (pmorie@gmail.com)
+
 * Fri Jul 12 2013 Adam Miller <admiller@redhat.com> 1.12.1-1
 - bump_minor_versions for sprint 31 (admiller@redhat.com)
 
