@@ -4,7 +4,7 @@
 #
 module Membership
   extend ActiveSupport::Concern
-  extend AccessControlled
+  include AccessControlled
 
   included do
   end
