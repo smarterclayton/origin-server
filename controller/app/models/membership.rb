@@ -6,18 +6,21 @@ module Membership
   extend ActiveSupport::Concern
   extend AccessControlled
 
+  included do
+  end
+
   def has_member?(o)
     members.include?(o)
   end
 
   def role_for(member_or_id)
     id = member_or_id.respond_to?(:_id) ? member_or_id._id : member_or_id
-    members.inject(default_role){ |r, m| return (m.role || r) if m._id == id; r }
+    members.inject(default_role){ |r, m| return (m.role || r) if m._id === id; r }
     nil
   end
 
   def default_role
-    :read
+    self.class.default_role
   end
 
   def member_ids
@@ -29,6 +32,7 @@ module Membership
     changing_members do
       args.flatten(1).map do |arg|
         m = self.class.to_member(arg)
+        m.role ||= default_role
         m.from = [from.to_s] if from
         if exists = members.find(m._id) rescue nil
           exists.merge(m)
@@ -45,6 +49,13 @@ module Membership
     return self if args.empty?
     changing_members do
       Array(members.find(*args)).each{ |m| m.delete if m.remove(from ? from.to_s : nil) }
+    end
+    self
+  end
+
+  def reset_members
+    changing_members do
+      members.clear
     end
     self
   end
@@ -86,7 +97,7 @@ module Membership
     def default_members
       if parent = parent_membership_relation
         p = send(parent.name)
-        p.inherit_membership.each{ |m| m.from = [parent.name.to_s] } if p
+        p.inherit_membership.each{ |m| m.from = [parent.name.to_s]; m.role ||= default_role } if p
       end || []
     end
 
@@ -119,22 +130,20 @@ module Membership
     end
 
   module ClassMethods
-    def has_members(opts=nil)
+    def has_members(opts={})
       embeds_many :members, as: :access_controlled, cascade_callbacks: true
       before_save :handle_member_changes
 
       index({'members._id' => 1}, {:sparse => true})
 
-      if opts and through = opts[:through].to_s.presence
+      class_attribute :default_role, instance_accessor: false
+
+      if through = opts[:through].to_s.presence
         define_method :parent_membership_relation do
           relations[through]
         end
       end
-      if opts and role = opts[:default_role]
-        define_method :default_role do
-          role
-        end
-      end
+      self.default_role = opts[:default_role] || :read
     end
 
     #

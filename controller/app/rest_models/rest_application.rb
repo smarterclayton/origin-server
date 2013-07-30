@@ -109,7 +109,7 @@ class RestApplication < OpenShift::Model
     self.build_job_url = nil
     self.initial_git_url = app.init_git_url
 
-    self.members = app.members.map{ |m| RestMember.new(m, app.default_role, app.owner_id == m._id, url, nolinks) }
+    self.members = app.members.map{ |m| RestMember.new(m, app.owner_id == m._id, url, nolinks) }
 
     app.component_instances.each do |component_instance|
       cart = CartridgeCache::find_cartridge(component_instance.cartridge_name, app)

@@ -27,7 +27,7 @@ class RestDomain < OpenShift::Model
     self.name = domain.namespace
     self.suffix = Rails.application.config.openshift[:domain_suffix] 
     self.creation_time = domain.created_at
-    self.members = domain.members.map{ |m| RestMember.new(m, domain.default_role, domain.owner_id == m._id, url, nolinks) }
+    self.members = domain.members.map{ |m| RestMember.new(m, domain.owner_id == m._id, url, nolinks) }
     self.allowed_gear_sizes = domain.allowed_gear_sizes
     
     unless nolinks      

@@ -660,7 +660,7 @@ class Application
   def scale_by(group_instance_id, scale_by)
     raise OpenShift::UserException.new("Application #{self.name} is not scalable") if !self.scalable
 
-    ginst = group_instances_with_scale.select {|gi| gi._id == group_instance_id}.first
+    ginst = group_instances_with_scale.select {|gi| gi._id === group_instance_id}.first
     raise OpenShift::UserException.new("Cannot scale below minimum gear requirements.", 168) if scale_by < 0 && ginst.gears.length <= ginst.min
     raise OpenShift::UserException.new("Cannot scale up beyond maximum gear limit in app #{self.name}.", 168) if scale_by > 0 && ginst.gears.length >= ginst.max and ginst.max > 0
 

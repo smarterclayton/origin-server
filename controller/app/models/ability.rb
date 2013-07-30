@@ -41,9 +41,6 @@ module Ability
   def self.has_permission?(actor_or_id, permission, type, role, resource)
     if Application <= type
       case permission
-      when :destroy
-        Role.in?(:edit, role)
-
       when :change_state, 
            :change_cartridge_state,
            :scale_cartridge,
@@ -51,13 +48,17 @@ module Ability
            :change_gear_quota
         Role.in?(:control, role)
 
-      when :create_cartridge, 
+      when :destroy,
+           :create_cartridge, 
            :destroy_cartridge,
            :create_alias,
            :update_alias,
            :ssh_to_gears,
            :destroy_alias 
         Role.in?(:edit, role)
+
+      when :change_members
+        Role.in?(:manage, role)
 
       end
 
@@ -66,7 +67,7 @@ module Ability
       when :create_application
         Role.in?(:edit, role)
 
-      when :change_namespace
+      when :change_namespace, :change_members
         Role.in?(:manage, role)
 
       when :change_gear_sizes, :destroy

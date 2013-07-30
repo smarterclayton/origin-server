@@ -2,6 +2,11 @@ require_relative '../test_helper'
 
 class AccessControlledTest < ActiveSupport::TestCase
 
+  setup do 
+    Lock.stubs(:lock_application).returns(true)
+    Lock.stubs(:unlock_application).returns(true)
+  end
+
   def test_member_equivalent
     assert_equal Member.new(_id: 'a'), Member.new(_id: 'a')
     assert_equal Member.new(_id: 'a'), CloudUser.new{ |u| u._id = 'a' }
@@ -26,6 +31,8 @@ class AccessControlledTest < ActiveSupport::TestCase
     assert_equal 1, d.members.length
     assert_equal 'test', d.members.first._id
     assert !d.members.last.explicit_grant?
+    assert_equal Domain.default_role, d.members.last.role
+    assert d.members.last.valid?
 
     d.add_members('other', :owner)
     assert_equal 2, d.members.length
@@ -134,6 +141,11 @@ class AccessControlledTest < ActiveSupport::TestCase
     assert d.atomic_updates['$pushAll']['members'].present?
 
     assert d.has_member_changes?
+    assert_nil d.members.last.role
+
+    assert !d.save
+
+    d.members.last.role = Domain.default_role
 
     assert d.save
     assert d.atomic_updates.empty?
@@ -185,10 +197,13 @@ class AccessControlledTest < ActiveSupport::TestCase
     assert d = Domain.create(:namespace => 'test', :owner => u)
     assert_equal [Member.new(_id: u._id)], d.members
     assert_equal ['owner'], d.members.first.from
+    assert d.members.first.valid?
+    assert_equal Domain.default_role, d.members.first.role
 
     assert a = Application.create(:name => 'propagatetest', :domain => d)
     assert_equal [Member.new(_id: u._id)], d.members
     assert_equal ['domain'], d.members.first.from
+    assert_equal Application.default_role, a.members.first.role
 
     assert     Application.accessible(u).first
     assert_nil Application.accessible(u2).first

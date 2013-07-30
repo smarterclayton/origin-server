@@ -88,6 +88,8 @@ module OpenShift
                   (Application >= model and ex.params[:canonical_name].presence) or
                   (ComponentInstance >= model and ex.params[:cartridge_name].presence) or
                   (Alias >= model and ex.params[:fqdn].presence) or
+                  (CloudUser >= model and ex.params[:login].presence) or
+                  (CloudUser >= model and ex.params[:_id].presence) or
                   (SshKey >= model and ex.params[:name].presence)
                 )
                   "#{target} '#{name}' not found."

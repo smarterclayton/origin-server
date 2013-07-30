@@ -27,6 +27,7 @@ Rails.application.routes.draw do
       resource :dns_resolvable, :only => :show, :controller => :dns_resolvable
       resources :aliases, :only => [:index, :show, :create, :update, :destroy], :controller => :alias, :constraints => { :id => id_with_format }, :singular_resource => true
       resources :members, :only => [:index, :create, :update, :destroy], :controller => :application_members, :constraints => { :id => id_with_format }, :singular_resource => true
+      match 'members' => 'application_members#destroy_all', :via => :delete
     end
     # Allow restful update of the domain name via the standard id parameter
     # Include support for the legacy plural API pattern domains/:existing_id for now
@@ -34,6 +35,7 @@ Rails.application.routes.draw do
     match "domain/:existing_id" => "domains#update", :via => :put, :existing_id => id_with_format
     resources :domains, :only => [:index, :show, :create, :update, :destroy], :constraints => { :id => id_with_format }, :singular_resource => true, :expose_legacy_api => true do
       resources :members, :only => [:index, :create, :update, :destroy], :controller => :domain_members, :constraints => { :id => id_with_format }, :singular_resource => true
+      match 'members' => 'domain_members#destroy_all', :via => :delete
       resources :applications, :controller => :applications, :only => [:index, :show, :create, :destroy], :constraints => { :id => id_with_format }, :singular_resource => true do
         resource :descriptor, :only => :show
         resources :gear_groups, :constraints => { :id => id_with_format }, :only => [:index, :show], :singular_resource => true
@@ -46,6 +48,7 @@ Rails.application.routes.draw do
         resource :dns_resolvable, :only => :show, :controller => :dns_resolvable
         resources :aliases, :only => [:index, :show, :create, :update, :destroy], :controller => :alias, :constraints => { :id => id_with_format }, :singular_resource => true
         resources :members, :only => [:index, :create, :update, :destroy], :controller => :application_members, :constraints => { :id => id_with_format }, :singular_resource => true
+        match 'members' => 'application_members#destroy_all', :via => :delete
       end
     end
 

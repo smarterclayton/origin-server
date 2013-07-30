@@ -1,7 +1,7 @@
 class RestMember < OpenShift::Model
   attr_accessor :id, :type, :name, :role, :from, :owner
   
-  def initialize(member, default_role, owner, url, nolinks=false)
+  def initialize(member, owner, url, nolinks=false)
     type = case member._type
            when 'team' then 'team'
            else
@@ -9,8 +9,7 @@ class RestMember < OpenShift::Model
            end
     self.name = member.name || "#{type}:#{member.id}"
     self.id = member._id
-    #self.type = type
-    self.role = member.role || default_role
+    self.role = member.role
     self.from = Array(member.from) if member.from
     self.owner = owner
 =begin

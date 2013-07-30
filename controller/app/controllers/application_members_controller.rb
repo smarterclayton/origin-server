@@ -3,4 +3,10 @@ class ApplicationMembersController < MembersController
     def membership
       @membership ||= get_application
     end
+
+    def save_membership(resource)
+      resource.with_lock do 
+        super
+      end
+    end
 end

@@ -1,6 +1,6 @@
 module Role
   def self.for(value)
-    ROLES.any?{ |s| s.to_s == value.to_s }
+    ROLES.detect{ |s| s.to_s == value.to_s }
   end
 
   def self.valid?(sym)
@@ -15,6 +15,12 @@ module Role
 
   def self.allows_application_ssh?(given)
     in?(:edit, given)
+  end
+
+  def self.higher_of(a, b)
+    a = ROLES.index(a)
+    b = ROLES.index(b)
+    ROLES[[a || b, b || a].max]
   end
 
   def self.all

@@ -171,6 +171,18 @@ class CloudUser
     end
   end
 
+  def self.with_ids_or_logins(ids, logins)
+    if ids.present?
+      if logins.present?
+        self.or({:_id.in => ids}, {:login.in => logins})
+      else
+        self.in(_id: ids)
+      end
+    else
+      self.in(login: logins)
+    end
+  end
+
   # Used to add an ssh-key to the user. Use this instead of ssh_keys= so that the key can be propagated to the
   # domains/application that the user has access to.
   def add_ssh_key(key)
