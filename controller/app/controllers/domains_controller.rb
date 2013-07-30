@@ -131,6 +131,7 @@ class DomainsController < BaseController
   end
 
   private
+    include ActionView::Helpers::TextHelper
 
   # Creates a new [RestDomain] or [RestDomain10] based on the requested API version.
   #
@@ -151,4 +152,5 @@ class DomainsController < BaseController
   def set_log_tag
     @log_tag = get_log_tag_prepend + "DOMAIN"
   end
+
 end
