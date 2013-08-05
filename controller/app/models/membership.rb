@@ -28,12 +28,12 @@ module Membership
   end
 
   def add_members(*args)
-    from = args.pop if args.last.is_a? Symbol
+    from = args.pop if args.length > 1 && args.last.is_a?(Array)
+    role = args.pop if args.last.is_a?(Symbol) && args.length > 1
     changing_members do
       args.flatten(1).map do |arg|
         m = self.class.to_member(arg)
-        m.role ||= default_role
-        m.from = [from.to_s] if from
+        m.add_grant(role || m.role || default_role, from) if from || !m.role?
         if exists = members.find(m._id) rescue nil
           exists.merge(m)
         else
@@ -45,10 +45,10 @@ module Membership
   end
 
   def remove_members(*args)
-    from = args.pop if args.last.is_a? Symbol
+    from = args.pop if args.last.is_a?(Symbol) || (args.length > 1 && args.last.is_a?(Array))
     return self if args.empty?
     changing_members do
-      Array(members.find(*args)).each{ |m| m.delete if m.remove(from ? from.to_s : nil) }
+      Array(members.find(*args)).each{ |m| m.delete if m.remove_grant(from) }
     end
     self
   end
@@ -97,7 +97,7 @@ module Membership
     def default_members
       if parent = parent_membership_relation
         p = send(parent.name)
-        p.inherit_membership.each{ |m| m.from = [parent.name.to_s]; m.role ||= default_role } if p
+        p.inherit_membership.each{ |m| m.clear.add_grant(m.role || default_role, parent.name) } if p
       end || []
     end
 
@@ -109,6 +109,18 @@ module Membership
       queue_op(:change_members, added: added.presence, removed: removed.presence, changed: changed_roles.presence)
     end
 
+    #
+    # Helper method for processing role changes
+    #
+    def change_member_roles(changed_roles, source)
+      changed_roles.each do |arr|
+        if m = members.detect{ |m| m._id == arr.first }
+          m.update_grant(arr.last.last, source)
+        end
+      end
+      self
+    end    
+
     # FIXME create a standard pending operations model mixin that uniformly handles queueing on all type
     def queue_op(op, args)
       (relations['pending_ops'] ? pending_ops : pending_op_groups).build(:op_type => op, :state => :init, :args => args.stringify_keys)
@@ -119,7 +131,8 @@ module Membership
         changing_members{ members.concat(default_members) } if members.empty?
         if has_member_changes?
           changed_roles = members.select{ |m| m.role_changed? && !(@members_added && @members_added.include?(m._id)) }.map{ |m| [m._id].concat(m.role_change) }
-          members_changed(@members_added, @members_removed, changed_roles)
+          added_roles = members.select{ |m| @members_added && @members_added.include?(m._id) }.map{ |m| [m._id, m.role, m._type, m.name] }
+          members_changed(added_roles, @members_removed, changed_roles)
           @original_members, @members_added, @members_removed = nil
         end
       else
@@ -163,8 +176,10 @@ module Membership
       else
         if arg.respond_to?(:as_member) 
           arg.as_member 
+        elsif arg.is_a?(Array)
+          Member.new{ |m| m._id = arg[0]; m.role = arg[1]; m._type = arg[2]; m.name = arg[3] }
         else
-          Member.new{ |mem| mem._id = arg }
+          Member.new{ |m| m._id = arg }
         end
       end
     end

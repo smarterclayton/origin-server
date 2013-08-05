@@ -76,6 +76,17 @@ module OpenShift
           end
           raise OpenShift::OOException.new("Invalid value '#{param_value}'. Valid options: [true, false]", 167)
         end
+
+        def pre_and_post_condition(pre, post, run, fails)
+          return false if !pre.call
+          run.call
+          if post.call
+            true
+          else
+            fails.call
+            false
+          end
+        end
         
         def get_log_tag_prepend
           tag = "UNKNOWN"

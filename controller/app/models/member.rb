@@ -2,12 +2,33 @@ class Member
   include Mongoid::Document
   embedded_in :access_controlled, polymorphic: true
 
+  # The ID this member refers to.
   field :_id, :as => :_id, type: Moped::BSON::ObjectId, default: -> { nil }
+  # The type of this member.  All members are currently CloudUsers
   field :_type, :as => :t, type: String, default: ->{ self.class.name if hereditary? }
+  # The name of this member, denormalized
   field :name,  :as => :n, type: String
+  #
+  # An array of implicit grants, where each grant is an array of uniquely 
+  # distinguishing elements ending with the role granted to the member.
+  # 
+  # e.g.: [
+  #   ['domain', :read],
+  #   ['team', '345', :manage],
+  # ]
+  #
+  # indicates the current member has an implicit role (denormalized) on this resource
+  # from the domain (singleton) and from a team with id 345.  The team 345 must itself 
+  # be listed as a member of this resource.
+  #
   field :from,  :as => :f, type: Array
+  # A role for the member on this resource
   field :role,  :as => :r, type: Symbol
-  field :explicit_grant, :as => :e, type: Symbol
+  # When multiple grants are present, this value stores the role assigned to the 
+  # member directly on this resource (vs the value of the role inherited by an
+  # implicit grant.
+  field :explicit_role, :as => :e, type: Symbol
+
   attr_accessible :_id, :role
 
   validates_presence_of :_id, :message => 'You must provide a valid id for your member.'
@@ -17,56 +38,108 @@ class Member
     _id == other._id && (member_type === other || self.class == other.class)
   end
 
+  #
+  # A membership is explicit if there are no implicit grants, or if an explicit_role
+  # has been set.  If there are no implicit grants, the explicit_role value must be
+  # equal to the role.
+  # 
+  def explicit_role?
+    from.blank? || super
+  end
+  def explicit_role
+    super || (from.blank? ? role : nil)
+  end
+
+  #
+  # Given two members, calculate the effective role of the two together.  Use when 
+  # a member already exists for the current resource.
+  #
   def merge(other)
     if other.from.blank?
-      if from.present?
-        self.explicit_grant = other.role
-        self.role = Role.higher_of(other.role, role)
-      else
-        self.explicit_grant = nil
+      if from.blank?
+        self.explicit_role = nil
         self.role = other.role
+      else
+        self.explicit_role = other.role
+        self.role = Role.higher_of(other.role, role)
       end
     else
-      self.explicit_grant = role if from.blank?      
-      self.role = Role.higher_of(other.role, role)
+      self.explicit_role = role if from.blank?      
       ((self.from ||= []).concat(Array(other.from))).uniq!
+      self.role = effective_role
     end
     self
   end
 
   #
-  # Remove the specific source of the membership - will
-  # return true if the member should be removed because
-  # there is no longer an explicit grant or source.
+  # Remove a specific grant of membership - will return true if the member should be 
+  # removed because there is no longer an explicit role or any remaining grants.
   #
-  def remove(source)
+  def remove_grant(source=nil)
     if source.nil?
+      # remove the explicit grant
       if from.blank?
-        # member only explicitly
         true
-      elsif explicit_grant?
-        # FIXME: member still via an implicit role, need to recalculate
-        self.role = Role.higher_of(explicit_grant, role)
-        self.explicit_grant = nil
+      elsif explicit_role
+        self.role = effective_role
+        self.explicit_role = nil
         false
       end
     else
-      from.delete(source) if from
-      if explicit_grant?
-        if from.blank?
-          # member still via an explicit grant
-          self.role = explicit_grant
-          self.explicit_grant = nil
+      # remove an implicit grant
+      if from
+        source = to_source(source)
+        from.delete_if{ |f| f[0...-1] == source }
+      end
+      if from.blank?
+        if attributes['explicit_role']
+          self.role = explicit_role
+          self.explicit_role = nil
+          false
         else
-          # recalculate role based on explicit grant
-          raise "Need to recalculate roles based on remaining grants"
+          true
         end
-        false
       else
-        # member only if other implict grants present
-        from.blank?
+        self.role = effective_role
+        false
       end
     end
+  end
+
+  def add_grant(role, source=nil)
+    if source.nil?
+      if from.blank?
+        self.role = role
+      else
+        self.explicit_role = role
+        self.role = effective_role
+      end
+    else
+      self.from ||= []
+      source = to_source(source)
+      from.delete_if{ |f| f[0...-1] == source }
+      from << (source << role)
+      self.role = effective_role
+    end
+    self
+  end
+
+  def update_grant(role, source)
+    if from.present?
+      source = to_source(source)
+      if grant = from.find{ |f| f[0...-1] == source }
+        grant[-1] = role
+        self.role = effective_role
+        true
+      end
+    end
+  end
+
+  def clear
+    self.from = nil
+    self.explicit_role = nil
+    self.role = nil
+    self
   end
 
   def member_type
@@ -76,4 +149,15 @@ class Member
   def _type=(obj)
     super obj == 'user' ? nil : obj
   end
+
+  protected
+    def effective_role
+      Role.higher_of(explicit_role, *from.map(&:last))
+    end
+
+    def to_source(source)
+      source = source.is_a?(Array) ? source.dup : [source]
+      source[0] = source[0].to_s unless source[0].is_a? String
+      source
+    end
 end

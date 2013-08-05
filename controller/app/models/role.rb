@@ -17,10 +17,8 @@ module Role
     in?(:edit, given)
   end
 
-  def self.higher_of(a, b)
-    a = ROLES.index(a)
-    b = ROLES.index(b)
-    ROLES[[a || b, b || a].max]
+  def self.higher_of(*args)
+    ROLES[args.map{ |r| ROLES.index(r) }.compact.max]
   end
 
   def self.all

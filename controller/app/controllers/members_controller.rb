@@ -30,8 +30,6 @@ class MembersController < BaseController
 
     membership.add_members(new_members)
 
-    logger.debug members.inspect
-
     if save_membership(membership)
       render_success(:ok, "members", members.map{ |m| get_rest_member(m) }, "Added #{pluralize(new_members.length, 'member')}.")
     else

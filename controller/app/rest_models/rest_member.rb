@@ -1,16 +1,19 @@
 class RestMember < OpenShift::Model
-  attr_accessor :id, :type, :name, :role, :from, :owner
+  attr_accessor :id, :type, :name, :role, :explicit_role, :from, :owner
   
   def initialize(member, owner, url, nolinks=false)
-    type = case member._type
-           when 'team' then 'team'
-           else
-            'user'
-           end
+    self.type = to_type(member._type)
     self.name = member.name || "#{type}:#{member.id}"
     self.id = member._id
     self.role = member.role
-    self.from = Array(member.from) if member.from
+    self.explicit_role = member.explicit_role
+    if member.from
+      self.from = member.from.map do |m| 
+        f = {:type => m.first, :role => m.last}
+        f[:id] = m[1] if m.length > 2
+        f
+      end
+    end
     self.owner = owner
 =begin
     self.links = {
@@ -24,6 +27,13 @@ class RestMember < OpenShift::Model
 =end
   end
   
+  def to_type(type)
+    case type
+    when 'team' then 'team'
+    else             'user'
+    end
+  end
+
   def to_xml(options={})
     options[:tag_name] = "member"
     super(options)

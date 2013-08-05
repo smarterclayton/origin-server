@@ -26,8 +26,8 @@ Rails.application.routes.draw do
       resources :events, :controller => :app_events, :only => :create, :singular_resource => true
       resource :dns_resolvable, :only => :show, :controller => :dns_resolvable
       resources :aliases, :only => [:index, :show, :create, :update, :destroy], :controller => :alias, :constraints => { :id => id_with_format }, :singular_resource => true
-      resources :members, :only => [:index, :create, :update, :destroy], :controller => :application_members, :constraints => { :id => id_with_format }, :singular_resource => true
-      match 'members' => 'application_members#destroy_all', :via => :delete
+      resources :members, :only => :index, :controller => :application_members, :constraints => { :id => id_with_format }, :singular_resource => true
+      #match 'members' => 'application_members#destroy_all', :via => :delete
     end
     # Allow restful update of the domain name via the standard id parameter
     # Include support for the legacy plural API pattern domains/:existing_id for now
@@ -47,8 +47,8 @@ Rails.application.routes.draw do
         resources :events, :controller => :app_events, :only => :create, :singular_resource => true
         resource :dns_resolvable, :only => :show, :controller => :dns_resolvable
         resources :aliases, :only => [:index, :show, :create, :update, :destroy], :controller => :alias, :constraints => { :id => id_with_format }, :singular_resource => true
-        resources :members, :only => [:index, :create, :update, :destroy], :controller => :application_members, :constraints => { :id => id_with_format }, :singular_resource => true
-        match 'members' => 'application_members#destroy_all', :via => :delete
+        resources :members, :only => :index, :controller => :application_members, :constraints => { :id => id_with_format }, :singular_resource => true
+        #match 'members' => 'application_members#destroy_all', :via => :delete
       end
     end
 

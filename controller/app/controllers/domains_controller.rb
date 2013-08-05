@@ -53,13 +53,20 @@ class DomainsController < BaseController
     namespace = params[:id].downcase if params[:id].presence
     new_gear_sizes = params[:allowed_gear_sizes]
 
-    domains = Domain.where(owner: current_user).count
-    return render_error(:conflict, "There is already a namespace associated with this user", 103, "id") if domains > 1 && requested_api_version < 1.5
-    return render_error(:conflict, "You may not have more than #{pluralize(current_user.max_gears, "domain")}.", 103, "id") if domains > current_user.max_gears
+    allowed_domains = OpenShift::ApplicationContainerProxy.max_user_domains(current_user)
+    allowed_domains = 1 if requested_api_version < 1.5
 
     domain = Domain.new(namespace: namespace, owner: current_user)
     domain.allowed_gear_sizes = new_gear_sizes unless new_gear_sizes.nil?
-    domain.save_with_duplicate_check!
+
+    unless pre_and_post_condition(
+             lambda{ Domain.where(owner: current_user).count < allowed_domains }, 
+             lambda{ Domain.where(owner: current_user).count <= allowed_domains }, 
+             lambda{ domain.save_with_duplicate_check! },
+             lambda{ domain.destroy rescue nil }
+           )
+      return render_error(:conflict, "You may not have more than #{pluralize(allowed_domains, "domain")}.", 103, "id")
+    end
 
     render_success(:created, "domain", get_rest_domain(domain), "Created domain with name #{domain.namespace}")
   end

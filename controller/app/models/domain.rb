@@ -174,15 +174,15 @@ class Domain
 
         case op.op_type
         when :change_members
-          removed = Array(op.args['removed'])
-          added = CloudUser.members_of(op.args['added'])
-          raise "No args" if removed.blank? && added.blank?
           self.applications.each do |app|
             app.with_lock do |a|
-              a.remove_members(removed, :domain).add_members(added, :domain).save!
+              a.change_member_roles(Array(op.args['changed']), [:domain])
+              a.remove_members(Array(op.args['removed']), [:domain])
+              a.add_members(Array(op.args['added']).map{ |m| self.class.to_member(m) }, [:domain])
+              a.save!
               a.run_jobs # FIXME this needs to recover and continue
             end
-          end
+          end      
           op.set(:state, :completed)
           
         when :add_domain_ssh_keys
