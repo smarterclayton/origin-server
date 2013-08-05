@@ -10,6 +10,7 @@ module OpenShift
   end
 
   class NodeException < OpenShift::OOException; end
+  class NodeUnavailableException < NodeException; end
   class InvalidNodeException < NodeException
     attr_accessor :server_identity
 
@@ -42,6 +43,7 @@ module OpenShift
   class DNSException < OpenShift::OOException; end
   class DNSAlreadyExistsException < DNSException; end
   class DNSNotFoundException < DNSException; end
+  class DNSLoginException < DNSException; end
   # not used removing class EstimatesException < OpenShift::OOException; end
   class LockUnavailableException < OpenShift::OOException; end
 end

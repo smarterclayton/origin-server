@@ -11,7 +11,7 @@
 
 Summary:       OpenShift plugin for remote-user authentication
 Name:          rubygem-%{gem_name}
-Version: 1.12.2
+Version: 1.13.0
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -95,10 +95,24 @@ cp conf/openshift-origin-auth-remote-user.conf.example %{buildroot}/etc/openshif
 
 if [ $1 -ne 1 ] # this is an update; fix the previously configured realm.
 then
-  sed -i -e 's/AuthName.*/AuthName "OpenShift Broker API"/' /var/www/openshift/broker/httpd/conf.d/openshift-origin-auth-remote-user.conf
+  conf='/var/www/openshift/broker/httpd/conf.d/openshift-origin-auth-remote-user.conf'
+  # The configuration file may not be present if the plug-in was installed
+  # but never enabled.
+  if [ -e "$conf" ]
+  then
+    sed -i -e 's/AuthName.*/AuthName "OpenShift Broker API"/' "$conf"
+  fi
 fi
 
 %changelog
+* Tue Jul 30 2013 Adam Miller <admiller@redhat.com> 1.12.3-1
+- Merge pull request #2941 from Miciah/fix-plugins-auth-remote-user-post-
+  scriptlet (dmcphers+openshiftbot@redhat.com)
+- Fixing comprehensive doc to include latest changes in broker/node setup.
+  Fixing openshift-origin-auth-remote-user-* for Apache 2.2 and 2.4 Fixing
+  openshift-origin-console.spec to include missing gems (kraman@gmail.com)
+- remote-user: Fix .conf migration in %%post (miciah.masters@gmail.com)
+
 * Wed Jul 24 2013 Adam Miller <admiller@redhat.com> 1.12.2-1
 - <broker> re-base the broker URI from /broker => / (lmeyer@redhat.com)
 

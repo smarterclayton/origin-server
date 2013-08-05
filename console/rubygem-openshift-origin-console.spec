@@ -9,7 +9,7 @@
 
 Summary:       OpenShift Origin Management Console
 Name:          rubygem-%{gem_name}
-Version: 1.12.2
+Version: 1.13.0
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -42,6 +42,7 @@ Requires:      %{?scl:%scl_prefix}rubygem(poltergeist)
 Requires:      %{?scl:%scl_prefix}rubygem(konacha)
 Requires:      %{?scl:%scl_prefix}rubygem(minitest)
 Requires:      %{?scl:%scl_prefix}rubygem(rspec-core)
+Requires:      %{?scl:%scl_prefix}rubygem(sass-twitter-bootstrap)
 
 BuildRequires: %{?scl:%scl_prefix}build
 BuildRequires: scl-utils-build
@@ -66,6 +67,7 @@ BuildRequires: %{?scl:%scl_prefix}rubygem(poltergeist)
 BuildRequires: %{?scl:%scl_prefix}rubygem(konacha)
 BuildRequires: %{?scl:%scl_prefix}rubygem(minitest)
 BuildRequires: %{?scl:%scl_prefix}rubygem(rspec-core)
+BuildRequires: %{?scl:%scl_prefix}rubygem(sass-twitter-bootstrap)
 
 %endif
 BuildRequires: %{?scl:%scl_prefix}rubygems-devel
@@ -151,6 +153,27 @@ cp -a ./%{gem_dir}/* %{buildroot}%{gem_dir}/
 %{gem_dir}/doc/%{gem_name}-%{version}
 
 %changelog
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 1.12.4-1
+- Consolidated docs for admin/mgmt consoles, cartridges (hripps@redhat.com)
+- Bug 985952 - should not touch certificate if chain was not provided
+  (ffranz@redhat.com)
+- Bug 985952 - strip certificate content when appending chain
+  (ffranz@redhat.com)
+
+* Mon Jul 29 2013 Adam Miller <admiller@redhat.com> 1.12.3-1
+- Add omit method for functional and integration tests (jliggitt@redhat.com)
+- Merge remote-tracking branch 'origin/master' into changes_for_membership
+  (ccoleman@redhat.com)
+- Merge remote-tracking branch 'origin/master' into changes_for_membership
+  (ccoleman@redhat.com)
+- WebMock causes errors in Net::HTTP::Persistent, disable except when needed
+  (ccoleman@redhat.com)
+- Support LIST_DOMAINS_BY_OWNER, SHOW_DOMAIN, and SHOW_APPLICATION_BY_DOMAIN
+  (ccoleman@redhat.com)
+- Support running broker tests directly Force scopes to use checked ids and
+  avoid symbolizing arbitrary strings Use .present? instead of .count > 0 (for
+  performance) Handle ValidationExceptions globally (ccoleman@redhat.com)
+
 * Wed Jul 24 2013 Adam Miller <admiller@redhat.com> 1.12.2-1
 - Correctly create custom apps (ccoleman@redhat.com)
 - Merge remote-tracking branch 'origin/master' into

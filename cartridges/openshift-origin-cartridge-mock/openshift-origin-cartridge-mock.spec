@@ -2,7 +2,7 @@
 
 Summary:       Mock cartridge for V2 Cartridge SDK
 Name:          openshift-origin-cartridge-mock
-Version: 0.7.2
+Version: 0.8.0
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -27,9 +27,6 @@ test platform functionality. (Cartridge Format V2)
 %__cp -r * %{buildroot}%{cartridgedir}
 %__cp .mock_hidden.erb %{buildroot}%{cartridgedir}
 
-%posttrans
-%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
-
 %files
 %dir %{cartridgedir}
 %attr(0755,-,-) %{cartridgedir}/bin/
@@ -40,6 +37,11 @@ test platform functionality. (Cartridge Format V2)
 %doc %{cartridgedir}/LICENSE
 
 %changelog
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 0.7.3-1
+- Pulled cartridge READMEs into Cartridge Guide (hripps@redhat.com)
+- Bug 985514 - Update CartridgeRepository when mcollectived restarted
+  (jhonce@redhat.com)
+
 * Wed Jul 24 2013 Adam Miller <admiller@redhat.com> 0.7.2-1
 - <application.rb> Add feature to carts to handle wildcard ENV variable
   subscriptions (jolamb@redhat.com)

@@ -2,7 +2,7 @@
 
 Summary:       Provides Node.js support
 Name:          openshift-origin-cartridge-nodejs
-Version: 1.13.2
+Version: 1.14.0
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -52,9 +52,6 @@ if [[ $(/usr/bin/node -v) == v0.10* ]]; then
 %__mv %{buildroot}%{cartridgedir}/metadata/manifest.yml.0.10 %{buildroot}%{cartridgedir}/metadata/manifest.yml;
 fi
 
-%posttrans
-%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
-
 %files
 %dir %{cartridgedir}
 %attr(0755,-,-) %{cartridgedir}/bin/
@@ -65,6 +62,17 @@ fi
 %doc %{cartridgedir}/LICENSE
 
 %changelog
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 1.13.5-1
+- Update cartridge versions for Sprint 31 (jhonce@redhat.com)
+
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 1.13.4-1
+- Pulled cartridge READMEs into Cartridge Guide (hripps@redhat.com)
+- Bug 985514 - Update CartridgeRepository when mcollectived restarted
+  (jhonce@redhat.com)
+
+* Mon Jul 29 2013 Adam Miller <admiller@redhat.com> 1.13.3-1
+- Bug 982738 (dmcphers@redhat.com)
+
 * Wed Jul 24 2013 Adam Miller <admiller@redhat.com> 1.13.2-1
 - <application.rb> Add feature to carts to handle wildcard ENV variable
   subscriptions (jolamb@redhat.com)

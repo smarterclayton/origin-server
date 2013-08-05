@@ -32,11 +32,11 @@ module OpenShift
           reply = new_rest_reply(status)
           if messages.present?
             reply.messages.concat(messages)
-            log_action(action_log_tag, !internal_error, msg, get_log_args, messages.map(&:text).join(', '))
+            log_action(action_log_tag, status, !internal_error, msg, get_log_args, messages.map(&:text).join(', '))
           else
             msg_type = :error unless msg_type
             reply.messages.push(Message.new(msg_type, msg, err_code, field)) if msg
-            log_action(action_log_tag, !internal_error, msg, get_log_args)
+            log_action(action_log_tag, status, !internal_error, msg, get_log_args)
           end
           respond_with reply
         end
@@ -60,6 +60,7 @@ module OpenShift
 
           case ex
           when Mongoid::Errors::Validations
+            status = :unprocessable_entity
             field_map = 
               case ex.document
               when Domain then {"namespace" => "id"}
@@ -125,21 +126,33 @@ module OpenShift
             status = :service_unavailable
             message ||= "Another operation is already in progress. Please try again in a minute."
             internal_error = false
-
-          when OpenShift::NodeException
-            status = :internal_server_error
+            
+          when OpenShift::NodeUnavailableException
+            Rails.logger.error "Got Node Unavailable Exception"
+            status = :service_unavailable
+            message = ""
             if ex.resultIO
               error_code = ex.resultIO.exitcode
-              message = ""
               if ex.resultIO.errorIO && ex.resultIO.errorIO.length > 0
                 message = ex.resultIO.errorIO.string.strip
               end
-              message ||= ""
-              message += "Unable to complete the requested operation due to: #{ex.message}.\nReference ID: #{request.uuid}"
+              Rail.logger.error "message: #{message}"
             end
+            message ||= ""
+            message += "Unable to complete the requested operation because the system is unavailable. If the problem persists please contact Red Hat support. \nReference ID: #{request.uuid}"
 
+          when OpenShift::NodeException
+            status = :internal_server_error
+            message = ""
+            if ex.resultIO
+              error_code = ex.resultIO.exitcode
+              if ex.resultIO.errorIO && ex.resultIO.errorIO.length > 0
+                message = ex.resultIO.errorIO.string.strip
+              end
+            end
+            message ||= ""
+            message += "Unable to complete the requested operation due to: #{ex.message}.\nReference ID: #{request.uuid}"
           else
-            Rails.logger.error "#{ex.message}:#{ex.backtrace}"
             status = :internal_server_error
             message = "Unable to complete the requested operation due to: #{ex.message}.\nReference ID: #{request.uuid}"
           end
@@ -176,9 +189,9 @@ module OpenShift
 
           if extra_messages.present?
             reply.messages.concat(messages)
-            log_action(action_log_tag, true, message, log_args, messages.map(&:text).join(', '))
+            log_action(action_log_tag, status, true, message, log_args, messages.map(&:text).join(', '))
           else
-            log_action(action_log_tag, true, message, log_args)
+            log_action(action_log_tag, status, true, message, log_args)
           end
           respond_with reply
         end

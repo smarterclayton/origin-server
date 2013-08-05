@@ -54,7 +54,7 @@ module OpenShift
       # * an MCollectiveApplicationContainerProxy
       #
       # RAISES:
-      # * OpenShift::NodeException
+      # * OpenShift::NodeUnavailableException
       #
       # NOTES:
       # * a class method on Node?
@@ -73,7 +73,7 @@ module OpenShift
           current_server, current_capacity, preferred_district = rpc_find_available(node_profile, district_uuid, least_preferred_server_identities, true, gear_exists_in_district, required_uid)
         end
         district = preferred_district if preferred_district
-        raise OpenShift::NodeException.new("No nodes available.", 140) unless current_server
+        raise OpenShift::NodeUnavailableException.new("No nodes available.", 140) unless current_server
         Rails.logger.debug "DEBUG: find_available_impl: current_server: #{current_server}: #{current_capacity}"
 
         MCollectiveApplicationContainerProxy.new(current_server, district)
@@ -95,7 +95,7 @@ module OpenShift
         current_server = rpc_find_one(node_profile)
         current_server, capacity, district = rpc_find_available(node_profile) unless current_server
 
-        raise OpenShift::NodeException.new("No nodes found.", 140) unless current_server
+        raise OpenShift::NodeUnavailableException.new("No nodes available.", 140) unless current_server
         Rails.logger.debug "DEBUG: find_one_impl: current_server: #{current_server}"
 
         MCollectiveApplicationContainerProxy.new(current_server)
@@ -195,10 +195,10 @@ module OpenShift
             exitcode = mcoll_result.results[:data][:exitcode]
             raise OpenShift::NodeException.new("Failed to get quota for user: #{output}", 143) unless exitcode == 0
           else
-            raise OpenShift::NodeException.new("Node execution failure (error getting result from node).  If the problem persists please contact Red Hat support.", 143)
+            raise OpenShift::NodeException.new("Node execution failure (error getting result from node).", 143)
           end
         else
-          raise OpenShift::NodeException.new("Node execution failure (error getting result from node).  If the problem persists please contact Red Hat support.", 143)
+          raise OpenShift::NodeException.new("Node execution failure (error getting result from node).", 143)
         end
         output
       end
@@ -241,10 +241,10 @@ module OpenShift
             exitcode = mcoll_result.results[:data][:exitcode]
             raise OpenShift::NodeException.new("Failed to set quota for user: #{output}", 143) unless exitcode == 0
           else
-            raise OpenShift::NodeException.new("Node execution failure (error getting result from node).  If the problem persists please contact Red Hat support.", 143)
+            raise OpenShift::NodeException.new("Node execution failure (error getting result from node).", 143)
           end
         else
-          raise OpenShift::NodeException.new("Node execution failure (error getting result from node).  If the problem persists please contact Red Hat support.", 143)
+          raise OpenShift::NodeException.new("Node execution failure (error getting result from node).", 143)
         end
       end
 
@@ -1827,21 +1827,6 @@ module OpenShift
           rescue Exception => e
             gear.server_identity = source_container.id
             gear.group_instance.gear_size = source_container.get_node_profile
-            # remove-httpd-proxy of destination
-            log_debug "DEBUG: Moving failed.  Rolling back gear '#{gear.name}' '#{app.name}' with remove-httpd-proxy on '#{destination_container.id}'"
-            gi.all_component_instances.each do |cinst|
-              next if cinst.is_sparse? and (not gear.sparse_carts.include? cinst._id) and (not gear.host_singletons)
-              cart = cinst.cartridge_name
-              if framework_carts(app).include? cart
-                begin
-                  args = build_base_gear_args(gear)
-                  args = build_base_component_args(cinst, args)
-                  reply.append destination_container.send(:run_cartridge_command, cart, gear, "remove-httpd-proxy", args, false)
-                rescue Exception => e
-                  log_debug "DEBUG: Remove httpd proxy with cart '#{cart}' failed on '#{destination_container.id}'  - gear: '#{gear.name}', app: '#{app.name}'"
-                end
-              end
-            end
             # destroy destination
             log_debug "DEBUG: Moving failed.  Rolling back gear '#{gear.name}' in '#{app.name}' with delete on '#{destination_container.id}'"
             reply.append destination_container.destroy(gear, !district_changed, nil, true)
@@ -2179,7 +2164,7 @@ module OpenShift
           rpc_client.disconnect
         end
 
-        raise OpenShift::NodeException.new("Node execution failure (error getting result from node).  If the problem persists please contact Red Hat support.", 143) unless result
+        raise OpenShift::NodeException.new("Node execution failure (error getting result from node).", 143) unless result
 
         result
       end
@@ -2470,7 +2455,7 @@ module OpenShift
         begin
           Rails.logger.debug "DEBUG: rpc_client.custom_request('cartridge_do', #{mc_args.inspect}, #{@id}, {'identity' => #{@id}}) (Request ID: #{Thread.current[:user_action_log_uuid]})"
           result = rpc_client.custom_request('cartridge_do', mc_args, @id, {'identity' => @id})
-          Rails.logger.debug "DEBUG: #{result.inspect} (Request ID: #{Thread.current[:user_action_log_uuid]})" if log_debug_output
+          Rails.logger.debug "DEBUG: #{mask_user_creds(result.inspect)} (Request ID: #{Thread.current[:user_action_log_uuid]})" if log_debug_output
         rescue => e
           Rails.logger.error("Error processing custom_request for action #{action}: #{e.message}")
           Rails.logger.error(e.backtrace)
@@ -2497,7 +2482,7 @@ module OpenShift
       # * OpenShift::UserException
       #
       # NOTES:
-      # * uses find_app
+      # * uses find_gear
       # * uses sanitize_result
       #
       def parse_result(mcoll_reply, gear=nil, command=nil)
@@ -2510,11 +2495,11 @@ module OpenShift
           output = mcoll_result.results[:data][:output]
           result.exitcode = mcoll_result.results[:data][:exitcode]
         else
-          server_identity = app ? MCollectiveApplicationContainerProxy.find_app(app.uuid, app.name) : nil
+          server_identity = app ? MCollectiveApplicationContainerProxy.find_gear(gear.uuid) : nil
           if server_identity && @id != server_identity
-            raise OpenShift::InvalidNodeException.new("Node execution failure (invalid  node).  If the problem persists please contact Red Hat support.", 143, nil, server_identity)
+            raise OpenShift::InvalidNodeException.new("Node execution failure (invalid  node).", 143, nil, server_identity)
           else
-            raise OpenShift::NodeException.new("Node execution failure (error getting result from node).  If the problem persists please contact Red Hat support.", 143)
+            raise OpenShift::NodeException.new("Node execution failure (error getting result from node).", 143)
           end
         end
 
@@ -2527,7 +2512,7 @@ module OpenShift
           if result.hasUserActionableError
             raise OpenShift::UserException.new(result.errorIO.string, result.exitcode, nil, result)
           else
-            raise OpenShift::NodeException.new("Node execution failure (invalid exit code from node).  If the problem persists please contact Red Hat support.", 143, result)
+            raise OpenShift::NodeException.new("Node execution failure (invalid exit code from node).", 143, result)
           end
         end
 
@@ -2535,24 +2520,22 @@ module OpenShift
       end
 
       #
-      # Returns the server identity of the specified app
+      # Returns the server identity of the specified gear
       #
       # INPUTS:
-      # * app_uuid: String
-      # * app_name: String
+      # * gear_uuid: String
       #
       # RETURNS:
-      # * server identity (string?)
+      # * server identity (string)
       #
       # NOTES:
       # * uses rpc_exec
       # * loops over all nodes
       #
-      def self.find_app(app_uuid, app_name)
+      def self.find_gear(gear_uuid)
         server_identity = nil
         rpc_exec('openshift') do |client|
-          client.has_app(:uuid => app_uuid,
-                         :application => app_name) do |response|
+          client.has_gear(:uuid => gear_uuid) do |response|
             output = response[:body][:data][:output]
             if output == true
               server_identity = response[:senderid]
@@ -2577,10 +2560,9 @@ module OpenShift
       # * loops over all nodes
       # * No longer being used
       #
-      def has_app?(app_uuid, app_name)
+      def has_gear?(gear_uuid)
         MCollectiveApplicationContainerProxy.rpc_exec('openshift', @id) do |client|
-          client.has_app(:uuid => app_uuid,
-                         :application => app_name) do |response|
+          client.has_gear(:uuid => gear_uuid) do |response|
             output = response[:body][:data][:output]
             return output == true
           end
@@ -2850,7 +2832,7 @@ module OpenShift
           end
         end
         if require_district && server_infos.empty?
-          raise OpenShift::NodeException.new("No district nodes available.", 140)
+          raise OpenShift::NodeUnavailableException.new("No district nodes available.", 140)
         end
         unless server_infos.empty?
           # Remove the least preferred servers from the list, ensuring there is at least one server remaining
@@ -2900,7 +2882,7 @@ module OpenShift
       # * String: server name?
       #
       # RAISES:
-      # * OpenShift::NodeException
+      # * OpenShift::NodeUnavailableException
       #
       # NOTES:
       # * Query facters from every node and filter on server side
@@ -2925,7 +2907,7 @@ module OpenShift
         rpc_client = MCollectiveApplicationContainerProxy.get_rpc_client('rpcutil', options)
         begin
           rpc_client.get_fact(:fact => 'public_hostname') do |response|
-            raise OpenShift::NodeException.new("No nodes found.  If the problem persists please contact Red Hat support.", 140) unless Integer(response[:body][:statuscode]) == 0
+            raise OpenShift::NodeUnavailableExceptionn.new("No nodes available.", 140) unless Integer(response[:body][:statuscode]) == 0
             current_server = response[:senderid]
           end
         ensure
@@ -3057,7 +3039,7 @@ module OpenShift
             if (result && defined? result.results && result.results.has_key?(:data))
               value = result.results[:data][:value]
             else
-              raise OpenShift::NodeException.new("Node execution failure (error getting fact).  If the problem persists please contact Red Hat support.", 143)
+              raise OpenShift::NodeException.new("Node execution failure (error getting fact).", 143)
             end
           ensure
             rpc_client.disconnect
@@ -3093,7 +3075,7 @@ module OpenShift
             if (result && defined? result.results && result.results.has_key?(:data))
               value = result.results[:data][:output]
             else
-              raise OpenShift::NodeException.new("Node execution failure (error getting facts).  If the problem persists please contact Red Hat support.", 143)
+              raise OpenShift::NodeException.new("Node execution failure (error getting facts).", 143)
             end
           ensure
             rpc_client.disconnect
@@ -3151,15 +3133,15 @@ module OpenShift
       # * Uses MCollective::RPC::Client
       #
       def self.get_rpc_client(agent, options)
-          flags = { :options => options, :exit_on_failure => false }
-
-          begin
-            rpc_client = rpcclient(agent, flags)
-          rescue Exception => e
-            raise OpenShift::NodeException.new(e)
-      end
-
-          return rpc_client
+        flags = { :options => options, :exit_on_failure => false }
+        begin
+          rpc_client = rpcclient(agent, flags)
+        rescue Exception => e
+          Rails.logger.error "Exception raised by rpcclient:#{e.message}"
+          Rails.logger.error (e.backtrace)
+          raise OpenShift::NodeException.new(e)
+        end
+        return rpc_client
       end
 
       #
@@ -3291,6 +3273,12 @@ module OpenShift
           end
           Rails.logger.debug "DEBUG: MCollective Response Time (execute_parallel): #{Time.new - start_time}s  (Request ID: #{Thread.current[:user_action_log_uuid]})"
         end
+      end
+
+      private
+ 
+      def mask_user_creds(str)
+        str.gsub(/(User: |Password: |username=|password=).*/, '\1[HIDDEN]')
       end
     end
 end

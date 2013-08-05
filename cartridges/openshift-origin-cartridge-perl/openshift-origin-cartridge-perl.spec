@@ -1,7 +1,7 @@
 %global cartridgedir %{_libexecdir}/openshift/cartridges/perl
 
 Name:          openshift-origin-cartridge-perl
-Version: 0.7.2
+Version: 0.8.0
 Release:       1%{?dist}
 Summary:       Perl cartridge
 Group:         Development/Languages
@@ -60,9 +60,6 @@ mv %{buildroot}%{cartridgedir}/metadata/manifest.yml.f19 %{buildroot}%{cartridge
 %endif
 rm %{buildroot}%{cartridgedir}/metadata/manifest.yml.*
 
-%posttrans
-%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
-
 %files
 %dir %{cartridgedir}
 %attr(0755,-,-) %{cartridgedir}/bin/
@@ -74,6 +71,17 @@ rm %{buildroot}%{cartridgedir}/metadata/manifest.yml.*
 
 
 %changelog
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 0.7.5-1
+- Update cartridge versions for Sprint 31 (jhonce@redhat.com)
+
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 0.7.4-1
+- Pulled cartridge READMEs into Cartridge Guide (hripps@redhat.com)
+- Bug 985514 - Update CartridgeRepository when mcollectived restarted
+  (jhonce@redhat.com)
+
+* Mon Jul 29 2013 Adam Miller <admiller@redhat.com> 0.7.3-1
+- Bug 982738 (dmcphers@redhat.com)
+
 * Wed Jul 24 2013 Adam Miller <admiller@redhat.com> 0.7.2-1
 - <application.rb> Add feature to carts to handle wildcard ENV variable
   subscriptions (jolamb@redhat.com)

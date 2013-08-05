@@ -251,6 +251,7 @@ module OpenShift
                                    CartridgeRepository.instance.select(name, software_version)
                                  end
 
+        ::OpenShift::Runtime::Utils::Cgroups.new(@container.uuid).boost do
         create_cartridge_directory(cartridge, software_version)
         # Note: the following if statement will check the following criteria long-term:
         # 1. Is the app scalable?
@@ -288,8 +289,9 @@ module OpenShift
         end
 
         connect_frontend(cartridge)
+        end
 
-        logger.info "configure output: #{output}"
+        logger.info "configure output: #{Runtime::Utils.sanitize_credentials(output)}"
         return output
       rescue ::OpenShift::Runtime::Utils::ShellExecutionException => e
         rc_override = e.rc < 100 ? 157 : e.rc
@@ -327,12 +329,14 @@ module OpenShift
         name, software_version = map_cartridge_name(cartridge_name)
         cartridge              = get_cartridge(name)
 
+        ::OpenShift::Runtime::Utils::Cgroups.new(@container.uuid).boost do
         if empty_repository?
           output << "CLIENT_MESSAGE: An empty Git repository has been created for your application.  Use 'git push' to add your code."
         else
           output << start_cartridge('start', cartridge, user_initiated: true)
         end
         output << cartridge_action(cartridge, 'post_install', software_version)
+        end
 
         logger.info("post-configure output: #{output}")
         output
@@ -384,6 +388,7 @@ module OpenShift
         end
 
         delete_private_endpoints(cartridge)
+        ::OpenShift::Runtime::Utils::Cgroups.new(@container.uuid).boost do
         begin
           stop_cartridge(cartridge, user_initiated: true)
           unlock_gear(cartridge, false) do |c|
@@ -395,6 +400,7 @@ module OpenShift
         ensure
           disconnect_frontend(cartridge)
           delete_cartridge_directory(cartridge)
+        end
         end
 
         teardown_output
@@ -635,7 +641,7 @@ module OpenShift
             chdir:               cartridge_home,
             timeout:             @hourglass.remaining,
             expected_exitstatus: 0)
-        logger.info("Ran #{action} for #{@container.uuid}/#{cartridge.directory}\n#{out}")
+        logger.info("Ran #{action} for #{@container.uuid}/#{cartridge.directory}\n#{Runtime::Utils.sanitize_credentials(out)}")
         out
       end
 
@@ -737,18 +743,22 @@ module OpenShift
           # Reuse previously allocated IPs of the same name. When recycling
           # an IP, double-check that it's not bound to the target port, and
           # bail if it's unexpectedly bound.
-          unless allocated_ips.has_key?(endpoint.private_ip_name)
-            # Allocate a new IP for the endpoint
-            private_ip = find_open_ip(endpoint.private_port)
+          if !allocated_ips.has_key?(endpoint.private_ip_name)
+            if env.has_key?(endpoint.private_ip_name)
+              allocated_ips[endpoint.private_ip_name] = env[endpoint.private_ip_name]
+            else
+              # Allocate a new IP for the endpoint
+              private_ip = find_open_ip(endpoint.private_port)
 
-            if private_ip.nil?
-              raise "No IP was available to create endpoint for cart #{cartridge.name} in gear #{@container.uuid}: "\
-              "#{endpoint.private_ip_name}(#{endpoint.private_port})"
+              if private_ip.nil?
+                raise "No IP was available to create endpoint for cart #{cartridge.name} in gear #{@container.uuid}: "\
+                "#{endpoint.private_ip_name}(#{endpoint.private_port})"
+              end
+
+              @container.add_env_var(endpoint.private_ip_name, private_ip)
+
+              allocated_ips[endpoint.private_ip_name] = private_ip
             end
-
-            @container.add_env_var(endpoint.private_ip_name, private_ip)
-
-            allocated_ips[endpoint.private_ip_name] = private_ip
           end
 
           private_ip = allocated_ips[endpoint.private_ip_name]

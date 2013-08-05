@@ -19,6 +19,7 @@ require 'timeout'
 require 'open4'
 
 require_relative '../utils/node_logger'
+require_relative 'sanitize'
 
 module OpenShift
   module Runtime
@@ -74,6 +75,7 @@ module OpenShift
       #                                provided +IO+ object.
       #   :err                       : If specified, STDERR from the child process will be redirected to the
       #                                provided +IO+ object.
+      #   :quiet                     : If specified, the output from the command will not be logged
       #
       # NOTE: If the +out+ or +err+ options are specified, the corresponding return value from +oo_spawn+
       # will be the incoming/provided +IO+ objects instead of the buffered +String+ output. It's the
@@ -123,7 +125,7 @@ module OpenShift
               write_stderr.close
 
               out, err, status = read_results(pid, read_stdout, read_stderr, options)
-              NodeLogger.logger.debug { "Shell command '#{command}' ran. rc=#{status.exitstatus} out=#{out}" }
+              NodeLogger.logger.debug { "Shell command '#{command}' ran. rc=#{status.exitstatus} out=#{options[:quiet] ? "[SILENCED]" : Runtime::Utils.sanitize_credentials(out)}" }
 
               if (!options[:expected_exitstatus].nil?) && (status.exitstatus != options[:expected_exitstatus])
                 raise ::OpenShift::Runtime::Utils::ShellExecutionException.new(
@@ -172,7 +174,7 @@ module OpenShift
                     partial = fd.readpartial(options[:buffer_size])
                     buffer << partial
 
-                    NodeLogger.logger.trace { "oo_spawn buffer(#{fd.fileno}/#{fd.pid}) #{partial}" }
+                    NodeLogger.logger.trace { "oo_spawn buffer(#{fd.fileno}/#{fd.pid}) #{Runtime::Utils.sanitize_credentials(partial)}" }
                   rescue Errno::EAGAIN, Errno::EINTR
                   rescue EOFError
                     readers.delete(fd)

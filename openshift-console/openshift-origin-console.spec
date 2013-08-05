@@ -33,6 +33,25 @@ Requires:      %{?scl:%scl_prefix}rubygem-minitest
 Requires:      %{?scl:%scl_prefix}rubygem-therubyracer
 Requires:      openshift-origin-util-scl
 %endif
+Requires:      %{?scl:%scl_prefix}rubygem-rails
+Requires:      %{?scl:%scl_prefix}rubygem-compass-rails
+Requires:      %{?scl:%scl_prefix}rubygem-test-unit
+Requires:      %{?scl:%scl_prefix}rubygem-ci_reporter
+Requires:      %{?scl:%scl_prefix}rubygem-sprockets
+Requires:      %{?scl:%scl_prefix}rubygem-rdiscount
+Requires:      %{?scl:%scl_prefix}rubygem-formtastic
+Requires:      %{?scl:%scl_prefix}rubygem-net-http-persistent
+Requires:      %{?scl:%scl_prefix}rubygem-haml
+Requires:      %{?scl:%scl_prefix}rubygem-therubyracer
+Requires:      %{?scl:%scl_prefix}rubygem-minitest
+Requires:      %{?scl:%scl_prefix}rubygems-devel
+Requires:      %{?scl:%scl_prefix}rubygem-coffee-rails
+Requires:      %{?scl:%scl_prefix}rubygem-jquery-rails
+Requires:      %{?scl:%scl_prefix}rubygem-uglifier
+Requires:      %{?scl:%scl_prefix}rubygem-poltergeist
+Requires:      %{?scl:%scl_prefix}rubygem-webmock
+Requires:      %{?scl:%scl_prefix}rubygem-capybara
+
 %if 0%{?fedora}
 Requires:      openshift-origin-util
 Requires:      v8-devel
@@ -42,19 +61,26 @@ Requires:      gcc-c++
 %if 0%{?fedora}%{?rhel} <= 6
 BuildRequires:  ruby193-build
 BuildRequires:  scl-utils-build
-BuildRequires: %{?scl:%scl_prefix}rubygem(rails)
-BuildRequires: %{?scl:%scl_prefix}rubygem(compass-rails)
-BuildRequires: %{?scl:%scl_prefix}rubygem(test-unit)
-BuildRequires: %{?scl:%scl_prefix}rubygem(ci_reporter)
-BuildRequires: %{?scl:%scl_prefix}rubygem(sprockets)
-BuildRequires: %{?scl:%scl_prefix}rubygem(rdiscount)
-BuildRequires: %{?scl:%scl_prefix}rubygem(formtastic)
-BuildRequires: %{?scl:%scl_prefix}rubygem(net-http-persistent)
-BuildRequires: %{?scl:%scl_prefix}rubygem(haml)
-BuildRequires: %{?scl:%scl_prefix}rubygem(therubyracer)
-BuildRequires: %{?scl:%scl_prefix}rubygem(minitest)
 %endif
+BuildRequires: %{?scl:%scl_prefix}rubygem-rails
+BuildRequires: %{?scl:%scl_prefix}rubygem-compass-rails
+BuildRequires: %{?scl:%scl_prefix}rubygem-test-unit
+BuildRequires: %{?scl:%scl_prefix}rubygem-ci_reporter
+BuildRequires: %{?scl:%scl_prefix}rubygem-sprockets
+BuildRequires: %{?scl:%scl_prefix}rubygem-rdiscount
+BuildRequires: %{?scl:%scl_prefix}rubygem-formtastic
+BuildRequires: %{?scl:%scl_prefix}rubygem-net-http-persistent
+BuildRequires: %{?scl:%scl_prefix}rubygem-haml
+BuildRequires: %{?scl:%scl_prefix}rubygem-therubyracer
+BuildRequires: %{?scl:%scl_prefix}rubygem-minitest
 BuildRequires: %{?scl:%scl_prefix}rubygems-devel
+BuildRequires: %{?scl:%scl_prefix}rubygem-coffee-rails
+BuildRequires: %{?scl:%scl_prefix}rubygem-jquery-rails
+BuildRequires: %{?scl:%scl_prefix}rubygem-uglifier
+BuildRequires: %{?scl:%scl_prefix}rubygem-poltergeist
+BuildRequires: %{?scl:%scl_prefix}rubygem-webmock
+BuildRequires: %{?scl:%scl_prefix}rubygem-capybara
+
 %if 0%{?fedora} >= 19
 BuildRequires: ruby(release)
 %else
@@ -83,7 +109,7 @@ rm -f Gemfile.lock
 bundle install --local
 
 mkdir -p %{buildroot}%{_var}/log/openshift/console/
-mkdir -m 770 %{buildroot}%{_var}/log/openshift/console/httpd/
+mkdir -p -m 770 %{buildroot}%{_var}/log/openshift/console/httpd/
 touch %{buildroot}%{_var}/log/openshift/console/production.log
 chmod 0666 %{buildroot}%{_var}/log/openshift/console/production.log
 

@@ -16,7 +16,7 @@
 
 Summary:       Cloud Development Node
 Name:          rubygem-%{gem_name}
-Version: 1.12.3
+Version: 1.13.0
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -223,10 +223,11 @@ fi
   service crond restart || :
 %endif
 
-oo-admin-ctl-tc status  >/dev/null 2>&1 || oo-admin-ctl-tc restart
+( oo-admin-ctl-tc status || oo-admin-ctl-tc restart || : ) >/dev/null 2>&1
 
 %preun
 if [ $1 -eq 0 ]
+then
 oo-admin-ctl-tc stop >/dev/null 2>&1 || :
 
 %if 0%{?fedora} >= 16 || 0%{?rhel} >= 7
@@ -304,6 +305,69 @@ fi
 %attr(0755,-,-) /etc/cron.daily/openshift-origin-stale-lockfiles
 
 %changelog
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 1.12.7-1
+- Merge pull request #3191 from jwhonce/bug/986838
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 986838 - Prevent quotas from being lowered beyond usage
+  (jhonce@redhat.com)
+
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 1.12.6-1
+- Merge pull request #3242 from fotioslindiakos/Bug989706
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #3239 from BanzaiMan/dev/hasari/bz989467
+  (dmcphers+openshiftbot@redhat.com)
+- Consolidated docs for admin/mgmt consoles, cartridges (hripps@redhat.com)
+- Bug 989706: Throttler dies if no cgroups are present (fotios@redhat.com)
+- Bug 989467 (asari.ruby@gmail.com)
+- Adding missing activemq config templates Fixing console spec to require gems
+  Additional fixes to comprehensive deployment guide (kraman@gmail.com)
+- Merge pull request #3221 from fotioslindiakos/Bug989706
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 989706: Quiet extra output from Libcgroup.usage (fotios@redhat.com)
+- Merge pull request #3236 from rmillner/cgroups_fixes
+  (dmcphers+openshiftbot@redhat.com)
+- Reinstate boosting certain gear operations. (rmillner@redhat.com)
+- Fix bug 989695: do not reallocate existing IPs during incompatible upgrade
+  (pmorie@gmail.com)
+- Merge pull request #3226 from rmillner/BZ989831
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 989831 - Fix incorrect variable. (rmillner@redhat.com)
+
+* Tue Jul 30 2013 Adam Miller <admiller@redhat.com> 1.12.5-1
+- Fix bug 981584: skip restore for secondary gear group in scalable app if
+  there is no appropriate snapshot (pmorie@gmail.com)
+- On Fedora, there are cgroups which return EIO instead of ENOENT.
+  (rmillner@redhat.com)
+- Use the newer cgroup_paths. (rmillner@redhat.com)
+- Logging the spawn command was causing too much output and swamping logs.  Use
+  direct access instead. (rmillner@redhat.com)
+- Bug 896366 (dmcphers@redhat.com)
+- Merge pull request #3198 from pmorie/bugs/952460
+  (dmcphers+openshiftbot@redhat.com)
+- Fix bug 952460: add output during deploy indicating that cartridges are
+  started (pmorie@gmail.com)
+- Origin was not getting the /openshift cgroup created early, always try when
+  enumerating parameters. (rmillner@redhat.com)
+
+* Mon Jul 29 2013 Adam Miller <admiller@redhat.com> 1.12.4-1
+- Forgot the "then" for bash. (rmillner@redhat.com)
+- Merge pull request #3194 from rajatchopra/ha
+  (dmcphers+openshiftbot@redhat.com)
+- redo sparse cart addition/deletion as user can override their scaling factors
+  (rchopra@redhat.com)
+- Did not properly deal with the freeze and thaw templates.
+  (rmillner@redhat.com)
+- Added helper to find cgroups_paths and throttler fixes. (fotios@redhat.com)
+- Add the systemd tc configuration on Origin. (rmillner@redhat.com)
+- Use oo_spawn to run grep in throttler (fotios@redhat.com)
+- Origin uses single quotes in config files. (rmillner@redhat.com)
+- Make throttling values configurable, and fixes. (fotios@redhat.com)
+- Cgroup module unit tests and bug fixes. (rmillner@redhat.com)
+- Reworked throttler code to work with new cgroups (fotios@redhat.com)
+- Separate out libcgroup based functionality and add configurable templates.
+  (rmillner@redhat.com)
+- Add template and throttler support to cgroups (fotios@redhat.com)
+
 * Fri Jul 26 2013 Adam Miller <admiller@redhat.com> 1.12.3-1
 - Bug 985035: Add missing requires to frontend_httpd (ironcladlou@gmail.com)
 - Merge pull request #3175 from pmorie/dev/upgrade_endpoints

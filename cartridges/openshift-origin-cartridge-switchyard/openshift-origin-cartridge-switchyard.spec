@@ -2,7 +2,7 @@
 
 Summary:       Provides embedded switchyard support
 Name:          openshift-origin-cartridge-switchyard
-Version: 0.5.1
+Version: 0.6.0
 Release:       1%{?dist}
 Group:         Network/Daemons
 License:       ASL 2.0
@@ -41,10 +41,6 @@ alternatives --remove switchyard-0.6 /usr/share/switchyard
 alternatives --install /etc/alternatives/switchyard-0.6 switchyard-0 /usr/share/switchyard 102
 alternatives --set switchyard-0.6 /usr/share/switchyard
 
-%posttrans
-%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
-
-
 %files
 %dir %{cartridgedir}
 %attr(0755,-,-) %{cartridgedir}/bin/
@@ -54,6 +50,14 @@ alternatives --set switchyard-0.6 /usr/share/switchyard
 %doc %{cartridgedir}/LICENSE
 
 %changelog
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 0.5.3-1
+- Update cartridge versions for Sprint 31 (jhonce@redhat.com)
+- Update cartridge versions for Sprint 31 (jhonce@redhat.com)
+
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 0.5.2-1
+- Bug 985514 - Update CartridgeRepository when mcollectived restarted
+  (jhonce@redhat.com)
+
 * Fri Jul 12 2013 Adam Miller <admiller@redhat.com> 0.5.1-1
 - bump_minor_versions for sprint 31 (admiller@redhat.com)
 

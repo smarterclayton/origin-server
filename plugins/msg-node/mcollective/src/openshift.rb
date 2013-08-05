@@ -7,6 +7,7 @@ require 'base64'
 require 'openshift-origin-node'
 require 'openshift-origin-node/model/cartridge_repository'
 require 'openshift-origin-node/utils/hourglass'
+require 'openshift-origin-common/utils/path_utils'
 require 'shellwords'
 require 'facter'
 require 'openshift-origin-common/utils/file_needs_sync'
@@ -23,10 +24,20 @@ module MCollective
                :timeout     => 360
 
       activate_when do
-        @cartridge_repository = ::OpenShift::Runtime::CartridgeRepository.instance
-        @cartridge_repository.load
+        @@cartridge_repository = ::OpenShift::Runtime::CartridgeRepository.instance
+        @@cartridge_repository.clear
+
+        Dir.glob(PathUtils.join('/usr/libexec/openshift/cartridges', '*')).each do |path|
+          begin
+            manifest = @@cartridge_repository.install(path)
+            Log.instance.info("Installed cartridge (#{manifest.cartridge_vendor}, #{manifest.name}, #{manifest.version}, #{manifest.cartridge_version}) from #{path}")
+          rescue Exception => e
+            Log.instance.warn("Failed to install cartridge from #{path}. #{e.message}")
+          end
+        end
+
         Log.instance.info(
-            "#{@cartridge_repository.count} cartridge(s) installed in #{@cartridge_repository.path}")
+            "#{@@cartridge_repository.count} cartridge(s) installed in #{@@cartridge_repository.path}")
         true
       end
 
@@ -36,6 +47,7 @@ module MCollective
         Log.instance.debug("Changing working directory to /tmp")
         Dir.chdir('/tmp')
       end
+
 
       def echo_action
         validate :msg, String
@@ -867,11 +879,16 @@ module MCollective
       # Returns whether an app is on a server
       #
       def has_app_action
+        has_gear_action
+      end
+
+      #
+      # Returns whether a gear is on a server
+      #
+      def has_gear_action
         validate :uuid, /^[a-zA-Z0-9]+$/
-        validate :application, /^[a-zA-Z0-9]+$/
-        uuid = request[:uuid].to_s if request[:uuid]
-        app_name = request[:application]
-        if File.exist?("/var/lib/openshift/#{uuid}/#{app_name}")
+        uuid = request[:uuid].to_s
+        if File.exist?("/var/lib/openshift/#{uuid}")
           reply[:output] = true
         else
           reply[:output] = false

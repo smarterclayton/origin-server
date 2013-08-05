@@ -6,7 +6,7 @@
 %global cartridgedir %{_libexecdir}/openshift/cartridges/ruby
 
 Name:          openshift-origin-cartridge-ruby
-Version: 0.7.3
+Version: 0.8.0
 Release:       1%{?dist}
 Summary:       Ruby cartridge
 Group:         Development/Languages
@@ -172,10 +172,6 @@ Ruby cartridge for OpenShift. (Cartridge Format V2)
 %__rm -f %{buildroot}%{cartridgedir}/lib/ruby_context.*
 %__rm -f %{buildroot}%{cartridgedir}/metadata/manifest.yml.*
 
-%posttrans
-%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
-
-
 %files
 %dir %{cartridgedir}
 %attr(0755,-,-) %{cartridgedir}/bin/
@@ -186,6 +182,17 @@ Ruby cartridge for OpenShift. (Cartridge Format V2)
 %doc %{cartridgedir}/LICENSE
 
 %changelog
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 0.7.6-1
+- Update cartridge versions for Sprint 31 (jhonce@redhat.com)
+
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 0.7.5-1
+- Pulled cartridge READMEs into Cartridge Guide (hripps@redhat.com)
+- Bug 985514 - Update CartridgeRepository when mcollectived restarted
+  (jhonce@redhat.com)
+
+* Mon Jul 29 2013 Adam Miller <admiller@redhat.com> 0.7.4-1
+- Bug 982738 (dmcphers@redhat.com)
+
 * Fri Jul 26 2013 Adam Miller <admiller@redhat.com> 0.7.3-1
 - Bug 968252: Add missing marker docs (ironcladlou@gmail.com)
 

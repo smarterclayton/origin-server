@@ -2,7 +2,6 @@
 
 require 'active_support/core_ext/numeric/time'
 require 'openshift-origin-node/utils/cgroups'
-require 'openshift-origin-node/utils/shell_exec'
 require 'syslog'
 require_relative 'monitored_gear'
 
@@ -11,10 +10,10 @@ module OpenShift
     module Utils
       class Cgroups
         class Throttler
+
           attr_reader :wanted_keys, :uuids, :running_apps, :threshold, :interval
 
           @@conf_file = '/etc/openshift/resource_limits.conf'
-          @@cgroups_dir = Libcgroup.cgroup_path
 
           def initialize
             # Make sure we create a MonitoredGear for the root OpenShift cgroup
@@ -37,8 +36,8 @@ module OpenShift
             MonitoredGear.intervals = [@interval]
 
             # Allow us to lazy initialize MonitoredGears
-            @running_apps = Hash.new do |h,k|
-              h[k] = MonitoredGear.new(k)
+            @running_apps = Hash.new do |h,uuid|
+              h[uuid] = MonitoredGear.new(uuid)
             end
 
             Syslog.open(File.basename($0), Syslog::LOG_PID, Syslog::LOG_DAEMON) unless Syslog.opened?
@@ -46,23 +45,6 @@ module OpenShift
 
             # Start our collector thread
             start
-          end
-
-          # Loop through all lines from grep and contruct a hash
-          # TODO: Should this be moved into libcgroup?
-          def parse_usage(info)
-            info.lines.to_a.inject(Hash.new{|h,k| h[k] = {}} ) do |h,line|
-              (uuid, key, val) = line.split(/\W/).values_at(0,-2,-1)
-              h[uuid][key.to_sym] = val.to_i
-              h
-            end
-          end
-
-          # TODO: Should this be moved into libcgroup?
-          def get_usage
-            cmd = 'grep -H "" */{cpu.stat,cpuacct.usage,cpu.cfs_quota_us} 2> /dev/null'
-            out = ::OpenShift::Runtime::Utils::oo_spawn(cmd, :chdir => @@cgroups_dir).first
-            out
           end
 
           def start
@@ -75,8 +57,7 @@ module OpenShift
           end
 
           def tick
-            usage = get_usage
-            vals = parse_usage(usage)
+            vals = Libcgroup.usage
             vals = Hash[vals.map{|uuid,hash| [uuid,hash.select{|k,v| wanted_keys.include?k}]}]
 
             update(vals)
@@ -147,7 +128,14 @@ module OpenShift
             end
 
             if (state = options[:state])
-              apps.select!{|k,v| v.gear.profile == state}
+              apps.select! do |k,v|
+                begin
+                  v.gear.profile == state
+                rescue RuntimeError
+                  # There's the possibility that this gear no longer exists, so just ignore it
+                  false
+                end
+              end
             end
             # Return current utilization with the apps for logging
             [apps, cur_util]
@@ -169,8 +157,6 @@ module OpenShift
               :throttle => bad_gears,
               nil => @old_bad_gears
             }, cur_util)
-
-            @old_bad_gears.merge!(bad_gears)
           end
 
           def apply_action(hash, cur_util)
@@ -182,14 +168,28 @@ module OpenShift
             hash.each do |action, gears|
               str = action || "over_threshold"
               gears.each do |uuid, g|
-                g.gear.send(action) if action
-                log_action(str, uuid, util[uuid])
+                begin
+                  g.gear.send(action) if action
+                  if action == :throttle
+                    @old_bad_gears[uuid] = g
+                  end
+                  log_action(str, uuid, util[uuid])
+                rescue RuntimeError => e
+                  log_action("FAILED #{action}", uuid, e.message, :warning)
+                end
               end
             end
           end
 
-          def log_action(action, uuid, value)
-            Syslog.info("Throttler: #{action} => #{uuid} (#{value})")
+          def log_action(action, uuid, value, level = :info)
+            msg = "Throttler: #{action} => #{uuid} (#{value})"
+            log_level = case level
+                        when :warning
+                          Syslog::LOG_WARNING
+                        else
+                          Syslog::LOG_INFO
+                        end
+            Syslog.log(log_level, msg)
           end
         end
       end

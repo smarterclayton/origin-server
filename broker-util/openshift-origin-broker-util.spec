@@ -6,7 +6,7 @@
 
 Summary:       Utility scripts for the OpenShift Origin broker
 Name:          openshift-origin-broker-util
-Version: 1.12.3
+Version: 1.13.0
 Release:       1%{?dist}
 Group:         Network/Daemons
 License:       ASL 2.0
@@ -24,11 +24,6 @@ Requires:      mongodb
 Requires:      bind-utils
 # For oo-admin-broker-auth
 Requires:      mcollective-client
-%if 0%{?fedora} >= 17
-BuildRequires: %{?scl:%scl_prefix}rubygems-devel
-%else
-BuildRequires: %{?scl:%scl_prefix}rubygems
-%endif
 BuildArch:     noarch
 
 %description
@@ -69,6 +64,7 @@ cp man/*.8 %{buildroot}%{_mandir}/man8/
 %attr(0750,-,-) %{_sbindir}/oo-accept-broker
 %attr(0750,-,-) %{_sbindir}/oo-accept-systems
 %attr(0750,-,-) %{_sbindir}/oo-stats
+%attr(0750,-,-) %{_sbindir}/oo-quarantine
 
 %{_mandir}/man8/oo-admin-chk.8.gz
 %{_mandir}/man8/oo-admin-clear-pending-ops.8.gz
@@ -88,6 +84,47 @@ cp man/*.8 %{buildroot}%{_mandir}/man8/
 %{_mandir}/man8/oo-stats.8.gz
 
 %changelog
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 1.12.8-1
+- Merge pull request #3248 from danmcp/master
+  (dmcphers+openshiftbot@redhat.com)
+- Admin script cleanup (dmcphers@redhat.com)
+- Remove old logic from oo-admin-upgrade (dmcphers@redhat.com)
+
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 1.12.7-1
+- Merge pull request #3245 from rajatchopra/master
+  (dmcphers+openshiftbot@redhat.com)
+- fix bz990341 (rchopra@redhat.com)
+
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 1.12.6-1
+- oo-admin-ctl-user shouldn't be setting allowed_gear_sizes on domain yet
+  (ccoleman@redhat.com)
+
+* Tue Jul 30 2013 Adam Miller <admiller@redhat.com> 1.12.5-1
+- Merge pull request #3213 from abhgupta/abhgupta-scheduler
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #3219 from tdawson/tdawson/spec-cleanup/2013-07
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #3064 from Miciah/oo-accept-broker-check_selinux_booleans-
+  check-httpd_execmem (dmcphers+openshiftbot@redhat.com)
+- cleanup / fedoraize openshift-origin-node-util.spec (tdawson@redhat.com)
+- Fix for bug 989650, bug 988115, and added additional check in oo-admin-chk
+  (abhgupta@redhat.com)
+- Fix for bug 985496 (abhgupta@redhat.com)
+- oo-accept-broker: check httpd_execmem (miciah.masters@gmail.com)
+
+* Mon Jul 29 2013 Adam Miller <admiller@redhat.com> 1.12.4-1
+- Merge remote-tracking branch 'origin/master' into changes_for_membership
+  (ccoleman@redhat.com)
+- Merge remote-tracking branch 'origin/master' into changes_for_membership
+  (ccoleman@redhat.com)
+- Merge remote-tracking branch 'origin/master' into changes_for_membership
+  (ccoleman@redhat.com)
+- Simplify capabilities to be more model like, and support clean proxying of
+  inherited properties (ccoleman@redhat.com)
+- Support running broker tests directly Force scopes to use checked ids and
+  avoid symbolizing arbitrary strings Use .present? instead of .count > 0 (for
+  performance) Handle ValidationExceptions globally (ccoleman@redhat.com)
+
 * Fri Jul 26 2013 Adam Miller <admiller@redhat.com> 1.12.3-1
 - Merge pull request #3170 from pmorie/dev/upgrade_analysis
   (dmcphers+openshiftbot@redhat.com)

@@ -4,7 +4,7 @@
 
 Summary:       Provides JBossAS7 support
 Name:          openshift-origin-cartridge-jbossas
-Version: 1.5.3
+Version: 1.6.0
 Release:       1%{?dist}
 Group:         Development/Languages
 License:       ASL 2.0
@@ -54,7 +54,9 @@ Provides JBossAS support to OpenShift. (Cartridge Format V2)
 alternatives --install /etc/alternatives/maven-3.0 maven-3.0 /usr/share/java/apache-maven-3.0.3 100
 alternatives --set maven-3.0 /usr/share/java/apache-maven-3.0.3
 
-alternatives --remove jbossas-7 /opt/jboss-as-%{oldjbossver}
+if [ `alternatives --display jbossas-7 | grep jboss-as-%{oldjbossver} | wc -l` -gt 0 ]; then
+  alternatives --remove jbossas-7 /opt/jboss-as-%{oldjbossver}
+fi
 alternatives --install /etc/alternatives/jbossas-7 jbossas-7 /opt/jboss-as-%{jbossver} 102
 alternatives --set jbossas-7 /opt/jboss-as-%{jbossver}
 %endif
@@ -76,9 +78,19 @@ mkdir -p /etc/alternatives/jbossas-7/modules/org/postgresql/jdbc/main
 ln -fs /usr/share/java/postgresql-jdbc3.jar /etc/alternatives/jbossas-7/modules/org/postgresql/jdbc/main
 cp -p %{cartridgedir}/versions/7/modules/postgresql_module.xml /etc/alternatives/jbossas-7/modules/org/postgresql/jdbc/main/module.xml
 
-%posttrans
-%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
+%postun
+# Cleanup alternatives if uninstall only
+# This is run after %post so we do not want to remove if an upgrade
+# Don't uninstall the maven alternative, since it is also used by jbosseap and jbossews carts
+if [ $1 -eq 0 ]; then
+  %if 0%{?rhel}
+    alternatives --remove jbossas-7 /opt/jboss-as-%{jbossver}
+  %endif
 
+  %if 0%{?fedora}
+    alternatives --remove jbossas-7 /usr/share/jboss-as
+  %endif
+fi
 
 %files
 %dir %{cartridgedir}
@@ -92,6 +104,28 @@ cp -p %{cartridgedir}/versions/7/modules/postgresql_module.xml /etc/alternatives
 
 
 %changelog
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 1.5.5-1
+- Merge pull request #3244 from danmcp/master
+  (dmcphers+openshiftbot@redhat.com)
+- Pulled cartridge READMEs into Cartridge Guide (hripps@redhat.com)
+- Bug 975792 (dmcphers@redhat.com)
+- Merge pull request #3235 from detiber/noExplodedWars
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 985514 - Update CartridgeRepository when mcollectived restarted
+  (jhonce@redhat.com)
+- Revert back to not deploying exploded wars by default in JBoss cartridges
+  (jdetiber@redhat.com)
+- Merge pull request #3220 from detiber/bz989765
+  (dmcphers+openshiftbot@redhat.com)
+- Merge pull request #3055 from Miciah/update-CART_DIR-in-standalone.conf
+  (dmcphers+openshiftbot@redhat.com)
+- Bug 989765 - Fix output when old jboss not present in alternatives
+  (jdetiber@redhat.com)
+- Use OPENSHIFT_*_DIR in standalone.conf (miciah.masters@gmail.com)
+
+* Mon Jul 29 2013 Adam Miller <admiller@redhat.com> 1.5.4-1
+- Bug 982738 (dmcphers@redhat.com)
+
 * Fri Jul 26 2013 Adam Miller <admiller@redhat.com> 1.5.3-1
 - JBoss Deployment verification (jdetiber@redhat.com)
 

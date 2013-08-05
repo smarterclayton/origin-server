@@ -9,7 +9,7 @@
 
 Summary:       Provides embedded PostgreSQL support
 Name:          openshift-origin-cartridge-postgresql
-Version: 0.5.3
+Version: 0.6.0
 Release:       1%{?dist}
 Group:         Network/Daemons
 License:       ASL 2.0
@@ -32,10 +32,12 @@ Requires:      %{?scl:%scl_prefix}postgresql-contrib
 Requires:      %{?scl:%scl_prefix}postgresql-plperl
 Requires:      %{?scl:%scl_prefix}postgresql-plpython
 Requires:      %{?scl:%scl_prefix}postgresql-pltcl
+Requires:      postgresql92-postgis
 %endif
 %if 0%{?fedora} >= 19
 Requires:      postgresql >= 9.2
 Requires:      postgresql < 9.3
+Requires:      postgis >= 2
 %endif
 Requires:      postgresql-server
 Requires:      postgresql-libs
@@ -88,9 +90,6 @@ Provides PostgreSQL cartridge support to OpenShift. (Cartridge Format V2)
 %endif
 %__rm %{buildroot}%{cartridgedir}/metadata/manifest.yml.*
 
-%posttrans
-%{_sbindir}/oo-admin-cartridge --action install --source %{cartridgedir}
-
 %files
 %dir %{cartridgedir}
 %attr(0755,-,-) %{cartridgedir}/bin/
@@ -101,6 +100,18 @@ Provides PostgreSQL cartridge support to OpenShift. (Cartridge Format V2)
 %doc %{cartridgedir}/LICENSE
 
 %changelog
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 0.5.6-1
+- Update cartridge versions for Sprint 31 (jhonce@redhat.com)
+- Update cartridge versions for Sprint 31 (jhonce@redhat.com)
+
+* Wed Jul 31 2013 Adam Miller <admiller@redhat.com> 0.5.5-1
+- Pulled cartridge READMEs into Cartridge Guide (hripps@redhat.com)
+- Bug 985514 - Update CartridgeRepository when mcollectived restarted
+  (jhonce@redhat.com)
+
+* Mon Jul 29 2013 Adam Miller <admiller@redhat.com> 0.5.4-1
+- Bug 982738 (dmcphers@redhat.com)
+
 * Fri Jul 26 2013 Adam Miller <admiller@redhat.com> 0.5.3-1
 - Fix bug 981584 (pmorie@gmail.com)
 

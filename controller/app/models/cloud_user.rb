@@ -48,7 +48,7 @@ class CloudUser
   member_as :user
 
   validates :login, presence: true
-  validates :capabilities, presence: true
+  validates :capabilities, presence: true, capabilities: true
 
   scope :with_plan, any_of({:plan_id.ne => nil}, {:pending_plan_id.ne => nil}) 
   index({:login => 1}, {:unique => true})
@@ -161,7 +161,7 @@ class CloudUser
     begin
       user.with(safe: true).save
       Lock.create_lock(user)
-      OpenShift::UserActionLog.action("CREATE_USER", true, "Creating user", 'USER' => user.id, 'LOGIN' => login, 'PROVIDER' => provider)
+      OpenShift::UserActionLog.action("CREATE_USER", nil, true, "Creating user", 'USER' => user.id, 'LOGIN' => login, 'PROVIDER' => provider)
       user
     rescue Moped::Errors::OperationFailure
       user = find_by_identity(nil, login)
@@ -270,6 +270,24 @@ class CloudUser
 
   def allowed_gear_sizes
     capabilities["gear_sizes"]
+  end
+
+  def add_gear_size(gear_size)
+    available_sizes = Rails.configuration.openshift[:gear_sizes]
+    if ! available_sizes.include? gear_size
+      raise Exception.new("Size #{gear_size} is not defined. Defined sizes are: #{available_sizes.join ', '}.")
+    end
+    self.capabilities['gear_sizes'] << gear_size if not self.capabilities['gear_sizes'].include? gear_size
+  end
+
+  def remove_gear_size(gear_size)
+    caps = self.capabilities
+    unless caps["gear_sizes"].include?(gear_size)
+        puts "User #{self.login} does not have gear size #{gear_size} in its capabilities."
+        return
+    end
+
+    caps["gear_sizes"].delete(gear_size)
   end
 
   def max_storage

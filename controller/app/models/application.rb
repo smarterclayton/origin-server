@@ -2297,7 +2297,8 @@ class Application
     #calculate component instances
     component_instances = []
     profiles.each do |data|
-      data[:profile].components.each do |component|
+      profile = (data[:profile].is_a? Array) ? data[:profile].first : data[:profile]
+      profile.components.each do |component|
         component_instances << {
           cartridge: data[:cartridge],
           component: component
@@ -2515,8 +2516,9 @@ class Application
     features.each do |feature|
       cart = CartridgeCache.find_cartridge(feature, self)
       next if cart.categories.include? "web_framework"
-      prof = cart.profile_for_feature(feature)
-      components = prof.components
+      profs = cart.profile_for_feature(feature)
+      profile = (profs.is_a? Array) ? profs.first : profs
+      components = profile.components
       group_overrides += components.map { |comp|
         {
           "components" => [
