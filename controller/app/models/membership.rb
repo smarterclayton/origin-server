@@ -7,6 +7,7 @@ module Membership
   include AccessControlled
 
   included do
+    validate :explicit_members_are_limited
   end
 
   def has_member?(o)
@@ -89,6 +90,13 @@ module Membership
     @members_added.present? || @members_removed.present? || members.any?(&:role_changed?)
   end
 
+  def explicit_members_are_limited
+    max = Rails.configuration.openshift[:max_members_per_resource]
+    if members.target.count(&:explicit_role?) > max
+      errors.add(:members, "You are limited to #{max} members per #{self.class.model_name.humanize.downcase}")
+    end
+  end
+
   protected
     def parent_membership_relation
       relations.values.find{ |r| r.macro == :belongs_to }
@@ -163,7 +171,14 @@ module Membership
     # Overrides AccessControlled#accessible
     #
     def accessible(to)
-      criteria = where(:'members._id' => to.is_a?(String) ? to : to._id)
+      criteria = 
+        if Rails.configuration.openshift[:membership_enabled]
+          where(:'members._id' => to.is_a?(String) ? to : to._id)
+        elsif respond_to? :legacy_accessible
+          legacy_accessible(to)
+        else
+          queryable
+        end
       if to.respond_to?(:scopes) && (scopes = to.scopes)
         criteria = scopes.limit_access(criteria)
       end

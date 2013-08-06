@@ -37,6 +37,10 @@ def register_user(login=nil, password=nil)
   end
 end
 
+class ActiveSupport::TestCase
+  setup{ Mongoid.identity_map_enabled = false }
+end
+
 def stubber
   @container = OpenShift::ApplicationContainerProxy.find_one
   @container.stubs(:reserve_uid).returns(555)

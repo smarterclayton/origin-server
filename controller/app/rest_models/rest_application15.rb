@@ -206,6 +206,7 @@ class RestApplication15 < OpenShift::Model
             OptionalParam.new("private_key", "string", "Private key for the certificate.  Required if adding a certificate"), 
             OptionalParam.new("pass_phrase", "string", "Optional passphrase for the private key")]),
         "LIST_ALIASES" => Link.new("List application aliases", "GET", URI::join(url, "domains/#{@domain_id}/applications/#{@name}/aliases")),
+        "LIST_MEMBERS" => Link.new("List members of this application", "GET", URI::join(url, "domains/#{@domain_id}/applications/#{@name}/members")),
       }
     end
   end

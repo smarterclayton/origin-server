@@ -14,13 +14,15 @@ module RestModelHelper
   # @param [CloudUser] owner of the Domain
   # @return [RestDomain] REST object for API version > 1.0
   # @return [RestDomain10] REST object for API version == 1.0
-  def get_rest_domain(domain)
+  def get_rest_domain(domain, application_info=nil)
     if requested_api_version == 1.0
       RestDomain10.new(domain, get_url, nolinks)
+    elsif requested_api_version <= 1.5
+      RestDomain15.new(domain, get_url, nolinks)
     else
-      RestDomain.new(domain, get_url, nolinks)
+      RestDomain.new(domain, application_info, get_url, nolinks)
     end
-  end
+  end  
 
   def get_rest_application(application, include_cartridges=false, applications=nil)
     if requested_api_version == 1.0

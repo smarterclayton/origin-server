@@ -6,7 +6,7 @@ class EmbCartController < BaseController
   # GET /domains/[domain_id]/applications/[application_id]/cartridges
   def index
     cartridges = get_application_rest_cartridges(@application) 
-    render_success(:ok, "cartridges", cartridges, "Listing cartridges for application #{@application.name} under domain #{@domain.namespace}")
+    render_success(:ok, "cartridges", cartridges, "Listing cartridges for application #{@application.name} under domain #{@application.domain_namespace}")
   end
 
   # GET /domains/[domain_id]/applications/[application_id]/cartridges/[id]
@@ -17,7 +17,7 @@ class EmbCartController < BaseController
     cartname = CartridgeCache.find_cartridge(id, @application).name rescue id
     component_instance = @application.component_instances.find_by(cartridge_name: ComponentInstance.check_name!(cartname))
     cartridge = get_embedded_rest_cartridge(@application, component_instance, @application.group_instances_with_scale, @application.group_overrides, status_messages)
-    render_success(:ok, "cartridge", cartridge, "Showing cartridge #{id} for application #{@application.name} under domain #{@domain.namespace}")
+    render_success(:ok, "cartridge", cartridge, "Showing cartridge #{id} for application #{@application.name} under domain #{@application.domain_namespace}")
   end
 
   # POST /domains/[domain_id]/applications/[application_id]/cartridges
@@ -177,8 +177,8 @@ class EmbCartController < BaseController
       return render_error(:unprocessable_entity, "No update parameters specified.  Valid update parameters are: scales_from, scales_to, additional_gear_storage", 168) 
     end
 
-    authorize! :scale_cartridge, @application unless scales_from.nil? and scales_to.nil?
-    authorize! :change_quota, @application unless additional_storage.nil?
+    authorize!(:scale_cartridge, @application) unless scales_from.nil? and scales_to.nil?
+    authorize!(:change_gear_quota, @application) unless additional_storage.nil?
 
     begin
       additional_storage = Integer(additional_storage) if additional_storage
@@ -235,6 +235,6 @@ class EmbCartController < BaseController
     component_instance = @application.component_instances.find_by(cartridge_name: id)
     cartridge = get_embedded_rest_cartridge(@application, component_instance, @application.group_instances_with_scale, @application.group_overrides)
 
-    render_success(:ok, "cartridge", cartridge, "Showing cartridge #{id} for application #{@application.name} under domain #{@domain.namespace}", result)
+    render_success(:ok, "cartridge", cartridge, "Showing cartridge #{id} for application #{@application.name} under domain #{@application.domain_namespace}", result)
   end
 end

@@ -29,7 +29,7 @@ class ApplicationControllerTest < ActionController::TestCase
     end
   end
   
-  test "app create show list and destory by domain and app name" do
+  test "app create show list and destroy by domain and app name" do
     @app_name = "app#{@random}"
     post :create, {"name" => @app_name, "cartridge" => PHP_VERSION, "domain_id" => @domain.namespace}
     assert_response :created
@@ -45,7 +45,7 @@ class ApplicationControllerTest < ActionController::TestCase
     assert_response :ok
   end
   
-  test "app create show list and destory by app id" do
+  test "app create show list and destroy by app id" do
     @app_name = "app#{@random}"
     post :create, {"name" => @app_name, "cartridge" => PHP_VERSION, "domain_id" => @domain.namespace}
     assert_response :created

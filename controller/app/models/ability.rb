@@ -58,7 +58,7 @@ module Ability
         Role.in?(:edit, role)
 
       when :change_members
-        Role.in?(:manage, role)
+        false
 
       end
 
@@ -67,8 +67,11 @@ module Ability
       when :create_application
         Role.in?(:edit, role)
 
-      when :change_namespace, :change_members
+      when :change_namespace
         Role.in?(:manage, role)
+
+      when :change_members
+        Role.in?(:manage, role) && Rails.configuration.openshift[:membership_enabled]
 
       when :change_gear_sizes, :destroy
         resource.owned_by?(actor_or_id)

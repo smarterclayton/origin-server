@@ -5,14 +5,14 @@ class AliasController < BaseController
 
   def index
     rest_aliases = @application.aliases.map{ |a| get_rest_alias(a) }
-    render_success(:ok, "aliases", rest_aliases, "Listing aliases for application #{@application.name} under domain #{@domain.namespace}")
+    render_success(:ok, "aliases", rest_aliases, "Listing aliases for application #{@application.name} under domain #{@application.domain_namespace}")
   end
   
   def show   
     id = params[:id].downcase if params[:id].presence
 
     al1as = @application.aliases.find_by(fqdn: id)
-    render_success(:ok, "alias", get_rest_alias(al1as), "Showing alias #{id} for application #{@application.name} under domain #{@domain.namespace}")
+    render_success(:ok, "alias", get_rest_alias(al1as), "Showing alias #{id} for application #{@application.name} under domain #{@application.domain_namespace}")
   end
   
 

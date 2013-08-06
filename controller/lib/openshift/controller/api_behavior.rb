@@ -77,6 +77,25 @@ module OpenShift
           raise OpenShift::OOException.new("Invalid value '#{param_value}'. Valid options: [true, false]", 167)
         end
 
+        def get_includes
+          @includes ||=
+            if params[:include].is_a? String
+              params[:include].split(',')
+            elsif params[:include].is_a? Array
+              params[:include].map(&:to_s)
+            else
+              []
+            end
+        end
+
+        def if_included(sym, default=nil, &block)
+          if get_includes.any?{ |i| i == sym.to_s }
+            yield
+          else
+            default
+          end
+        end
+
         def pre_and_post_condition(pre, post, run, fails)
           return false if !pre.call
           run.call
@@ -114,7 +133,7 @@ module OpenShift
 
         def get_application
           domain_id = params[:domain_id].presence || params[:domain_name].presence
-          domain_id = domain_id.to_s if domain_id
+          domain_id = domain_id.to_s.downcase if domain_id
           application_id = params[:application_id].presence || params[:id].presence || params[:application_name].presence || params[:name].presence
           application_id = application_id.to_s if application_id
 

@@ -19,5 +19,4 @@ module AccessControlled
     id = actor_or_id.respond_to?(:_id) ? actor_or_id._id : actor_or_id
     self.owner_id == id
   end
-
 end

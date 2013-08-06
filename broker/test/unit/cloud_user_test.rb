@@ -2,16 +2,6 @@ require File.expand_path('../../test_helper', __FILE__)
 require 'openshift-origin-controller'
 require 'mocha/setup'
 
-module Rails
-  def self.logger
-    l = Mocha::Mock.new("logger")
-    l.stubs(:debug)
-    l.stubs(:info)
-    l.stubs(:add)
-    l
-  end
-end
-
 class CloudUserTest < ActiveSupport::TestCase
   def setup
     #setup test user auth on the mongo db

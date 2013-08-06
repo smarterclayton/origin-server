@@ -23,12 +23,17 @@
 class RestDomain < OpenShift::Model
   attr_accessor :name, :suffix, :members, :allowed_gear_sizes, :creation_time, :links
   
-  def initialize(domain, url, nolinks=false)
+  def initialize(domain, application_info, url, nolinks=false)
     self.name = domain.namespace
     self.suffix = Rails.application.config.openshift[:domain_suffix] 
     self.creation_time = domain.created_at
     self.members = domain.members.map{ |m| RestMember.new(m, domain.owner_id == m._id, url, nolinks) }
     self.allowed_gear_sizes = domain.allowed_gear_sizes
+
+    if application_info.present?
+      @application_count = application_info.length
+      @gear_count = application_info.map{ |i| (i['gears'] || {}).values.sum }.sum
+    end
     
     unless nolinks      
       blacklisted_words = OpenShift::ApplicationContainerProxy.get_blacklisted
@@ -51,7 +56,13 @@ class RestDomain < OpenShift::Model
         ),
         "DELETE" => Link.new("Delete domain", "DELETE", URI::join(url, "domains/#{name}"),nil,[
           OptionalParam.new("force", "boolean", "Force delete domain.  i.e. delete any applications under this domain", [true, false], false)
-        ])
+        ]),
+        "LIST_MEMBERS" => Link.new("List members of this domain", "GET", URI::join(url, "domains/#{name}/members")),
+        "ADD_MEMBER" => Link.new("Add one or more members to this domain", "POST", URI::join(url, "domains/#{name}/members"), 
+          [Param.new("role", "string", "The role the user should have on the domain", Role.all)], 
+          [OptionalParam.new("id", "string", "Unique identifier of the user"),
+          OptionalParam.new("login", "string", "The user's login attribute")]
+        ),
       }
     end
   end

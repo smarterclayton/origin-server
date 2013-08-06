@@ -1,6 +1,6 @@
 ENV["TEST_NAME"] = "functional_domains_controller_test"
 require 'test_helper'
-class DomiansControllerTest < ActionController::TestCase
+class DomainsControllerTest < ActionController::TestCase
   
   def setup
     @controller = DomainsController.new
@@ -27,7 +27,7 @@ class DomiansControllerTest < ActionController::TestCase
     end
   end
   
-  test "domain create show list and destory" do
+  test "domain create show list and destroy" do
     namespace = "ns#{@random}"
     post :create, {"name" => namespace}
     assert_response :created
@@ -83,13 +83,33 @@ class DomiansControllerTest < ActionController::TestCase
     
     #try update to invalid name
     put :update , {"existing_name" => namespace, "name" => "ns#{@random}"}
-    assert_response :unprocessable_entity
+    assert_response :success
     
+    OpenShift::ApplicationContainerProxy.stubs(:max_user_domains).returns(1)
+
     #try more than one domain
     namespace = "ns#{@random}X"
     post :create, {"name" => namespace}
     assert_response :conflict
-    
+  end
+
+  test "user can create multiple domains" do
+    OpenShift::ApplicationContainerProxy.stubs(:max_user_domains).returns(2)
+
+    assert_difference("Domain.count", 1) do
+      post :create, {"name" => "ns1#{@random}"}
+      assert_response :success
+    end
+
+    assert_difference("Domain.count", 1) do
+      post :create, {"name" => "ns2#{@random}"}
+      assert_response :success
+    end
+
+    assert_difference("Domain.count", 0) do
+      post :create, {"name" => "ns3#{@random}"}
+      assert_response :conflict
+    end
   end
   
   test "delete domain with apps" do

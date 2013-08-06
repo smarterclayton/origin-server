@@ -15,12 +15,14 @@ class DomainsController < BaseController
   def index
     domains = 
       case params[:owner]
-      when "@self" then Domain.where(owner: current_user)
-      when nil     then Domain.accessible(current_user)
+      when "@self" then Domain.where(owner: current_user).to_a
+      when nil     then Domain.accessible(current_user).to_a
       else return render_error(:bad_request, "Only @self is supported for the 'owner' argument.") 
       end
 
-    render_success(:ok, "domains", domains.sort_by(&Domain.sort_by_original(current_user)).map{ |d| get_rest_domain(d) })
+    app_info = if_included(:application_info, {}){ Application.in(domain_id: domains.map(&:_id)).with_gear_counts.group_by{ |a| a['domain_id'] }  }
+
+    render_success(:ok, "domains", domains.sort_by(&Domain.sort_by_original(current_user)).map{ |d| get_rest_domain(d, app_info[d._id]) })
   end
 
   # Retuns domain for the current user that match the given parameters.
@@ -32,10 +34,11 @@ class DomainsController < BaseController
   # @param [String] name The name of the domain
   # @return [RestReply<RestDomain>] The requested domain
   def show
-    name = params[:name] || params[:id]
-    name = name.downcase if name.presence
-    get_domain(name)
-    return render_success(:ok, "domain", get_rest_domain(@domain), "Found domain #{@domain.namespace}") if @domain
+    get_domain(params[:name] || params[:id])
+
+    app_info = if_included(:application_info){ Application.where(domain_id: @domain._id).with_gear_counts }
+
+    return render_success(:ok, "domain", get_rest_domain(@domain, app_info), "Found domain #{@domain.namespace}") if @domain
   end
 
   # Create a new domain for the user
@@ -50,7 +53,7 @@ class DomainsController < BaseController
   def create
     authorize! :create_domain, current_user
 
-    namespace = params[:id].downcase if params[:id].presence
+    namespace = (params[:name] || params[:id] || params[:namespace] || '').downcase
     new_gear_sizes = params[:allowed_gear_sizes]
 
     allowed_domains = OpenShift::ApplicationContainerProxy.max_user_domains(current_user)
@@ -65,7 +68,7 @@ class DomainsController < BaseController
              lambda{ domain.save_with_duplicate_check! },
              lambda{ domain.destroy rescue nil }
            )
-      return render_error(:conflict, "You may not have more than #{pluralize(allowed_domains, "domain")}.", 103, "id")
+      return render_error(:conflict, "You may not have more than #{pluralize(allowed_domains, "domain")}.", 103)
     end
 
     render_success(:created, "domain", get_rest_domain(domain), "Created domain with name #{domain.namespace}")
@@ -82,14 +85,14 @@ class DomainsController < BaseController
   # 
   # @return [RestReply<RestDomain>] The updated domain
   def update
-    id = params[:existing_id].presence
+    id = params[:existing_name].presence || params[:existing_id].presence
 
     new_gear_sizes = params[:allowed_gear_sizes]
-    new_namespace = params[:id].presence
+    new_namespace = params[:name] || params[:id]
 
     domain = Domain.accessible(current_user).find_by(canonical_namespace: Domain.check_name!(id).downcase)
 
-    if new_namespace.present?
+    if !new_namespace.nil?
       domain.namespace = new_namespace.downcase
       authorize!(:change_namespace, domain) if domain.namespace_changed?
     end
@@ -140,24 +143,7 @@ class DomainsController < BaseController
   private
     include ActionView::Helpers::TextHelper
 
-  # Creates a new [RestDomain] or [RestDomain10] based on the requested API version.
-  #
-  # @param [Domain] domain The Domain object
-  # @param [CloudUser] owner of the Domain
-  # @return [RestDomain] REST object for API version > 1.0
-  # @return [RestDomain10] REST object for API version == 1.0
-  def get_rest_domain(domain)
-    if requested_api_version == 1.0
-      RestDomain10.new(domain, get_url, nolinks)
-    elsif requested_api_version <= 1.5
-      RestDomain15.new(domain, get_url, nolinks)
-    else
-      RestDomain.new(domain, get_url, nolinks)
+    def set_log_tag
+      @log_tag = get_log_tag_prepend + "DOMAIN"
     end
-  end
-  
-  def set_log_tag
-    @log_tag = get_log_tag_prepend + "DOMAIN"
-  end
-
 end

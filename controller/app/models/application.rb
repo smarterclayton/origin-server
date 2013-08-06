@@ -108,6 +108,27 @@ class Application
   attr_accessor :downloaded_cartridges
   attr_accessor :connections
 
+  #
+  # Return a count of the gears for each application identified by the current query.  Returns
+  # an array of hashes including:
+  #
+  #   '_id': application id
+  #   'domain_id': domain id
+  #   'gears': hash of gear size strings to counts
+  #
+  def self.with_gear_counts
+    only(:_id, :domain_id, :default_gear_size, :"group_instances.gears.uuid", :"group_instances.gear_size").all.query.find.to_a.each do |a| 
+      a['gears'] = (a['group_instances'] || []).inject({}) do |h, i|
+        p = i['gear_size'] || a['default_gear_size']
+        h[p] ||= 0
+        h[p] += i['gears'].length
+        h
+      end
+      a.delete 'group_instances'
+      a.delete 'default_gear_size'
+    end
+  end
+
   validates :name,
     presence: {message: "Application name is required and cannot be blank."},
     format:   {with: APP_NAME_REGEX, message: "Invalid application name. Name must only contain alphanumeric characters."},
@@ -242,10 +263,8 @@ class Application
   # @param app_name [String] The application name
   # @return [Application, nil] The application object or nil if no application matches
   #
-  # FIXME: Remove this call pattern and replace with a differently named scope
   def self.find_by_user(user, app_name)
-    user.domains.each { |d| d.applications.each { |a| return a if a.canonical_name == app_name.downcase } }
-    return nil
+    Application.in(domain: user.domains).where(canonical_name: app_name.downcase).first
   end
 
   ##
@@ -260,6 +279,10 @@ class Application
     gear = app.group_instances.map { |gi| gi.gears.select { |g| g.uuid== obj_id } }.flatten[0]
     return [app, gear]
   end
+
+  def self.legacy_accessible(to)
+    self.in(domain: Domain.legacy_accessible(to).map(&:_id))
+  end  
 
   ##
   # Constructor. Should not be used directly. Use {Application#create_app} instead.

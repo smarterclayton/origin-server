@@ -15,6 +15,14 @@ class AccessControlledTest < ActiveSupport::TestCase
     assert_equal :control, CloudUser.new{ |u| u._id = 'a' }.as_member(:control).role
   end
 
+  def test_member_max
+    Rails.configuration.stubs(:openshift).returns(:gear_sizes => [:small], :max_members_per_resource => 1)
+    d = Domain.new
+    d.add_members('a','b')
+    assert !d.save
+    assert_equal "You are limited to 1 members per domain", d.errors[:members].first, d.errors.to_hash
+  end
+
   def test_member_explicit
     m = Member.new(_id: 'a', role: :read)
     assert_equal :read, m.role

@@ -157,7 +157,7 @@ class RestApplication < OpenShift::Model
 
       self.links = {
         "GET" => Link.new("Get application", "GET", URI::join(url, "applications/#{@id}")),
-        "GET_BY_NAME" => Link.new("Get application by name", "GET", URI::join(url, "domains/#{app.domain.namespace}/applications/#{@name}")),
+        "GET_BY_NAME" => Link.new("Get application by name", "GET", URI::join(url, "domains/#{app.domain_namespace}/applications/#{@name}")),
         "GET_DESCRIPTOR" => Link.new("Get application descriptor", "GET", URI::join(url, "applications/#{@id}/descriptor")),
         #"GET_GEARS" => Link.new("Get application gears", "GET", URI::join(url, "applications/#{@id}/gears")),
         "GET_GEAR_GROUPS" => Link.new("Get application gear groups", "GET", URI::join(url, "applications/#{@id}/gear_groups")),
@@ -207,6 +207,7 @@ class RestApplication < OpenShift::Model
             OptionalParam.new("private_key", "string", "Private key for the certificate.  Required if adding a certificate"), 
             OptionalParam.new("pass_phrase", "string", "Optional passphrase for the private key")]),
         "LIST_ALIASES" => Link.new("List application aliases", "GET", URI::join(url, "applications/#{@id}/aliases")),
+        "LIST_MEMBERS" => Link.new("List members of this application", "GET", URI::join(url, "applications/#{@id}/members")),
       }
     end
   end

@@ -63,7 +63,7 @@ module OpenShift
             status = :unprocessable_entity
             field_map = 
               case ex.document
-              when Domain then {"namespace" => "id"}
+              when Domain then requested_api_version <= 1.5 ? {"namespace" => "id"} : {"namespace" => "name"}
               end
             messages = get_error_messages(ex.document, field_map || {})
             return render_error(:unprocessable_entity, nil, nil, nil, nil, messages)
