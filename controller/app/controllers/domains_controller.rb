@@ -102,7 +102,7 @@ class DomainsController < BaseController
       authorize!(:change_gear_sizes, domain) if domain.allowed_gear_sizes_changed?
     end
 
-    return render_error(:unprocessable_entity, "No changes specified to the domain.") unless domain.changed?
+    return render_error(:unprocessable_entity, "No changes specified to the domain.", 106) unless domain.changed?
 
     domain.save_with_duplicate_check!
     

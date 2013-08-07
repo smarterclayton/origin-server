@@ -144,7 +144,7 @@ module OpenShift
               domain_id = Domain.check_name!(domain_id).downcase
               begin
                 Application.accessible(current_user).find_by(domain_namespace: domain_id, canonical_name: Application.check_name!(application_id).downcase)
-              rescue Mongoid::DocumentNotFound
+              rescue Mongoid::Errors::DocumentNotFound
                 # ensure a domain not found exception is raised
                 Domain.accessible(current_user).find_by(canonical_namespace: domain_id)
                 raise

@@ -5,9 +5,9 @@ class Member
   # The ID this member refers to.
   field :_id, :as => :_id, type: Moped::BSON::ObjectId, default: -> { nil }
   # The type of this member.  All members are currently CloudUsers
-  field :_type, :as => :t, type: String, default: ->{ self.class.name if hereditary? }
+  field :_type, type: String, default: ->{ self.class.name if hereditary? }
   # The name of this member, denormalized
-  field :name,  :as => :n, type: String
+  field :n,  :as => :name, type: String
   #
   # An array of implicit grants, where each grant is an array of uniquely 
   # distinguishing elements ending with the role granted to the member.
@@ -21,13 +21,13 @@ class Member
   # from the domain (singleton) and from a team with id 345.  The team 345 must itself 
   # be listed as a member of this resource.
   #
-  field :from,  :as => :f, type: Array
+  field :f,  :as => :from, type: Array
   # A role for the member on this resource
-  field :role,  :as => :r, type: Symbol
+  field :r,  :as => :role, type: Symbol
   # When multiple grants are present, this value stores the role assigned to the 
   # member directly on this resource (vs the value of the role inherited by an
   # implicit grant.
-  field :explicit_role, :as => :e, type: Symbol
+  field :e, :as => :explicit_role, type: Symbol
 
   attr_accessible :_id, :role
 
@@ -92,7 +92,7 @@ class Member
         from.delete_if{ |f| f[0...-1] == source }
       end
       if from.blank?
-        if attributes['explicit_role']
+        if self.e
           self.role = explicit_role
           self.explicit_role = nil
           false

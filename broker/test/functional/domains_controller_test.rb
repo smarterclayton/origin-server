@@ -81,9 +81,9 @@ class DomainsControllerTest < ActionController::TestCase
     post :create, {"name" => namespace}
     assert_response :unprocessable_entity
     
-    #try update to invalid name
+    # update to the same name, must provide at least one change
     put :update , {"existing_name" => namespace, "name" => "ns#{@random}"}
-    assert_response :success
+    assert_response :unprocessable_entity
     
     OpenShift::ApplicationContainerProxy.stubs(:max_user_domains).returns(1)
 

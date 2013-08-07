@@ -54,7 +54,6 @@ class AccessControlledTest < ActiveSupport::TestCase
     assert m.explicit_role?
     assert_equal :read, m.explicit_role
 
-    $g = 1
     assert !m.remove_grant(:domain)
     assert_equal :read, m.role
     assert m.from.blank?
