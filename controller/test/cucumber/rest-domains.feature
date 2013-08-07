@@ -292,7 +292,7 @@ Feature: domains
     When I send a POST request to "/domains" with the following:"name=api<random>"
     Then the response should be "201"
     When I send a POST request to "/domains" with the following:"name=api<random>"
-    Then the response should be "422"
+    Then the response should be "409"
     And the error message should have "field=name&severity=error&exit_code=103"
     
     Scenarios:

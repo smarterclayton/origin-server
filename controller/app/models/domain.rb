@@ -27,7 +27,7 @@ class Domain
     end
     name
   end
-  
+
   include Mongoid::Document
   include Mongoid::Timestamps
   include Membership
@@ -46,7 +46,7 @@ class Domain
   index({:canonical_namespace => 1}, {:unique => true})
   index({:owner_id => 1})
   create_indexes
-  
+
   validates :namespace,
     #presence: {message: "Namespace is required and cannot be blank."},
     format:   {with: DOMAIN_NAME_REGEX, message: "Invalid namespace. Namespace must only contain alphanumeric characters.", allow_blank: true},
@@ -88,6 +88,13 @@ class Domain
     end
   end
 
+  # Setter for domain namespace - sets the namespace and the canonical_namespace
+  def namespace=(domain_name)
+    self.canonical_namespace = domain_name.downcase
+    super
+  end
+
+
   # Invoke save! with a rescue for a duplicate exception
   #
   # == Returns:
@@ -106,7 +113,7 @@ class Domain
   def self.legacy_accessible(to)
     to.respond_to?(:domains) ? to.domains : where(owner: to)
   end
-  
+
   def add_system_ssh_keys(ssh_keys)
     keys_attrs = ssh_keys.map{|k| k.attributes.dup}
     pending_op = PendingDomainOps.new(op_type: :add_domain_ssh_keys, arguments: { "keys_attrs" => keys_attrs }, on_apps: applications, created_at: Time.now, state: "init")
@@ -162,7 +169,7 @@ class Domain
     begin
       while self.pending_ops.where(state: "init").count > 0
         op = self.pending_ops.where(state: "init").first
-        
+
         # store the op._id to load it later after a reload
         # this is required to prevent a reload from replacing it with another one based on position
         op_id = op._id
@@ -170,7 +177,7 @@ class Domain
         # try to do an update on the pending_op state and continue ONLY if successful
         op_index = self.pending_ops.index(op) 
         retval = Domain.where({ "_id" => self._id, "pending_ops.#{op_index}._id" => op._id, "pending_ops.#{op_index}.state" => "init" }).update({"$set" => { "pending_ops.#{op_index}.state" => "queued" }})
-        
+
         unless retval["updatedExisting"]
           self.reload
           next
@@ -206,7 +213,7 @@ class Domain
         # hence, reloading the domain, and then fetching the op using the op_id stored earlier
         self.reload
         op = self.pending_ops.find_by(_id: op_id)
-        
+
         op.close_op
         op.delete if op.completed?
       end

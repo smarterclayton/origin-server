@@ -137,8 +137,19 @@ module OpenShift
           application_id = params[:application_id].presence || params[:id].presence || params[:application_name].presence || params[:name].presence
           application_id = application_id.to_s if application_id
 
-          by = domain_id.nil? ? {uuid: application_id} : {domain_namespace: domain_id, canonical_name: Application.check_name!(application_id).downcase}
-          @application = Application.accessible(current_user).find_by(by)
+          @application = 
+            if domain_id.nil? 
+              Application.accessible(current_user).find_by(uuid: application_id)
+            else 
+              domain_id = Domain.check_name!(domain_id).downcase
+              begin
+                Application.accessible(current_user).find_by(domain_namespace: domain_id, canonical_name: Application.check_name!(application_id).downcase)
+              rescue Mongoid::DocumentNotFound
+                # ensure a domain not found exception is raised
+                Domain.accessible(current_user).find_by(canonical_namespace: domain_id)
+                raise
+              end
+            end
         end
         
         def authorize!(permission, resource, *resources)

@@ -102,6 +102,8 @@ class DomainsController < BaseController
       authorize!(:change_gear_sizes, domain) if domain.allowed_gear_sizes_changed?
     end
 
+    return render_error(:unprocessable_entity, "No changes specified to the domain.") unless domain.changed?
+
     domain.save_with_duplicate_check!
     
     render_success(:ok, "domain", get_rest_domain(domain), "Updated domain #{domain.namespace}", domain)
