@@ -22,7 +22,13 @@ class Scope::Application < Scope::Parameterized
     when :scale 
       resource === Application && :scale_cartridge == permission
     when :build 
-      resource === Application && :create_builder_application == permission
+      return false unless resource === Domain && :create_builder_application == permission && other_resources[0]
+      params = other_resources[0]
+      app = Application.find(id)
+      framework = app.requires(true).each{ |feature| cart = CartridgeCache.find_cartridge(feature, app); break cart if cart.categories.include? 'web_framework' }
+      if framework && [framework.name] == params[:cartridges] && app.domain_id === params[:domain_id]
+        true
+      end
     end
   end
 

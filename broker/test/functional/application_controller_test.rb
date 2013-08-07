@@ -66,6 +66,26 @@ class ApplicationControllerTest < ActionController::TestCase
     assert_response :ok
   end
   
+  test "attempt to create with only build scope" do
+    @app_name = "app#{@random}"
+    post :create, {"name" => @app_name, "cartridge" => PHP_VERSION, "domain_id" => @domain.namespace}
+    assert_response :created
+    app = assigns(:application)
+
+    CloudUser.any_instance.stubs(:scopes).returns(Scope::Scopes.new << Scope::Application.new(:id => app._id, :app_scope => :build))
+
+    # prohibits non matching cartridges
+    @app_name = "appx#{@random}"
+    post :create, {"name" => @app_name, "cartridge" => RUBY_VERSION, "domain_id" => @domain.namespace}
+    assert_response :forbidden
+
+    # allows creation of the same builder type
+    @app_name = "appx#{@random}"
+    post :create, {"name" => @app_name, "cartridge" => PHP_VERSION, "domain_id" => @domain.namespace}
+    $g = 1
+    assert_response :created    
+  end
+
   test "invalid or empty app name or id" do
     # no name
     post :create, {"domain_id" => @domain.namespace}

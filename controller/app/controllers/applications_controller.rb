@@ -50,7 +50,6 @@ class ApplicationsController < BaseController
   #
   # @return [RestReply<RestApplication>] Application object
   def create
-    authorize! :create_application, @domain
 
     app_name = params[:name].downcase if params[:name].presence
     features = []
@@ -76,11 +75,24 @@ class ApplicationsController < BaseController
 
     default_gear_size = params[:gear_size].presence || params[:gear_profile].presence || Rails.application.config.openshift[:default_gear_size]
     default_gear_size.downcase! if default_gear_size
+    valid_sizes = OpenShift::ApplicationContainerProxy.valid_gear_sizes & @domain.allowed_gear_sizes & @domain.owner.allowed_gear_sizes
+
+    if not authorized?(:create_application, @domain)
+      if authorized?(:create_builder_application, @domain, {
+            :cartridges => cart_params, 
+            :gear_size => default_gear_size, 
+            :valid_gear_sizes => valid_sizes,
+            :domain_id => @domain._id
+          })
+        # record this as a builder
+      else
+        authorize! :create_application, @domain # raise the proper error
+      end
+    end
 
     return render_error(:unprocessable_entity, "Application name is required and cannot be blank",
                         105, "name") if !app_name or app_name.empty?
 
-    valid_sizes = OpenShift::ApplicationContainerProxy.valid_gear_sizes & @domain.allowed_gear_sizes & @domain.owner.allowed_gear_sizes
     return render_error(:unprocessable_entity, "Invalid size: #{default_gear_size}. Acceptable values are: #{valid_sizes.join(",")}",
                         134, "gear_profile") if default_gear_size and !valid_sizes.include?(default_gear_size)
 

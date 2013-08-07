@@ -15,7 +15,7 @@ module Ability
     end
 
     role = resource.role_for(actor_or_id) if resource.respond_to?(:role_for)
-    if has_permission?(actor_or_id, permission, type, role, resource) != true
+    if has_permission?(actor_or_id, permission, type, role, resource, *resources) != true
       raise OpenShift::OperationForbidden, "You are not permitted to perform this action (#{permission} on #{type.to_s.underscore.humanize.downcase})"
     end
 
@@ -29,7 +29,7 @@ module Ability
     type = class_for_resource(resource) or return false
     return false unless actor_or_id
     permissions = Array(permissions)
-    return permissions.any?{ |p| !scopes.authorize_action?(p, resource, actor_or_id, resources) } if scopes.present? 
+    return false if scopes.nil? || !permissions.any?{ |p| scopes.authorize_action?(p, resource, resources, actor_or_id) }
     role = resource.role_for(actor_or_id) if resource.respond_to?(:role_for)
     permissions.any?{ |p| has_permission?(actor_or_id, p, type, role, resource) == true }
   end
@@ -38,7 +38,7 @@ module Ability
   # Does the active have a specific permission on a given resource.  Bypasses scope checking, so only use
   # when scopes are not relevant.
   #
-  def self.has_permission?(actor_or_id, permission, type, role, resource)
+  def self.has_permission?(actor_or_id, permission, type, role, resource, *resources)
     if Application <= type
       case permission
 
