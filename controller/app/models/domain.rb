@@ -41,7 +41,7 @@ class Domain
   has_many :applications, class_name: Application.name, dependent: :restrict
   embeds_many :pending_ops, class_name: PendingDomainOps.name
   
-  has_members default_role: :manage
+  has_members default_role: :admin
 
   index({:canonical_namespace => 1}, {:unique => true})
   index({:owner_id => 1})

@@ -13,10 +13,6 @@ module Role
     end
   end
 
-  def self.allows_application_ssh?(given)
-    in?(:edit, given)
-  end
-
   def self.higher_of(*args)
     ROLES[args.map{ |r| ROLES.index(r) }.compact.max]
   end
@@ -26,5 +22,5 @@ module Role
   end
 
   private
-    ROLES = [:read, :control, :edit, :manage].freeze
+    ROLES = [:view, :edit, :admin].freeze
 end

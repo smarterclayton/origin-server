@@ -12,7 +12,7 @@ class AccessControlledTest < ActiveSupport::TestCase
     assert_equal Member.new(_id: 'a'), CloudUser.new{ |u| u._id = 'a' }
     assert CloudUser.new{ |u| u._id = 'a' } != Member.new(_id: 'a')
 
-    assert_equal :control, CloudUser.new{ |u| u._id = 'a' }.as_member(:control).role
+    assert_equal :edit, CloudUser.new{ |u| u._id = 'a' }.as_member(:edit).role
   end
 
   def test_member_max
@@ -24,58 +24,58 @@ class AccessControlledTest < ActiveSupport::TestCase
   end
 
   def test_member_explicit
-    m = Member.new(_id: 'a', role: :read)
-    assert_equal :read, m.role
+    m = Member.new(_id: 'a', role: :view)
+    assert_equal :view, m.role
     assert m.explicit_role?
-    assert_equal :read, m.explicit_role
+    assert_equal :view, m.explicit_role
 
-    m = Member.new(_id: 'a', role: :read){ |m| m.explicit_role = :manage }
-    assert_equal :read, m.role
+    m = Member.new(_id: 'a', role: :view){ |m| m.explicit_role = :admin }
+    assert_equal :view, m.role
     assert m.explicit_role?
-    assert_equal :manage, m.explicit_role
+    assert_equal :admin, m.explicit_role
 
-    m = Member.new(_id: 'a', role: :read){ |m| m.from = [['domain', :read]]; m.explicit_role = :manage }
-    assert_equal :read, m.role
+    m = Member.new(_id: 'a', role: :view){ |m| m.from = [['domain', :view]]; m.explicit_role = :admin }
+    assert_equal :view, m.role
     assert m.explicit_role?
-    assert_equal :manage, m.explicit_role
+    assert_equal :admin, m.explicit_role
 
-    m = Member.new(_id: 'a', role: :read){ |m| m.from = [['domain', :read]] }
-    assert_equal :read, m.role
+    m = Member.new(_id: 'a', role: :view){ |m| m.from = [['domain', :view]] }
+    assert_equal :view, m.role
     assert !m.explicit_role?
     assert_nil m.explicit_role
   end
 
   def test_member_merge_implicit
-    m = Member.new(_id: 'a', role: :read)
-    assert_equal :read, m.role
-    assert_same m, m.merge(Member.new(role: :manage){ |m| m.from = [['domain', :manage]] })
-    assert_equal :manage, m.role
-    assert_equal [['domain', :manage]], m.from
+    m = Member.new(_id: 'a', role: :view)
+    assert_equal :view, m.role
+    assert_same m, m.merge(Member.new(role: :admin){ |m| m.from = [['domain', :admin]] })
+    assert_equal :admin, m.role
+    assert_equal [['domain', :admin]], m.from
     assert m.explicit_role?
-    assert_equal :read, m.explicit_role
+    assert_equal :view, m.explicit_role
 
     assert !m.remove_grant(:domain)
-    assert_equal :read, m.role
+    assert_equal :view, m.role
     assert m.from.blank?
     assert m.explicit_role?
-    assert_equal :read, m.explicit_role
+    assert_equal :view, m.explicit_role
 
     assert m.remove_grant
     assert m.remove_grant
   end
 
   def test_member_merge_explicit
-    m = Member.new(_id: 'a', role: :manage){ |m| m.from = [['domain', :manage]] }
-    assert_equal :manage, m.role
-    assert_same m, m.merge(Member.new(role: :read))
-    assert_equal :manage, m.role
-    assert_equal [['domain', :manage]], m.from
+    m = Member.new(_id: 'a', role: :admin){ |m| m.from = [['domain', :admin]] }
+    assert_equal :admin, m.role
+    assert_same m, m.merge(Member.new(role: :view))
+    assert_equal :admin, m.role
+    assert_equal [['domain', :admin]], m.from
     assert m.explicit_role?
-    assert_equal :read, m.explicit_role
+    assert_equal :view, m.explicit_role
 
     assert !m.remove_grant
-    assert_equal :manage, m.role
-    assert_equal [['domain', :manage]], m.from
+    assert_equal :admin, m.role
+    assert_equal [['domain', :admin]], m.from
     assert !m.explicit_role?
     assert_nil m.explicit_role
 
@@ -107,22 +107,22 @@ class AccessControlledTest < ActiveSupport::TestCase
     d.add_members('other', [:owner])
     assert_equal 2, d.members.length
     assert_equal 'other', d.members.last._id
-    assert_equal [['owner', :manage]], d.members.last.from
+    assert_equal [['owner', :admin]], d.members.last.from
     assert !d.members.last.explicit_role?
 
     d.add_members('other', :edit)
     assert_equal 2, d.members.length
     m = d.members.last
     assert_equal 'other', m._id
-    assert_equal [['owner', :manage]], m.from
+    assert_equal [['owner', :admin]], m.from
     assert m.explicit_role?
     assert_equal :edit, m.explicit_role
-    assert_equal :manage, m.role
+    assert_equal :admin, m.role
 
     d.remove_members('other')
     assert_equal 2, d.members.length
     assert_equal 'other', d.members.last._id
-    assert_equal [['owner', :manage]], d.members.last.from
+    assert_equal [['owner', :admin]], d.members.last.from
     assert !d.members.last.explicit_role?
 
     d.remove_members('other', [:domain])
@@ -173,28 +173,28 @@ class AccessControlledTest < ActiveSupport::TestCase
     assert CloudUser.accessible(u).count > 0
     assert Authorization.accessible(u).count > 0
 
-    u.scopes = Scope.list!("application/#{a._id}/read")
+    u.scopes = Scope.list!("application/#{a._id}/view")
     assert_equal [a._id], Application.accessible(u).map(&:_id)
     assert_equal [d._id], Domain.accessible(u).map(&:_id)
     assert CloudUser.accessible(u).empty?
     assert Authorization.accessible(u).empty?
 
-    u.scopes = Scope.list!("application/#{a2._id}/read")
+    u.scopes = Scope.list!("application/#{a2._id}/view")
     assert_equal [d2._id], Domain.accessible(u).map(&:_id)
 
-    u.scopes = Scope.list!("application/#{Moped::BSON::ObjectId.new}/read")
+    u.scopes = Scope.list!("application/#{Moped::BSON::ObjectId.new}/view")
     assert Application.accessible(u).empty?
     assert_raises(Mongoid::Errors::DocumentNotFound){ Domain.accessible(u).empty? }
     assert CloudUser.accessible(u).empty?
     assert Authorization.accessible(u).empty?
 
-    u.scopes = Scope.list!("domain/#{d._id}/read")
+    u.scopes = Scope.list!("domain/#{d._id}/view")
     assert_equal [a._id], Application.accessible(u).map(&:_id)
     assert_equal [d._id], Domain.accessible(u).map(&:_id)
     assert CloudUser.accessible(u).empty?
     assert Authorization.accessible(u).empty?
 
-    u.scopes = Scope.list!("domain/#{d2._id}/read")
+    u.scopes = Scope.list!("domain/#{d2._id}/view")
     assert_equal [a2._id], Application.accessible(u).map(&:_id)
     assert_equal [d2._id], Domain.accessible(u).map(&:_id)
     assert CloudUser.accessible(u).empty?
@@ -232,7 +232,7 @@ class AccessControlledTest < ActiveSupport::TestCase
     assert_equal 1, d2.pending_ops.length
     assert op = d2.pending_ops.last
     assert_equal :change_members, op.op_type
-    assert_equal [[u._id, :manage, nil, "propagate_test"]], op.args['added']
+    assert_equal [[u._id, :admin, nil, "propagate_test"]], op.args['added']
     assert_nil op.args['removed']
 
     d.run_jobs
@@ -269,13 +269,13 @@ class AccessControlledTest < ActiveSupport::TestCase
 
     assert d = Domain.create(:namespace => 'test', :owner => u)
     assert_equal [Member.new(_id: u._id)], d.members
-    assert_equal [['owner', :manage]], d.members.first.from
+    assert_equal [['owner', :admin]], d.members.first.from
     assert d.members.first.valid?
     assert_equal Domain.default_role, d.members.first.role
 
     assert a = Application.create(:name => 'propagatetest', :domain => d)
     assert_equal [Member.new(_id: u._id)], d.members
-    assert_equal [['domain', :manage]], d.members.first.from
+    assert_equal [['domain', :admin]], d.members.first.from
     assert_equal Application.default_role, a.members.first.role
 
     assert     Application.accessible(u).first
@@ -304,11 +304,11 @@ class AccessControlledTest < ActiveSupport::TestCase
     assert jobs = d.applications.first.pending_op_groups
     assert jobs.length == 1
     assert_equal :change_members, jobs.first.op_type
-    assert_equal [[u2._id, :manage, nil, 'propagate_test_2'], [u3._id, :manage, nil, 'propagate_test_3']], jobs.last.args['added']
+    assert_equal [[u2._id, :admin, nil, 'propagate_test_2'], [u3._id, :admin, nil, 'propagate_test_3']], jobs.last.args['added']
 
     a = d.applications.first
     assert_equal 3, (a.members & d.members).length
-    a.members.each{ |m| assert_equal [['domain', :manage]], m.from }
+    a.members.each{ |m| assert_equal [['domain', :admin]], m.from }
     assert a.members[1].explicit_role?
 
     assert d.pending_ops.empty?

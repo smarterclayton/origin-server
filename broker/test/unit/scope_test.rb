@@ -136,9 +136,18 @@ class ScopeTest < ActiveSupport::TestCase
   test 'application describe' do
     # scopes are currently empty
     assert_present s = Scope::Application.describe[0]
-    assert_equal 'application/:id/read', s[0]
+    assert_equal 'application/:id/view', s[0]
     assert s[1] =~ /Grant read-only/
     assert s[2].is_a? Numeric
     assert s[3].is_a? Numeric
   end
+
+  test 'domain describe' do
+    # scopes are currently empty
+    assert_present s = Scope::Domain.describe[0]
+    assert_equal 'domain/:id/view', s[0]
+    assert s[1] =~ /Grant read-only/
+    assert s[2].is_a? Numeric
+    assert s[3].is_a? Numeric
+  end  
 end

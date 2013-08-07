@@ -3,20 +3,23 @@ class Scope::Domain < Scope::Parameterized
   description "Grant access to perform API actions against a single domain and the contained applications."
 
   DOMAIN_SCOPES = {
-    :read => 'Grant read-only access to a single domain.',
-    :manage => 'Allow managing the domain.',
+    :view => 'Grant read-only access to a single domain.',
+    :admin => 'Allow full access to the domain.',
   }.freeze
 
   def allows_action?(controller)
     case domain_scope
-    when :read then controller.request.method == "GET"
-    else true
+    when :view 
+      controller.request.method == "GET"
+    else 
+      true
     end
   end
 
   def authorize_action?(permission, resource, other_resources, user)
     case domain_scope
-    when :manage then Domain === resource || Application === resource
+    when :admin 
+      Domain === resource || Application === resource
     end
   end
 

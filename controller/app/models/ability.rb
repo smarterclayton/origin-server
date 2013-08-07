@@ -41,14 +41,13 @@ module Ability
   def self.has_permission?(actor_or_id, permission, type, role, resource)
     if Application <= type
       case permission
+
       when :change_state, 
            :change_cartridge_state,
            :scale_cartridge,
            :view_code_details,
-           :change_gear_quota
-        Role.in?(:control, role)
-
-      when :destroy,
+           :change_gear_quota,
+           :destroy,
            :create_cartridge, 
            :destroy_cartridge,
            :create_alias,
@@ -64,14 +63,15 @@ module Ability
 
     elsif Domain <= type
       case permission
-      when :create_application
+      when :create_application,
+           :create_builder_application
         Role.in?(:edit, role)
 
       when :change_namespace
-        Role.in?(:manage, role)
+        Role.in?(:admin, role)
 
       when :change_members
-        Role.in?(:manage, role) && Rails.configuration.openshift[:membership_enabled]
+        Role.in?(:admin, role) && Rails.configuration.openshift[:membership_enabled]
 
       when :change_gear_sizes, :destroy
         resource.owned_by?(actor_or_id)

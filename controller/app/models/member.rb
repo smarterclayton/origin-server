@@ -13,8 +13,8 @@ class Member
   # distinguishing elements ending with the role granted to the member.
   # 
   # e.g.: [
-  #   ['domain', :read],
-  #   ['team', '345', :manage],
+  #   ['domain', :view],
+  #   ['team', '345', :admin],
   # ]
   #
   # indicates the current member has an implicit role (denormalized) on this resource

@@ -97,7 +97,7 @@ class Application
   embeds_many :app_ssh_keys, class_name: ApplicationSshKey.name
   embeds_many :aliases, class_name: Alias.name
 
-  has_members through: :domain, default_role: :manage
+  has_members through: :domain, default_role: :admin
 
   index({'group_instances.gears.uuid' => 1}, {:unique => true, :sparse => true})
   index({'domain_id' => 1})

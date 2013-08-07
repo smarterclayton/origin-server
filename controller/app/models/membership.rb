@@ -164,7 +164,7 @@ module Membership
           relations[through]
         end
       end
-      self.default_role = opts[:default_role] || :read
+      self.default_role = opts[:default_role] || :view
     end
 
     #
