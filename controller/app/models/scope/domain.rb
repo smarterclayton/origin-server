@@ -3,9 +3,9 @@ class Scope::Domain < Scope::Parameterized
   description "Grant access to perform API actions against a single domain and the contained applications."
 
   DOMAIN_SCOPES = {
-    :admin => 'Grant full administrative access to a single domain and all its applications.',
-    :edit => 'Grant edit access to a single domain and all its applications.',
     :view => 'Grant read-only access to a single domain.',
+    :edit => 'Grant edit access to a single domain and all its applications.',
+    :admin => 'Grant full administrative access to a single domain and all its applications.',
   }.freeze
 
   def allows_action?(controller)

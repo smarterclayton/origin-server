@@ -3,11 +3,11 @@ class Scope::Application < Scope::Parameterized
   description "Grant access to perform API actions against a single application."
 
   APP_SCOPES = {
-    :admin => 'Grant full administrative access to a single application.',
-    :edit => 'Grant edit access to a single application.',
-    :build => nil,
-    :scale => nil,
     :view => 'Grant read-only access to a single application.',
+    :scale => nil,
+    :build => nil,
+    :edit => 'Grant edit access to a single application.',
+    :admin => 'Grant full administrative access to a single application.',
   }.freeze
 
   def allows_action?(controller)
