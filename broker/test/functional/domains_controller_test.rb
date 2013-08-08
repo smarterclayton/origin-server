@@ -1,9 +1,9 @@
 ENV["TEST_NAME"] = "functional_domains_controller_test"
-require 'test_helper'
+require_relative '../test_helper'
 class DomainsControllerTest < ActionController::TestCase
   
   def setup
-    @controller = DomainsController.new
+    @controller = allow_multiple_execution(DomainsController.new)
     
     @random = rand(1000000000)
     @login = "user#{@random}"
@@ -17,7 +17,6 @@ class DomainsControllerTest < ActionController::TestCase
     @request.env['HTTP_AUTHORIZATION'] = "Basic " + Base64.encode64("#{@login}:#{@password}")
     @request.env['HTTP_ACCEPT'] = "application/json"
     stubber
-
   end
   
   def teardown
@@ -35,8 +34,17 @@ class DomainsControllerTest < ActionController::TestCase
     get :show, {"name" => namespace}
     assert_response :success
     assert json = JSON.parse(response.body)
+    assert_nil json['data']['application_count']
+    assert_nil json['data']['gear_counts']
     assert link = json['data']['links']['ADD_APPLICATION']
     assert_equal Rails.configuration.openshift[:download_cartridges_enabled], link['optional_params'].one?{ |p| p['name'] == 'cartridges[][url]' }
+
+    get :show, {"name" => namespace, "include" => 'application_info'}
+    assert_response :success
+    assert json = JSON.parse(response.body)
+    assert_equal 0, json['data']['application_count']
+    assert (gears = json['data']['gear_counts']).is_a?(Hash)
+    assert gears.empty?
 
     get :index , {}
     assert_response :success
@@ -136,7 +144,15 @@ class DomainsControllerTest < ActionController::TestCase
     app_name = "app#{@random}"
     app = Application.create_app(app_name, [PHP_VERSION], domain)
     app.save
-    
+
+    get :show, {"name" => namespace, "include" => 'application_info'}
+    assert_response :success
+    assert json = JSON.parse(response.body)
+    assert_equal 1, json['data']['application_count']
+    assert (gears = json['data']['gear_counts']).is_a?(Hash)
+    assert_equal 1, gears['small']
+
+
     new_namespace = "xns#{@random}"
     put :update, {"existing_name" => namespace, "name" => new_namespace}
     assert_response :unprocessable_entity

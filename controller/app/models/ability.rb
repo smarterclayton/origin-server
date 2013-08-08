@@ -1,3 +1,17 @@
+#
+# Abstracts all mapping of permissions to individual resources for OpenShift.  A
+# permission is a specific action that a user can take - for most resources the 
+# permission is granted either because of the role the user has on the resource,
+# or due to a specific ownership relation.
+#
+# Roles are defined as being a set of strictly increasing permissions on a 
+# particular resource - having a higher role entitles you to all permissions
+# of the lower role.
+#
+# The permissions a user has at any time on a resource may be limited by the
+# set of scopes they are operating under (used by authorization tokens) so that
+# delegated authority can be granted.
+#
 module Ability
 
   #
@@ -37,6 +51,10 @@ module Ability
   #
   # Does the active have a specific permission on a given resource.  Bypasses scope checking, so only use
   # when scopes are not relevant.
+  #
+  # NOTE: When adding new permissions, be sure to add those to the appropriate scopes as well.  By default
+  #       all scopes will whitelist the allowed permissions, which means that new permissions are not
+  #       automatically inherited.
   #
   def self.has_permission?(actor_or_id, permission, type, role, resource, *resources)
     if Application <= type

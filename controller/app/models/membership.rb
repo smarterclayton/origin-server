@@ -123,11 +123,11 @@ module Membership
     def change_member_roles(changed_roles, source)
       changed_roles.each do |arr|
         if m = members.detect{ |m| m._id == arr.first }
-          m.update_grant(arr.last.last, source)
+          m.update_grant(arr.last, source)
         end
       end
       self
-    end    
+    end
 
     # FIXME create a standard pending operations model mixin that uniformly handles queueing on all type
     def queue_op(op, args)

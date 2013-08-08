@@ -84,7 +84,7 @@ class ApplicationsController < BaseController
             :valid_gear_sizes => valid_sizes,
             :domain_id => @domain._id
           })
-        # record this as a builder
+        # TODO: record this as a builder
       else
         authorize! :create_application, @domain # raise the proper error
       end

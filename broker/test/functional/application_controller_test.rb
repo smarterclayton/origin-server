@@ -66,6 +66,35 @@ class ApplicationControllerTest < ActionController::TestCase
     assert_response :ok
   end
   
+  test "attempt to create without create_application permission" do
+    @app_name = "app#{@random}"
+    scopes = Scope::Scopes.new
+    CloudUser.any_instance.stubs(:scopes).returns(scopes << Scope::Read.new)
+    post :create, {"name" => @app_name, "cartridge" => PHP_VERSION, "domain_id" => @domain.namespace}
+    assert_response :forbidden
+
+    @app_name = "app#{@random}"
+    scope = Scope::Session.new
+    scope.expects(:authorize_action?).at_least(3).returns(false)
+    scopes.clear << scope
+
+    post :create, {"name" => @app_name, "cartridge" => PHP_VERSION, "domain_id" => @domain.namespace}
+    assert_response :forbidden
+
+    scopes.clear << Scope::Session.new
+    @domain.members.find(@user).role = :view
+    @domain.save; @domain.run_jobs
+
+    post :create, {"name" => @app_name, "cartridge" => PHP_VERSION, "domain_id" => @domain.namespace}    
+    assert_response :forbidden
+
+    @domain.members.find(@user).role = :edit
+    @domain.save; @domain.run_jobs
+
+    post :create, {"name" => @app_name, "cartridge" => PHP_VERSION, "domain_id" => @domain.namespace}    
+    assert_response :success    
+  end
+
   test "attempt to create with only build scope" do
     @app_name = "app#{@random}"
     post :create, {"name" => @app_name, "cartridge" => PHP_VERSION, "domain_id" => @domain.namespace}

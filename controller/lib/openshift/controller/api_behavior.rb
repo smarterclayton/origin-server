@@ -90,7 +90,7 @@ module OpenShift
 
         def if_included(sym, default=nil, &block)
           if get_includes.any?{ |i| i == sym.to_s }
-            yield
+            block_given? ? yield : true
           else
             default
           end

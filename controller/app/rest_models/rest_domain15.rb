@@ -30,6 +30,11 @@ class RestDomain15 < OpenShift::Model
     self.members = domain.members.map{ |m| RestMember.new(m, domain.owner_id == m._id, url, nolinks) }
     self.allowed_gear_sizes = domain.allowed_gear_sizes
     
+    if not domain.application_count.nil?
+      @application_count = domain.application_count
+      @gear_counts = domain.gear_counts || {}
+    end
+
     unless nolinks      
       valid_sizes = domain.allowed_gear_sizes
       blacklisted_words = OpenShift::ApplicationContainerProxy.get_blacklisted

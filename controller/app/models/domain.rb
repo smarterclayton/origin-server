@@ -47,6 +47,10 @@ class Domain
   index({:owner_id => 1})
   create_indexes
 
+  # non-persisted fields used to store info about the applications in this domain
+  attr_accessor :application_count
+  attr_accessor :gear_counts
+
   validates :namespace,
     #presence: {message: "Namespace is required and cannot be blank."},
     format:   {with: DOMAIN_NAME_REGEX, message: "Invalid namespace. Namespace must only contain alphanumeric characters.", allow_blank: true},
@@ -72,6 +76,29 @@ class Domain
 
   def self.sort_by_original(user)
     lambda{ |d| [user._id == d.owner_id ? 0 : 1, d.created_at] }
+  end
+
+  def self.with_gear_counts(domains=queryable.to_a)
+    info_by_domain = Application.in(domain_id: domains.map(&:_id)).with_gear_counts.group_by{ |a| a['domain_id'] }
+    domains.each do |d|
+      if info = info_by_domain[d._id]
+        d.application_count = info.length
+        d.gear_counts = info.inject({}) do |h, v|
+          v['gears'].each_pair do |size,count|
+            h[size] ||= 0
+            h[size] += count
+          end
+          h
+        end
+      else
+        d.application_count = 0
+        d.gear_counts = {}
+      end
+    end
+  end
+
+  def with_gear_counts
+    self.class.with_gear_counts([self]).first
   end
 
   before_save prepend: true do

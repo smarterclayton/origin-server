@@ -15,14 +15,14 @@ class DomainsController < BaseController
   def index
     domains = 
       case params[:owner]
-      when "@self" then Domain.where(owner: current_user).to_a
-      when nil     then Domain.accessible(current_user).to_a
+      when "@self" then Domain.where(owner: current_user)
+      when nil     then Domain.accessible(current_user)
       else return render_error(:bad_request, "Only @self is supported for the 'owner' argument.") 
       end
 
-    app_info = if_included(:application_info, {}){ Application.in(domain_id: domains.map(&:_id)).with_gear_counts.group_by{ |a| a['domain_id'] }  }
+    if_included(:application_info, {}){ domains = domains.with_gear_counts }
 
-    render_success(:ok, "domains", domains.sort_by(&Domain.sort_by_original(current_user)).map{ |d| get_rest_domain(d, app_info[d._id]) })
+    render_success(:ok, "domains", domains.sort_by(&Domain.sort_by_original(current_user)).map{ |d| get_rest_domain(d) })
   end
 
   # Retuns domain for the current user that match the given parameters.
@@ -36,9 +36,9 @@ class DomainsController < BaseController
   def show
     get_domain(params[:name] || params[:id])
 
-    app_info = if_included(:application_info){ Application.where(domain_id: @domain._id).with_gear_counts }
+    if_included(:application_info){ @domain.with_gear_counts }
 
-    return render_success(:ok, "domain", get_rest_domain(@domain, app_info), "Found domain #{@domain.namespace}") if @domain
+    return render_success(:ok, "domain", get_rest_domain(@domain), "Found domain #{@domain.namespace}") if @domain
   end
 
   # Create a new domain for the user

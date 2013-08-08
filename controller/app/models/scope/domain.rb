@@ -3,8 +3,9 @@ class Scope::Domain < Scope::Parameterized
   description "Grant access to perform API actions against a single domain and the contained applications."
 
   DOMAIN_SCOPES = {
+    :admin => 'Grant full administrative access to a single domain and all its applications.',
+    :edit => 'Grant edit access to a single domain and all its applications.',
     :view => 'Grant read-only access to a single domain.',
-    :admin => 'Allow full access to the domain.',
   }.freeze
 
   def allows_action?(controller)
@@ -18,8 +19,23 @@ class Scope::Domain < Scope::Parameterized
 
   def authorize_action?(permission, resource, other_resources, user)
     case domain_scope
-    when :admin 
-      Domain === resource || Application === resource
+    when :admin
+      case resource
+      when Domain
+        resource._id === id
+      when Application
+        return false unless resource.domain_id === id 
+        Scope::Application.authorize_action?(resource._id, :admin, permission, resource, other_resources, user)
+      end
+    when :edit
+      case resource
+      when Domain
+        resource._id === id && [:create_application, :create_builder_application].include?(permission)
+      when Application
+        return false unless resource.domain_id === id 
+        return true if permission == :destroy
+        Scope::Application.authorize_action?(resource._id, :edit, permission, resource, other_resources, user)
+      end      
     end
   end
 

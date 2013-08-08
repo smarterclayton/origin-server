@@ -23,16 +23,16 @@
 class RestDomain < OpenShift::Model
   attr_accessor :name, :suffix, :members, :allowed_gear_sizes, :creation_time, :links
   
-  def initialize(domain, application_info, url, nolinks=false)
+  def initialize(domain, url, nolinks=false)
     self.name = domain.namespace
     self.suffix = Rails.application.config.openshift[:domain_suffix] 
     self.creation_time = domain.created_at
     self.members = domain.members.map{ |m| RestMember.new(m, domain.owner_id == m._id, url, nolinks) }
     self.allowed_gear_sizes = domain.allowed_gear_sizes
 
-    if application_info.present?
-      @application_count = application_info.length
-      @gear_count = application_info.map{ |i| (i['gears'] || {}).values.sum }.sum
+    if not domain.application_count.nil?
+      @application_count = domain.application_count
+      @gear_counts = domain.gear_counts || {}
     end
     
     unless nolinks      
