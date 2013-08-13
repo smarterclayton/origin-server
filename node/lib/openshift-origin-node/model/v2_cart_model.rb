@@ -163,7 +163,7 @@ module OpenShift
 
           _, _, version, _ = Runtime::Manifest.parse_ident(IO.read(ident_path))
 
-          @cartridges[directory] = Manifest.new(manifest_path, version, @container.container_dir)
+          @cartridges[directory] = Manifest.new(manifest_path, version, :file, @container.container_dir)
         end
         @cartridges[directory]
       end
@@ -180,7 +180,7 @@ module OpenShift
 
         raise "Cartridge manifest not found: #{manifest_path} missing" unless File.exists?(manifest_path)
 
-        Manifest.new(manifest_path, version, @container.container_dir)
+        Manifest.new(manifest_path, version, :file, @container.container_dir)
       end
 
       # destroy(skip_hooks = false) -> [buffer, '', 0]
@@ -628,11 +628,16 @@ module OpenShift
         gear_env           = ::OpenShift::Runtime::Utils::Environ.for_gear(@container.container_dir)
         cartridge_env_home = PathUtils.join(cartridge_home, 'env')
 
-        cartridge_env = gear_env.merge(Utils::Environ.load(cartridge_env_home))
+        cartridge_env = Utils::Environ.load(cartridge_env_home)
+        cartridge_env.delete('PATH')
+        cartridge_env = gear_env.merge(cartridge_env)
         if render_erbs
           erbs = Dir.glob(cartridge_env_home + '/*.erb', File::FNM_DOTMATCH).select { |f| File.file?(f) }
           render_erbs(cartridge_env, erbs)
-          cartridge_env = gear_env.merge(Utils::Environ.load(cartridge_env_home))
+
+          cartridge_env = Utils::Environ.load(cartridge_env_home)
+          cartridge_env.delete('PATH')
+          cartridge_env = gear_env.merge(cartridge_env)
         end
 
         action << " --version #{software_version}"
@@ -1100,6 +1105,7 @@ module OpenShift
         process_cartridges(cartridge_dir) { |path|
           # Make sure this cartridge's env directory overrides that of other cartridge envs
           cartridge_local_env = ::OpenShift::Runtime::Utils::Environ.load(PathUtils.join(path, 'env'))
+          cartridge_local_env.delete('PATH')
 
           ident                            = cartridge_local_env.keys.grep(/^OPENSHIFT_.*_IDENT/)
           _, software, software_version, _ = Runtime::Manifest.parse_ident(cartridge_local_env[ident.first])

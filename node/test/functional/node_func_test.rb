@@ -24,8 +24,7 @@ class NodeTest < OpenShift::NodeTestCase
   def setup
     super
 
-    YAML.stubs(:load_file).
-        returns(YAML.load(MANIFESTS[0]))
+    YAML.stubs(:safe_load_file).returns(YAML.load(MANIFESTS[0]))
     File.stubs(:exist?).returns(true)
 
     OpenShift::Runtime::CartridgeRepository.
@@ -126,7 +125,7 @@ module OpenShift
       def test_set_quota_fail_quota
         results = Runtime::Node.get_quota(@uuid)
         assert_raises(NodeCommandException) do
-          OpenShift::Runtime::Node.set_quota(@uuid, (results[1].to_s.to_i - 1), '')
+          OpenShift::Runtime::Node.set_quota(@uuid, results[:blocks_used] - 1, '')
         end
       end
 
@@ -134,7 +133,7 @@ module OpenShift
         results = Runtime::Node.get_quota(@uuid)
 
         assert_raises(NodeCommandException) do
-          OpenShift::Runtime::Node.set_quota(@uuid, results[1], (results[4].to_s.to_i - 1))
+          OpenShift::Runtime::Node.set_quota(@uuid, results[:blocks_used], results[:inodes_used] - 1)
         end
       end
     end
