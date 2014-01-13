@@ -641,8 +641,8 @@ def repair_removed_nodes(available_servers, unresponsive_servers, auto_confirm)
       app, recoverable, framework, db = app_info[0], app_info[1], app_info[2], app_info[3]
       if !recoverable and (framework[:backup_available] or db[:backup_available])
       apps_to_backup << app_id
-    end 
-    d
+    end
+
     less apps_to_backup.empty?
     puts "Found #{apps_to_backup.size} unresponsive scalable apps that can not be recovered but framework/db backup available."
     apps_to_backup.each do |app_id|
