@@ -1499,7 +1499,6 @@ class Application
           raise Exception.new("Op group is already being rolled back.")
         end
 
-        op_group.reorder_usage_ops
         op_group.execute(result_io)
         op_group.unreserve_gears(op_group.num_gears_removed, self)
         op_group.delete
@@ -1623,15 +1622,6 @@ class Application
     unsubscribe_conn_ops = []
     comp_specs.each do |comp_spec|
       comp_instance = self.component_instances.find_by(cartridge_name: comp_spec["cart"], component_name: comp_spec["comp"])
-      remove_ssh_keys = self.app_ssh_keys.find_by(component_id: comp_instance._id) rescue []
-      remove_ssh_keys = [remove_ssh_keys].flatten
-      if remove_ssh_keys.length > 0
-        keys_attrs = remove_ssh_keys.map{|k| k.attributes.dup}
-        op_group = UpdateAppConfigOpGroup.new(remove_keys_attrs: keys_attrs, user_agent: self.user_agent)
-        Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: op_group.serializable_hash_with_timestamp }, "$pullAll" => { app_ssh_keys: keys_attrs }})
-      end
-      domain.remove_system_ssh_keys(comp_instance._id)
-      domain.remove_env_variables(comp_instance._id)
       unsubscribe_conn_ops.push(UnsubscribeConnectionsOp.new(sub_pub_info: get_unsubscribe_info(comp_instance), prereq: gear_destroy_op_ids))
     end
     pending_ops.push(*unsubscribe_conn_ops)
@@ -1703,7 +1693,9 @@ class Application
       pending_ops.push(UpdateAppConfigOp.new(gear_id: gear_id, prereq: prereq, recalculate_sshkeys: true, add_env_vars: env_vars, config: (self.config || {})))
     end
 
-    if app_dns_gear_id
+
+    # Add broker auth for non scalable apps
+    if app_dns_gear_id && !scalable
       prereq = gear_id_prereqs[app_dns_gear_id].nil? ? [] : [gear_id_prereqs[app_dns_gear_id]]
       add_broker_auth_op = AddBrokerAuthKeyOp.new(gear_id: app_dns_gear_id, prereq: prereq)
       pending_ops.push add_broker_auth_op
@@ -1747,14 +1739,6 @@ class Application
       ops.push(unreserve_uid_op)
       ops.push(delete_gear_op)
       ops.push(track_usage_op)
-
-      remove_ssh_keys = self.app_ssh_keys.find_by(component_id: gear_id) rescue []
-      remove_ssh_keys = [remove_ssh_keys].flatten
-      if remove_ssh_keys.length > 0
-        keys_attrs = remove_ssh_keys.map{|k| k.attributes.dup}
-        op_group = UpdateAppConfigOpGroup.new(remove_keys_attrs: keys_attrs, user_agent: self.user_agent)
-        Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: op_group.serializable_hash_with_timestamp }, "$pullAll" => { app_ssh_keys: keys_attrs }})
-      end
 
       pending_ops.push *ops
       if additional_filesystem_gb != 0
@@ -1873,7 +1857,7 @@ class Application
     ops = []
 
     comp_specs.each do |comp_spec|
-      component_ops[comp_spec] = {new_component: nil, adds: [], post_configures: [], expose_ports: []} if component_ops[comp_spec].nil?
+      component_ops[comp_spec] = {new_component: nil, adds: [], post_configures: [], expose_ports: [], add_broker_auth_keys: []} if component_ops[comp_spec].nil?
       cartridge = CartridgeCache.find_cartridge(comp_spec["cart"], self)
 
       new_component_op_id = []
@@ -1885,11 +1869,20 @@ class Application
         ops.push new_component_op
       end
 
-      sparse_carts_added_count =0
+      sparse_carts_added_count = 0
       gear_id_prereqs.each_with_index do |prereq, index|
         gear_id, prereq_id = prereq
         next if not add_sparse_cart?(index, sparse_carts_added_count, cartridge, comp_spec, is_scale_up)
         sparse_carts_added_count += 1
+
+        # Ensure that all web_proxies get broker auth
+        if cartridge.categories.include?("web_proxy")
+          add_broker_auth_op = AddBrokerAuthKeyOp.new(gear_id: gear_id, prereq: new_component_op_id + [prereq_id])
+          prereq_id = add_broker_auth_op._id.to_s
+          component_ops[comp_spec][:add_broker_auth_keys].push add_broker_auth_op
+          ops.push add_broker_auth_op
+        end
+
         git_url = nil
         git_url = init_git_url if gear_id == deploy_gear_id && cartridge.is_deployable?
         add_component_op = AddCompOp.new(gear_id: gear_id, comp_spec: comp_spec, init_git_url: git_url, prereq: new_component_op_id + [prereq_id])
@@ -1911,11 +1904,11 @@ class Application
           app_name: self.name, gear_id: gear_id, event: UsageRecord::EVENTS[:begin], cart_name: comp_spec["cart"],
           usage_type: UsageRecord::USAGE_TYPES[:premium_cart], prereq: usage_op_prereq)) if cartridge.is_premium?
 
-       if self.scalable
-        op = ExposePortOp.new(gear_id: gear_id, comp_spec: comp_spec, prereq: usage_op_prereq + [prereq_id])
-        component_ops[comp_spec][:expose_ports].push op
-        ops.push op
-       end
+        if self.scalable
+          op = ExposePortOp.new(gear_id: gear_id, comp_spec: comp_spec, prereq: usage_op_prereq + [prereq_id])
+          component_ops[comp_spec][:expose_ports].push op
+          ops.push op
+        end
       end
     end
 
@@ -1936,15 +1929,6 @@ class Application
             usage_type: UsageRecord::USAGE_TYPES[:premium_cart], prereq: [op._id.to_s])) if cartridge.is_premium?
         end
       end
-      remove_ssh_keys = self.app_ssh_keys.find_by(component_id: component_instance._id) rescue []
-      remove_ssh_keys = [remove_ssh_keys].flatten
-      if remove_ssh_keys.length > 0
-        keys_attrs = remove_ssh_keys.map{|k| k.attributes.dup}
-        op_group = UpdateAppConfigOpGroup.new(remove_keys_attrs: keys_attrs, user_agent: self.user_agent)
-        Application.where(_id: self._id).update_all({ "$push" => { pending_op_groups: op_group.serializable_hash_with_timestamp }, "$pullAll" => { app_ssh_keys: keys_attrs }})
-      end
-      domain.remove_system_ssh_keys(component_instance._id)
-      domain.remove_env_variables(component_instance._id)
       op = DeleteCompOp.new(comp_spec: comp_spec, prereq: ops.map{|o| o._id.to_s})
       ops.push op
       ops.push(UnsubscribeConnectionsOp.new(sub_pub_info: get_unsubscribe_info(component_instance), prereq: [op._id.to_s]))
@@ -2116,11 +2100,14 @@ class Application
     config_order = calculate_configure_order(component_ops.keys)
     config_order.each_index do |idx|
       next if idx == 0
-      prereq_ids = component_ops[config_order[idx-1]][:adds].map{|op| op._id.to_s}
+      prereq_ids = []
+      prereq_ids += component_ops[config_order[idx-1]][:add_broker_auth_keys].map{|op| op._id.to_s}
+      prereq_ids += component_ops[config_order[idx-1]][:adds].map{|op| op._id.to_s}
       prereq_ids += component_ops[config_order[idx-1]][:post_configures].map{|op| op._id.to_s}
       prereq_ids += component_ops[config_order[idx-1]][:expose_ports].map {|op| op._id.to_s }
 
       component_ops[config_order[idx]][:new_component].prereq += prereq_ids unless component_ops[config_order[idx]][:new_component].nil?
+      component_ops[config_order[idx]][:add_broker_auth_keys].each { |op| op.prereq += prereq_ids }
       component_ops[config_order[idx]][:adds].each { |op| op.prereq += prereq_ids }
       component_ops[config_order[idx]][:post_configures].each { |op| op.prereq += prereq_ids }
       component_ops[config_order[idx]][:expose_ports].each { |op| op.prereq += prereq_ids }
@@ -2152,6 +2139,9 @@ class Application
       update_cluster_op = UpdateClusterOp.new(prereq: all_ops_ids)
       pending_ops.push update_cluster_op
     end
+
+    # push begin track usage ops to the end
+    reorder_usage_ops(pending_ops)
 
     [pending_ops, add_gears, remove_gears]
   end
@@ -2688,6 +2678,26 @@ class Application
     computed_stop_order = computed_stop_order.select { |co| not co.nil? }
 
     [computed_start_order, computed_stop_order]
+  end
+
+  def reorder_usage_ops(pending_ops)
+    op_ids = []
+    begin_usage_op_ids = []
+    pending_ops.each do |op|
+      if op.kind_of?(TrackUsageOp) and (op.event != UsageRecord::EVENTS[:end])
+        begin_usage_op_ids << op._id.to_s
+      else
+        op_ids << op._id.to_s
+      end
+    end
+    pending_ops.each do |op|
+      if begin_usage_op_ids.include?(op._id.to_s)
+        op.prereq += op_ids
+        op.prereq.uniq!
+      else
+        op.prereq.delete_if {|id| begin_usage_op_ids.include?(id)}
+      end
+    end unless begin_usage_op_ids.empty?
   end
 
   # Gets a feature name for the cartridge/component combination
