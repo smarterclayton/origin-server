@@ -100,7 +100,7 @@ class RestCartridge < OpenShift::Model
     self.tags = cart.categories
     self.website = cart.website
     self.type = "standalone"
-    self.type = "embedded" if cart.is_embeddable?
+    self.type = "embedded" unless cart.is_web_framework?
     scale = cart.components.first.scaling
     if not scale.nil?
       self.supported_scales_from = scale.min

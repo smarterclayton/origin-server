@@ -1,35 +1,39 @@
 module OpenShift
   module CartridgeCategories
     def is_plugin?
-      return is_web_proxy? || is_ci_builder? || categories.include?('plugin')
+      is_web_proxy? || is_ci_builder? || categories.include?('plugin')
     end
 
     def is_service?
-      return categories.include?('service')
+      categories.include?('service')
+    end
+
+    def is_external?
+      categories.include?('external')
     end
 
     def is_embeddable?
-      return categories.include?('embedded')
+      categories.include?('embedded')
     end
 
     def is_domain_scoped?
-      return categories.include?('domain_scope')
+      categories.include?('domain_scope')
     end
 
     def is_web_proxy?
-      return features.include?('web_proxy')
+      features.include?('web_proxy')
     end
 
     def is_web_framework?
-      return categories.include?('web_framework')
+      categories.include?('web_framework')
     end
 
     def is_ci_server?
-      return categories.include?('ci')
+      categories.include?('ci')
     end
 
     def is_ci_builder?
-      return categories.include?('ci_builder')
+      categories.include?('ci_builder')
     end
 
     alias_method :is_deployable?, :is_web_framework?
@@ -39,7 +43,7 @@ module OpenShift
 
   module CartridgeAspects
     def is_premium?
-      return usage_rates.present?
+      usage_rates.present?
     end
 
     def usage_rates
@@ -144,7 +148,7 @@ module OpenShift
     end
 
     def is_obsolete?
-      return obsolete || false
+      obsolete || false
     end
 
     def from_descriptor(spec_hash={})

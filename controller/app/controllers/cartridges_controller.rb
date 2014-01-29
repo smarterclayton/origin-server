@@ -63,6 +63,6 @@ class CartridgesController < BaseController
     end
     carts = carts.sort_by(&OpenShift::Cartridge::NAME_PRECEDENCE_ORDER)
 
-    render_success(:ok, "cartridges", carts.map{ |c| get_rest_cartridge(c) }, "#{searching ? "Searching" : "Listing "} cartridges")
+    render_success(:ok, "cartridges", carts.map{ |c| get_rest_cartridge(c) }, "#{searching ? "Searching" : "Listing"} cartridges")
   end
 end

@@ -639,6 +639,34 @@ class ApplicationControllerTest < ActionController::TestCase
     json_messages{ |ms| assert ms.any?{ |m| m['text'].include? "The cartridge 'mock-mock-0.1' does not support being made scalable." }, ms.inspect }
   end
 
+
+  test "create embedded app with external cartridges" do
+    CartridgeCache.expects(:download_from_url).with("manifest://test", "cartridge").returns(<<-MANIFEST.strip_heredoc)
+      ---
+      Name: mock
+      Version: '0.1'
+      Cartridge-Short-Name: MOCK
+      Cartridge-Vendor: mock
+      Categories:
+      - external
+      MANIFEST
+    @app_name = "app#{@random}"
+    post :create, {"name" => @app_name, "cartridge" => [php_version, {"url" => "manifest://test"}], "domain_id" => @domain.namespace}
+    assert_response :success
+    assert app = assigns(:application)
+    assert !app.scalable
+    assert_equal 2, app.group_instances.length
+    assert_equal 2, app.cartridges.length
+    assert_equal 1, app.gears.length
+    assert cart = app.cartridges.detect{ |c| c.name == 'mock-mock-0.1' }
+    assert !cart.persisted?
+    assert cart.is_external?
+    assert cart = app.cartridges.detect{ |c| c.name == php_version }
+    assert_equal 1, app.group_instances_with_overrides[0].max_gears
+    assert_equal 0, app.group_instances_with_overrides[1].max_gears
+    binding.pry
+  end
+
   test "create scalable app with custom web_proxy" do
     CartridgeCache.expects(:download_from_url).with("manifest://test", "cartridge").returns(<<-MANIFEST.strip_heredoc)
       ---
@@ -869,7 +897,7 @@ class ApplicationControllerTest < ActionController::TestCase
     assert_equal 2, carts[0].requires.length
 
     assert_equal 3, app.cartridges.length
-    assert cart = app.cartridges.detect{ |c| c.name == mysql_version }
+    assert (cart = app.cartridges.detect{ |c| c.original_name == 'mysql' }), app.cartridges.map(&:name).join(', ')
     assert cart = app.cartridges.detect{ |c| c.original_name == 'phpmyadmin' }
   end
 

@@ -8,7 +8,12 @@ class NewCompOp < PendingAppOp
   field :version, type: String
 
   def execute
-    group = get_group_instance
+    begin
+      group = get_group_instance
+    rescue Mongoid::Errors::DocumentNotFound
+      group = GroupInstance.new(_id: group_instance_id)
+    end
+
     if spec = comp_spec
       spec.application = application
       cartridge = spec.cartridge(pending_app_op_group)
@@ -19,6 +24,7 @@ class NewCompOp < PendingAppOp
       # write atomically
       skip_map = application.downloaded_cart_map.nil? || cartridge.persisted?
       application.atomic_update do
+        application.group_instances << group unless group.persisted?
         application.component_instances << instance
         application.downloaded_cart_map[cartridge.original_name] = CartridgeCache.cartridge_to_data(cartridge) unless skip_map
       end
